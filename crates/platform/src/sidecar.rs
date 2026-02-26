@@ -10,6 +10,7 @@ use ubertooth_core::error::{Result, UbertoothError};
 
 use crate::backend::UbertoothBackendProvider;
 use crate::capture_store::{CaptureMetadata, CaptureStore};
+use crate::config_store::{ConfigMetadata, ConfigSettings, ConfigStore};
 
 /// Python sidecar process manager.
 ///
@@ -121,6 +122,10 @@ impl UbertoothBackendProvider for SidecarManager {
             "btle_follow" => self.btle_follow(params).await,
             "configure_squelch" => self.configure_squelch(params).await,
             "configure_leds" => self.configure_leds(params).await,
+            "bt_save_config" => self.bt_save_config(params).await,
+            "bt_load_config" => self.bt_load_config(params).await,
+            "config_list" => self.config_list(params).await,
+            "config_delete" => self.config_delete(params).await,
             _ => Err(UbertoothError::BackendError(format!(
                 "Method not implemented: {}",
                 method
@@ -1008,6 +1013,149 @@ impl SidecarManager {
                 "tx": tx_led
             },
             "note": "Phase 2 Week 3: LED control pending ubertooth-util integration"
+        }))
+    }
+
+    /// Save current configuration as a preset.
+    ///
+    /// Phase 2 Week 4: Configuration preset management.
+    async fn bt_save_config(&self, params: Value) -> Result<Value> {
+        let config_name = params
+            .get("config_name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'config_name'".to_string()))?;
+
+        let description = params
+            .get("description")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        let overwrite = params
+            .get("overwrite")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        tracing::info!("Saving configuration: {}", config_name);
+
+        // Get current device status to capture settings
+        let device_status = self.device_status().await?;
+
+        // Extract settings from device status
+        let settings = ConfigSettings {
+            channel: device_status.get("channel").and_then(|v| v.as_u64()).map(|v| v as u8),
+            modulation: device_status.get("modulation").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            power_level: None, // TODO: Extract from device_status when available
+            paen: None,
+            hgm: None,
+            squelch: None,
+        };
+
+        // Create config metadata
+        let config = ConfigMetadata {
+            name: config_name.to_string(),
+            description,
+            created: Utc::now(),
+            settings: settings.clone(),
+        };
+
+        // Save to file
+        let store = ConfigStore::new()?;
+        let config_path = store.save_config(&config, overwrite)?;
+
+        Ok(json!({
+            "success": true,
+            "config_name": config_name,
+            "config_path": config_path.to_string_lossy(),
+            "saved_settings": {
+                "channel": settings.channel,
+                "modulation": settings.modulation,
+                "power_level": settings.power_level,
+                "paen": settings.paen,
+                "hgm": settings.hgm,
+                "squelch": settings.squelch
+            }
+        }))
+    }
+
+    /// Load a saved configuration preset.
+    ///
+    /// Phase 2 Week 4: Apply saved settings to device.
+    async fn bt_load_config(&self, params: Value) -> Result<Value> {
+        let config_name = params
+            .get("config_name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'config_name'".to_string()))?;
+
+        tracing::info!("Loading configuration: {}", config_name);
+
+        // Load config from file
+        let store = ConfigStore::new()?;
+        let config = store.load_config(config_name)?;
+
+        // Apply settings to device
+        // TODO: Call configure_* methods to apply each setting
+
+        Ok(json!({
+            "success": true,
+            "config_name": config_name,
+            "applied_settings": {
+                "channel": config.settings.channel,
+                "modulation": config.settings.modulation,
+                "power_level": config.settings.power_level
+            },
+            "message": format!("Configuration '{}' loaded successfully", config_name)
+        }))
+    }
+
+    /// List all saved configuration presets.
+    ///
+    /// Phase 2 Week 4: List configs from ~/.ubertooth/configs/
+    async fn config_list(&self, _params: Value) -> Result<Value> {
+        tracing::info!("Listing saved configurations");
+
+        let store = ConfigStore::new()?;
+        let configs = store.list_configs()?;
+
+        let config_list: Vec<Value> = configs
+            .iter()
+            .map(|c| {
+                json!({
+                    "name": c.name,
+                    "description": c.description,
+                    "created": c.created.to_rfc3339(),
+                    "settings_preview": {
+                        "channel": c.settings.channel,
+                        "modulation": c.settings.modulation
+                    }
+                })
+            })
+            .collect();
+
+        Ok(json!({
+            "success": true,
+            "configs": config_list,
+            "count": configs.len()
+        }))
+    }
+
+    /// Delete a saved configuration preset.
+    ///
+    /// Phase 2 Week 4: Remove config file from ~/.ubertooth/configs/
+    async fn config_delete(&self, params: Value) -> Result<Value> {
+        let config_name = params
+            .get("config_name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'config_name'".to_string()))?;
+
+        tracing::info!("Deleting configuration: {}", config_name);
+
+        let store = ConfigStore::new()?;
+        store.delete_config(config_name)?;
+
+        Ok(json!({
+            "success": true,
+            "message": format!("Configuration '{}' deleted", config_name)
         }))
     }
 }

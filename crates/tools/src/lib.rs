@@ -21,6 +21,10 @@ mod bt_discover;
 mod btle_follow;
 mod configure_squelch;
 mod configure_leds;
+mod bt_save_config;
+mod bt_load_config;
+mod config_list;
+mod config_delete;
 
 use std::sync::Arc;
 use ubertooth_core::tools::ToolRegistry;
@@ -47,6 +51,10 @@ pub use bt_discover::BtDiscoverTool;
 pub use btle_follow::BtleFollowTool;
 pub use configure_squelch::ConfigureSquelchTool;
 pub use configure_leds::ConfigureLedsTool;
+pub use bt_save_config::BtSaveConfigTool;
+pub use bt_load_config::BtLoadConfigTool;
+pub use config_list::ConfigListTool;
+pub use config_delete::ConfigDeleteTool;
 
 /// Create and populate the tool registry with all available tools.
 ///
@@ -84,6 +92,12 @@ pub fn create_tool_registry(backend: Arc<dyn UbertoothBackendProvider>) -> ToolR
     // Phase 2 Week 3 - bt-config (advanced)
     registry.register(Arc::new(ConfigureSquelchTool::new(backend.clone())));
     registry.register(Arc::new(ConfigureLedsTool::new(backend.clone())));
+
+    // Phase 2 Week 4 - bt-config (presets)
+    registry.register(Arc::new(BtSaveConfigTool::new(backend.clone())));
+    registry.register(Arc::new(BtLoadConfigTool::new(backend.clone())));
+    registry.register(Arc::new(ConfigListTool::new(backend.clone())));
+    registry.register(Arc::new(ConfigDeleteTool::new(backend.clone())));
 
     // Phase 1 tools - bt-capture
     registry.register(Arc::new(CaptureListTool::new(backend.clone())));

@@ -2,6 +2,7 @@
 
 pub mod backend;
 pub mod capture_store;
+pub mod config_store;
 pub mod sidecar;
 pub mod system_info;
 
@@ -10,6 +11,7 @@ pub mod rust_usb;
 
 pub use backend::UbertoothBackendProvider;
 pub use capture_store::CaptureStore;
+pub use config_store::ConfigStore;
 pub use sidecar::SidecarManager;
 pub use system_info::SystemInfo;
 
