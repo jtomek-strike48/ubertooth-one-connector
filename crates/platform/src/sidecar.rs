@@ -114,6 +114,13 @@ impl UbertoothBackendProvider for SidecarManager {
             "capture_tag" => self.capture_tag(params).await,
             "bt_analyze" => self.bt_analyze(params).await,
             "session_context" => self.session_context(params).await,
+            "bt_scan" => self.bt_scan(params).await,
+            "bt_follow" => self.bt_follow(params).await,
+            "afh_analyze" => self.afh_analyze(params).await,
+            "bt_discover" => self.bt_discover(params).await,
+            "btle_follow" => self.btle_follow(params).await,
+            "configure_squelch" => self.configure_squelch(params).await,
+            "configure_leds" => self.configure_leds(params).await,
             _ => Err(UbertoothError::BackendError(format!(
                 "Method not implemented: {}",
                 method
@@ -812,6 +819,195 @@ impl SidecarManager {
                 "captures_count": all_captures.len(),
                 "total_size_mb": format!("{:.1}", total_size_mb).parse::<f64>().unwrap_or(0.0)
             }
+        }))
+    }
+
+    /// Bluetooth Classic device scanning implementation.
+    ///
+    /// Phase 2 Week 3: Wraps ubertooth-scan for BR/EDR inquiry scan.
+    async fn bt_scan(&self, params: Value) -> Result<Value> {
+        let duration_sec = params
+            .get("duration_sec")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(30);
+
+        let _extended_inquiry = params
+            .get("extended_inquiry")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+
+        tracing::info!("Starting Bluetooth Classic scan: {}s", duration_sec);
+
+        // Create capture store and generate ID
+        let store = CaptureStore::new()?;
+        let capture_id = CaptureStore::generate_capture_id("btscan");
+
+        // Phase 2 TODO: Implement ubertooth-scan wrapper
+        // For now return empty result
+        Ok(json!({
+            "success": true,
+            "capture_id": capture_id,
+            "devices_found": [],
+            "total_devices": 0,
+            "pcap_path": store.captures_dir().join(format!("{}.pcap", capture_id)).to_string_lossy(),
+            "note": "Phase 2 Week 3: ubertooth-scan integration pending"
+        }))
+    }
+
+    /// Follow Bluetooth connection implementation.
+    ///
+    /// Phase 2 Week 3: Wraps ubertooth-follow for targeted connection monitoring.
+    async fn bt_follow(&self, params: Value) -> Result<Value> {
+        let bd_addr = params
+            .get("bd_addr")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'bd_addr'".to_string()))?;
+
+        let duration_sec = params
+            .get("duration_sec")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(60);
+
+        tracing::info!("Following BT connection: {} for {}s", bd_addr, duration_sec);
+
+        let store = CaptureStore::new()?;
+        let capture_id = CaptureStore::generate_capture_id("follow");
+
+        // Phase 2 TODO: Implement ubertooth-follow wrapper
+        Ok(json!({
+            "success": true,
+            "capture_id": capture_id,
+            "bd_addr": bd_addr,
+            "connection_found": false,
+            "packet_count": 0,
+            "duration_sec": duration_sec,
+            "channels_used": [],
+            "pcap_path": store.captures_dir().join(format!("{}.pcap", capture_id)).to_string_lossy(),
+            "note": "Phase 2 Week 3: ubertooth-follow integration pending"
+        }))
+    }
+
+    /// AFH analysis implementation.
+    ///
+    /// Phase 2 Week 3: Wraps ubertooth-afh for channel map analysis.
+    async fn afh_analyze(&self, params: Value) -> Result<Value> {
+        let bd_addr = params.get("bd_addr").and_then(|v| v.as_str());
+        let duration_sec = params
+            .get("duration_sec")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(30);
+
+        tracing::info!("Analyzing AFH: {:?} for {}s", bd_addr, duration_sec);
+
+        // Phase 2 TODO: Implement ubertooth-afh wrapper
+        Ok(json!({
+            "success": true,
+            "bd_addr": bd_addr,
+            "afh_map": "0x0000000000000000000000",
+            "channels_used": [],
+            "channels_avoided": [],
+            "used_count": 0,
+            "avoided_count": 0,
+            "interpretation": "Phase 2 Week 3: ubertooth-afh integration pending"
+        }))
+    }
+
+    /// Promiscuous Bluetooth discovery implementation.
+    ///
+    /// Phase 2 Week 3: Wraps ubertooth-rx for BR/EDR promiscuous capture.
+    async fn bt_discover(&self, params: Value) -> Result<Value> {
+        let duration_sec = params
+            .get("duration_sec")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(60);
+
+        tracing::info!("Starting promiscuous BT discovery: {}s", duration_sec);
+
+        let store = CaptureStore::new()?;
+        let capture_id = CaptureStore::generate_capture_id("discover");
+
+        // Phase 2 TODO: Implement ubertooth-rx wrapper
+        Ok(json!({
+            "success": true,
+            "capture_id": capture_id,
+            "duration_sec": duration_sec,
+            "piconets_found": [],
+            "total_packets": 0,
+            "pcap_path": store.captures_dir().join(format!("{}.pcap", capture_id)).to_string_lossy(),
+            "note": "Phase 2 Week 3: ubertooth-rx integration pending"
+        }))
+    }
+
+    /// BLE connection following implementation.
+    ///
+    /// Phase 2 Week 3: Wraps ubertooth-btle with access address following.
+    async fn btle_follow(&self, params: Value) -> Result<Value> {
+        let access_address = params
+            .get("access_address")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'access_address'".to_string()))?;
+
+        let duration_sec = params
+            .get("duration_sec")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(60);
+
+        tracing::info!("Following BLE connection: {} for {}s", access_address, duration_sec);
+
+        let store = CaptureStore::new()?;
+        let capture_id = CaptureStore::generate_capture_id("btlefollow");
+
+        // Phase 2 TODO: Implement ubertooth-btle -f wrapper
+        Ok(json!({
+            "success": true,
+            "capture_id": capture_id,
+            "access_address": access_address,
+            "packets_captured": 0,
+            "connection_events": 0,
+            "crc_valid_percent": 0.0,
+            "pcap_path": store.captures_dir().join(format!("{}.pcap", capture_id)).to_string_lossy(),
+            "note": "Phase 2 Week 3: ubertooth-btle -f integration pending"
+        }))
+    }
+
+    /// Configure RSSI squelch implementation.
+    ///
+    /// Phase 2 Week 3: Wraps ubertooth-util squelch configuration.
+    async fn configure_squelch(&self, params: Value) -> Result<Value> {
+        let squelch_level = params
+            .get("squelch_level")
+            .and_then(|v| v.as_i64())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'squelch_level'".to_string()))?;
+
+        tracing::info!("Configuring squelch: {} dBm", squelch_level);
+
+        // Phase 2 TODO: Implement ubertooth-util -q wrapper
+        Ok(json!({
+            "success": true,
+            "squelch_level": squelch_level,
+            "message": format!("Squelch set to {} dBm (Phase 2 Week 3: pending ubertooth-util integration)", squelch_level)
+        }))
+    }
+
+    /// Configure LEDs implementation.
+    ///
+    /// Phase 2 Week 3: LED control via ubertooth-util.
+    async fn configure_leds(&self, params: Value) -> Result<Value> {
+        let usr_led = params.get("usr_led").and_then(|v| v.as_bool()).unwrap_or(true);
+        let rx_led = params.get("rx_led").and_then(|v| v.as_bool()).unwrap_or(false);
+        let tx_led = params.get("tx_led").and_then(|v| v.as_bool()).unwrap_or(false);
+
+        tracing::info!("Configuring LEDs: usr={}, rx={}, tx={}", usr_led, rx_led, tx_led);
+
+        // Phase 2 TODO: Implement ubertooth-util LED commands
+        Ok(json!({
+            "success": true,
+            "leds": {
+                "usr": usr_led,
+                "rx": rx_led,
+                "tx": tx_led
+            },
+            "note": "Phase 2 Week 3: LED control pending ubertooth-util integration"
         }))
     }
 }

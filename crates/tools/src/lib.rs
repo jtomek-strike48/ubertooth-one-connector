@@ -14,6 +14,13 @@ mod capture_delete;
 mod capture_tag;
 mod bt_analyze;
 mod session_context;
+mod bt_scan;
+mod bt_follow;
+mod afh_analyze;
+mod bt_discover;
+mod btle_follow;
+mod configure_squelch;
+mod configure_leds;
 
 use std::sync::Arc;
 use ubertooth_core::tools::ToolRegistry;
@@ -33,6 +40,13 @@ pub use capture_delete::CaptureDeleteTool;
 pub use capture_tag::CaptureTagTool;
 pub use bt_analyze::BtAnalyzeTool;
 pub use session_context::SessionContextTool;
+pub use bt_scan::BtScanTool;
+pub use bt_follow::BtFollowTool;
+pub use afh_analyze::AfhAnalyzeTool;
+pub use bt_discover::BtDiscoverTool;
+pub use btle_follow::BtleFollowTool;
+pub use configure_squelch::ConfigureSquelchTool;
+pub use configure_leds::ConfigureLedsTool;
 
 /// Create and populate the tool registry with all available tools.
 ///
@@ -55,10 +69,21 @@ pub fn create_tool_registry(backend: Arc<dyn UbertoothBackendProvider>) -> ToolR
     registry.register(Arc::new(BtleScanTool::new(backend.clone())));
     registry.register(Arc::new(BtSpecanTool::new(backend.clone())));
 
+    // Phase 2 Week 3 - bt-recon (advanced)
+    registry.register(Arc::new(BtScanTool::new(backend.clone())));
+    registry.register(Arc::new(BtFollowTool::new(backend.clone())));
+    registry.register(Arc::new(AfhAnalyzeTool::new(backend.clone())));
+    registry.register(Arc::new(BtDiscoverTool::new(backend.clone())));
+    registry.register(Arc::new(BtleFollowTool::new(backend.clone())));
+
     // Phase 1 tools - bt-config
     registry.register(Arc::new(ConfigureChannelTool::new(backend.clone())));
     registry.register(Arc::new(ConfigureModulationTool::new(backend.clone())));
     registry.register(Arc::new(ConfigurePowerTool::new(backend.clone())));
+
+    // Phase 2 Week 3 - bt-config (advanced)
+    registry.register(Arc::new(ConfigureSquelchTool::new(backend.clone())));
+    registry.register(Arc::new(ConfigureLedsTool::new(backend.clone())));
 
     // Phase 1 tools - bt-capture
     registry.register(Arc::new(CaptureListTool::new(backend.clone())));
