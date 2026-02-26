@@ -147,19 +147,24 @@ Each capture is identified by a UUID (`capture_id`). The AI holds capture IDs in
 
 ## Tool Categories
 
-**Phase 1 (v0.1.0): 14 tools** ✅
+**All Tools Implemented (v0.2.0): 36/36 tools** ✅✅
 
-| Category | Phase 1 | Total | Description |
-|----------|---------|-------|-------------|
+| Category | Implemented | Total | Description |
+|----------|-------------|-------|-------------|
 | **bt-device** | 4/4 ✅ | 4 | Device connection and status |
-| **bt-config** | 3/8 ✅ | 8 | Radio configuration and presets |
-| **bt-recon** | 2/7 ✅ | 7 | Scanning and signal discovery |
-| **bt-capture** | 4/5 ✅ | 5 | Capture management and storage |
-| **bt-analysis** | 1/5 ✅ | 5 | Protocol analysis and fingerprinting |
-| **bt-attack** | 0/5 | 5 | Active operations (Phase 2, requires authorization) |
-| **bt-advanced** | 0/2 | 2 | Raw commands and firmware updates (Phase 2) |
+| **bt-config** | 8/8 ✅ | 8 | Radio configuration and presets |
+| **bt-recon** | 7/7 ✅ | 7 | Scanning and signal discovery |
+| **bt-capture** | 5/5 ✅ | 5 | Capture management and storage |
+| **bt-analysis** | 5/5 ✅ | 5 | Protocol analysis and fingerprinting |
+| **bt-attack** | 5/5 ✅ | 5 | Active operations ⚠️ REQUIRES AUTHORIZATION |
+| **bt-advanced** | 2/2 ✅ | 2 | Raw commands and firmware updates |
 
-**Phase 2: 22 more tools planned** (advanced recon, analysis, attack operations)
+**Phase Breakdown:**
+- Phase 1 (v0.1.0): 14 tools - Core functionality ✅
+- Phase 2 Week 3 (v0.2.0): 7 tools - Advanced recon ✅
+- Phase 2 Week 4 (v0.2.0): 4 tools - Config management ✅
+- Phase 2 Week 5 (v0.2.0): 5 tools - Analysis tools ✅
+- Phase 2 Week 6 (v0.2.0): 6 tools - Attack operations ✅
 
 See [TOOL_SCHEMAS.md](TOOL_SCHEMAS.md) for complete tool specifications and [PRD.md](PRD.md) for the phased roadmap.
 
@@ -233,19 +238,25 @@ Re-run `just install-udev` and replug the device.
 
 ## Project Status
 
-**Version: v0.1.0 (Phase 1 Complete) 🎉**
+**Version: v0.2.0 (Phase 2 Complete) 🎉🎉**
 
 - ✅ Template project analyzed (yardstick-one-connector)
 - ✅ libubertooth C API analyzed for Rust feasibility
 - ✅ 36 tool schemas designed
 - ✅ PRD document complete
-- ✅ **Phase 1 implementation complete: 14/14 tools working**
-  - All device management, recon, config, capture, and analysis tools
+- ✅ **Phase 1 complete: 14/14 tools working** (v0.1.0)
+  - Device management, basic recon, config, capture, analysis
   - Python backend wrapper for ubertooth-tools
   - Capture storage with PCAP + JSON metadata
-  - Full test coverage (28 tests passing)
-- ⏳ Phase 2 (next): Advanced tools + PCAP parsing
-- ⏳ Phase 3: Native Rust USB backend (100-200x faster)
+- ✅ **Phase 2 complete: 36/36 tools implemented** (v0.2.0) 🎉
+  - Week 3: Advanced reconnaissance (7 tools)
+  - Week 4: Configuration management (4 tools)
+  - Week 5: Analysis tools (5 tools)
+  - Week 6: Attack operations (6 tools)
+  - Authorization framework for attack tools
+  - All 72 unit tests passing
+- ⏳ **Phase 3 (next)**: Native Rust USB backend (100-200x faster)
+- ⏳ **Backend integration**: Full ubertooth-tools wrappers + PCAP parsing
 
 See [PRD.md](PRD.md) for complete roadmap and [LIBUBERTOOTH_RUST_FEASIBILITY.md](LIBUBERTOOTH_RUST_FEASIBILITY.md) for implementation details.
 
