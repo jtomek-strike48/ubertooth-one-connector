@@ -8,6 +8,10 @@ mod bt_specan;
 mod configure_channel;
 mod configure_modulation;
 mod configure_power;
+mod capture_list;
+mod capture_get;
+mod capture_delete;
+mod capture_tag;
 
 use std::sync::Arc;
 use ubertooth_core::tools::ToolRegistry;
@@ -21,6 +25,10 @@ pub use bt_specan::BtSpecanTool;
 pub use configure_channel::ConfigureChannelTool;
 pub use configure_modulation::ConfigureModulationTool;
 pub use configure_power::ConfigurePowerTool;
+pub use capture_list::CaptureListTool;
+pub use capture_get::CaptureGetTool;
+pub use capture_delete::CaptureDeleteTool;
+pub use capture_tag::CaptureTagTool;
 
 /// Create and populate the tool registry with all available tools.
 ///
@@ -48,11 +56,15 @@ pub fn create_tool_registry(backend: Arc<dyn UbertoothBackendProvider>) -> ToolR
     registry.register(Arc::new(ConfigureModulationTool::new(backend.clone())));
     registry.register(Arc::new(ConfigurePowerTool::new(backend.clone())));
 
+    // Phase 1 tools - bt-capture
+    registry.register(Arc::new(CaptureListTool::new(backend.clone())));
+    registry.register(Arc::new(CaptureGetTool::new(backend.clone())));
+    registry.register(Arc::new(CaptureDeleteTool::new(backend.clone())));
+    registry.register(Arc::new(CaptureTagTool::new(backend.clone())));
+
     // Phase 1 tools (remaining) - to be added
     // registry.register(Arc::new(SessionContextTool::new(backend.clone())));
-    // registry.register(Arc::new(CaptureListTool::new(backend.clone())));
-    // registry.register(Arc::new(CaptureGetTool::new(backend.clone())));
-    // ... etc
+    // registry.register(Arc::new(BtAnalyzeTool::new(backend.clone())));
 
     registry
 }

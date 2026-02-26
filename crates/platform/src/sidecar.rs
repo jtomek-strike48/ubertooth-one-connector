@@ -108,6 +108,10 @@ impl UbertoothBackendProvider for SidecarManager {
             "configure_channel" => self.configure_channel(params).await,
             "configure_modulation" => self.configure_modulation(params).await,
             "configure_power" => self.configure_power(params).await,
+            "capture_list" => self.capture_list(params).await,
+            "capture_get" => self.capture_get(params).await,
+            "capture_delete" => self.capture_delete(params).await,
+            "capture_tag" => self.capture_tag(params).await,
             _ => Err(UbertoothError::BackendError(format!(
                 "Method not implemented: {}",
                 method
@@ -548,6 +552,147 @@ impl SidecarManager {
                 if paen { "enabled" } else { "disabled" },
                 estimated_power_dbm
             )
+        }))
+    }
+
+    /// List captures implementation.
+    async fn capture_list(&self, params: Value) -> Result<Value> {
+        let store = CaptureStore::new()?;
+
+        let filter_type = params.get("filter_type").and_then(|v| v.as_str());
+        let limit = params.get("limit").and_then(|v| v.as_u64()).unwrap_or(50) as usize;
+        let offset = params.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+
+        // Get all captures
+        let mut all_captures = store.list_captures()?;
+
+        // Filter by type if specified
+        if let Some(filter) = filter_type {
+            all_captures.retain(|c| c.capture_type == filter);
+        }
+
+        let total_count = all_captures.len();
+
+        // Apply pagination
+        let captures: Vec<_> = all_captures
+            .into_iter()
+            .skip(offset)
+            .take(limit)
+            .map(|c| json!({
+                "capture_id": c.capture_id,
+                "timestamp": c.timestamp.to_rfc3339(),
+                "type": c.capture_type,
+                "packet_count": c.packet_count,
+                "duration_sec": c.duration_sec,
+                "file_size_bytes": c.file_size_bytes,
+                "pcap_path": c.pcap_path,
+                "tags": c.tags,
+                "description": c.description
+            }))
+            .collect();
+
+        Ok(json!({
+            "success": true,
+            "captures": captures,
+            "total_count": total_count,
+            "offset": offset,
+            "limit": limit
+        }))
+    }
+
+    /// Get capture implementation.
+    async fn capture_get(&self, params: Value) -> Result<Value> {
+        let capture_id = params
+            .get("capture_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'capture_id'".to_string()))?;
+
+        let offset = params.get("offset").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+        let limit = params.get("limit").and_then(|v| v.as_u64()).unwrap_or(100) as usize;
+
+        let store = CaptureStore::new()?;
+        let metadata = store.load_metadata(capture_id)?;
+
+        // For Phase 1, return metadata without parsing PCAP
+        // PCAP parsing will be added in Phase 2
+        let packets: Vec<Value> = Vec::new();
+        let has_more = false;
+
+        Ok(json!({
+            "success": true,
+            "capture_id": capture_id,
+            "offset": offset,
+            "limit": limit,
+            "packet_count": metadata.packet_count,
+            "packets": packets,
+            "has_more": has_more,
+            "note": "Phase 1: PCAP parsing not yet implemented. Use pcap_path to access raw file."
+        }))
+    }
+
+    /// Delete capture implementation.
+    async fn capture_delete(&self, params: Value) -> Result<Value> {
+        let capture_id = params
+            .get("capture_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'capture_id'".to_string()))?;
+
+        let store = CaptureStore::new()?;
+        store.delete_capture(capture_id)?;
+
+        Ok(json!({
+            "success": true,
+            "message": format!("Capture '{}' deleted", capture_id)
+        }))
+    }
+
+    /// Tag capture implementation.
+    async fn capture_tag(&self, params: Value) -> Result<Value> {
+        let capture_id = params
+            .get("capture_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'capture_id'".to_string()))?;
+
+        let new_tags = params
+            .get("tags")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+            });
+
+        let new_description = params.get("description").and_then(|v| v.as_str());
+        let append_tags = params.get("append_tags").and_then(|v| v.as_bool()).unwrap_or(true);
+
+        let store = CaptureStore::new()?;
+        let mut metadata = store.load_metadata(capture_id)?;
+
+        // Update tags
+        if let Some(tags) = new_tags {
+            if append_tags {
+                metadata.tags.extend(tags);
+                metadata.tags.sort();
+                metadata.tags.dedup();
+            } else {
+                metadata.tags = tags;
+            }
+        }
+
+        // Update description
+        if let Some(desc) = new_description {
+            metadata.description = desc.to_string();
+        }
+
+        // Save updated metadata
+        store.save_metadata(&metadata)?;
+
+        Ok(json!({
+            "success": true,
+            "capture_id": capture_id,
+            "tags": metadata.tags,
+            "description": metadata.description
         }))
     }
 }
