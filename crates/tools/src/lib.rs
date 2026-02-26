@@ -25,6 +25,17 @@ mod bt_save_config;
 mod bt_load_config;
 mod config_list;
 mod config_delete;
+mod bt_compare;
+mod bt_decode;
+mod bt_fingerprint;
+mod pcap_merge;
+mod capture_export;
+mod btle_inject;
+mod bt_jam;
+mod btle_slave;
+mod btle_mitm;
+mod bt_spoof;
+mod ubertooth_raw;
 
 use std::sync::Arc;
 use ubertooth_core::tools::ToolRegistry;
@@ -55,6 +66,17 @@ pub use bt_save_config::BtSaveConfigTool;
 pub use bt_load_config::BtLoadConfigTool;
 pub use config_list::ConfigListTool;
 pub use config_delete::ConfigDeleteTool;
+pub use bt_compare::BtCompareTool;
+pub use bt_decode::BtDecodeTool;
+pub use bt_fingerprint::BtFingerprintTool;
+pub use pcap_merge::PcapMergeTool;
+pub use capture_export::CaptureExportTool;
+pub use btle_inject::BtleInjectTool;
+pub use bt_jam::BtJamTool;
+pub use btle_slave::BtleSlaveTool;
+pub use btle_mitm::BtleMitmTool;
+pub use bt_spoof::BtSpoofTool;
+pub use ubertooth_raw::UbertoothRawTool;
 
 /// Create and populate the tool registry with all available tools.
 ///
@@ -107,6 +129,25 @@ pub fn create_tool_registry(backend: Arc<dyn UbertoothBackendProvider>) -> ToolR
 
     // Phase 1 tools - bt-analysis
     registry.register(Arc::new(BtAnalyzeTool::new(backend.clone())));
+
+    // Phase 2 Week 5 - bt-analysis (advanced)
+    registry.register(Arc::new(BtCompareTool::new(backend.clone())));
+    registry.register(Arc::new(BtDecodeTool::new(backend.clone())));
+    registry.register(Arc::new(BtFingerprintTool::new(backend.clone())));
+    registry.register(Arc::new(PcapMergeTool::new(backend.clone())));
+
+    // Phase 2 Week 5 - capture export
+    registry.register(Arc::new(CaptureExportTool::new(backend.clone())));
+
+    // Phase 2 Week 6 - bt-attack (requires authorization)
+    registry.register(Arc::new(BtleInjectTool::new(backend.clone())));
+    registry.register(Arc::new(BtJamTool::new(backend.clone())));
+    registry.register(Arc::new(BtleSlaveTool::new(backend.clone())));
+    registry.register(Arc::new(BtleMitmTool::new(backend.clone())));
+    registry.register(Arc::new(BtSpoofTool::new(backend.clone())));
+
+    // Phase 2 Week 6 - bt-advanced
+    registry.register(Arc::new(UbertoothRawTool::new(backend.clone())));
 
     // Phase 1 tools - session context
     registry.register(Arc::new(SessionContextTool::new(backend)));

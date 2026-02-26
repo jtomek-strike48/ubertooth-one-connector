@@ -126,6 +126,17 @@ impl UbertoothBackendProvider for SidecarManager {
             "bt_load_config" => self.bt_load_config(params).await,
             "config_list" => self.config_list(params).await,
             "config_delete" => self.config_delete(params).await,
+            "bt_compare" => self.bt_compare(params).await,
+            "bt_decode" => self.bt_decode(params).await,
+            "bt_fingerprint" => self.bt_fingerprint(params).await,
+            "pcap_merge" => self.pcap_merge(params).await,
+            "capture_export" => self.capture_export(params).await,
+            "btle_inject" => self.btle_inject(params).await,
+            "bt_jam" => self.bt_jam(params).await,
+            "btle_slave" => self.btle_slave(params).await,
+            "btle_mitm" => self.btle_mitm(params).await,
+            "bt_spoof" => self.bt_spoof(params).await,
+            "ubertooth_raw" => self.ubertooth_raw(params).await,
             _ => Err(UbertoothError::BackendError(format!(
                 "Method not implemented: {}",
                 method
@@ -1157,5 +1168,77 @@ impl SidecarManager {
             "success": true,
             "message": format!("Configuration '{}' deleted", config_name)
         }))
+    }
+
+    // Phase 2 Week 5: Analysis tools
+
+    async fn bt_compare(&self, params: Value) -> Result<Value> {
+        tracing::info!("bt_compare - Phase 2 Week 5 stub");
+        Ok(json!({"success": true, "comparison": {"mode": "packets", "similarity_percent": 0.0, "differences": [], "unique_to_a": 0, "unique_to_b": 0, "common_packets": 0}, "note": "Phase 2 Week 5: PCAP parsing pending"}))
+    }
+
+    async fn bt_decode(&self, params: Value) -> Result<Value> {
+        tracing::info!("bt_decode - Phase 2 Week 5 stub");
+        Ok(json!({"success": true, "decoded_packets": [], "note": "Phase 2 Week 5: Protocol dissectors pending"}))
+    }
+
+    async fn bt_fingerprint(&self, params: Value) -> Result<Value> {
+        let target_mac = params.get("target_mac").and_then(|v| v.as_str()).unwrap_or("unknown");
+        tracing::info!("bt_fingerprint - Phase 2 Week 5 stub");
+        Ok(json!({"success": true, "device": {"mac_address": target_mac, "fingerprint": {"manufacturer": "Unknown", "device_type": "Unknown", "os_version": null, "confidence": 0.0}, "indicators": []}, "note": "Phase 2 Week 5: Fingerprint database pending"}))
+    }
+
+    async fn pcap_merge(&self, params: Value) -> Result<Value> {
+        let count = params.get("capture_ids").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
+        tracing::info!("pcap_merge - Phase 2 Week 5 stub");
+        let store = CaptureStore::new()?;
+        let capture_id = CaptureStore::generate_capture_id("merged");
+        Ok(json!({"success": true, "capture_id": capture_id, "source_captures": count, "total_packets": 0, "pcap_path": store.captures_dir().join(format!("{}.pcap", capture_id)).to_string_lossy(), "note": "Phase 2 Week 5: PCAP merge pending"}))
+    }
+
+    async fn capture_export(&self, params: Value) -> Result<Value> {
+        let format = params.get("format").and_then(|v| v.as_str()).unwrap_or("pcap");
+        tracing::info!("capture_export - Phase 2 Week 5 stub");
+        Ok(json!({"success": true, "export_path": "/tmp/export.pcap", "format": format, "packet_count": 0, "file_size_bytes": 0, "note": "Phase 2 Week 5: Export pending"}))
+    }
+
+    // Phase 2 Week 6: Attack operations (all require authorization)
+
+    async fn btle_inject(&self, params: Value) -> Result<Value> {
+        let access_address = params.get("access_address").and_then(|v| v.as_str()).unwrap_or("0x00000000");
+        tracing::warn!("btle_inject - REQUIRES AUTHORIZATION - Phase 2 Week 6 stub");
+        Ok(json!({"success": true, "packets_sent": 0, "access_address": access_address, "channel": 37, "message": "Phase 2 Week 6: Injection pending - REQUIRES AUTHORIZATION"}))
+    }
+
+    async fn bt_jam(&self, params: Value) -> Result<Value> {
+        let jam_mode = params.get("jam_mode").and_then(|v| v.as_str()).unwrap_or("continuous");
+        tracing::error!("bt_jam - HIGHLY REGULATED - ILLEGAL IN MOST JURISDICTIONS");
+        Ok(json!({"success": false, "error": "OPERATION_NOT_AVAILABLE", "message": "Jamming is highly regulated and not implemented. Illegal in most jurisdictions without proper authorization."}))
+    }
+
+    async fn btle_slave(&self, params: Value) -> Result<Value> {
+        let mac_address = params.get("mac_address").and_then(|v| v.as_str()).unwrap_or("00:00:00:00:00:00");
+        tracing::warn!("btle_slave - REQUIRES AUTHORIZATION - Phase 2 Week 6 stub");
+        Ok(json!({"success": true, "mac_address": mac_address, "advertising": false, "connections_received": 0, "message": "Phase 2 Week 6: Slave mode pending - REQUIRES AUTHORIZATION"}))
+    }
+
+    async fn btle_mitm(&self, params: Value) -> Result<Value> {
+        let target_mac = params.get("target_mac").and_then(|v| v.as_str()).unwrap_or("00:00:00:00:00:00");
+        tracing::error!("btle_mitm - STRICTLY REQUIRED AUTHORIZATION - ACTIVE ATTACK");
+        let store = CaptureStore::new()?;
+        let capture_id = CaptureStore::generate_capture_id("mitm");
+        Ok(json!({"success": false, "error": "AUTHORIZATION_REQUIRED", "message": "MITM attack requires STRICTLY REQUIRED authorization level. Not implemented in Phase 2 Week 6."}))
+    }
+
+    async fn bt_spoof(&self, params: Value) -> Result<Value> {
+        let spoof_mac = params.get("spoof_mac").and_then(|v| v.as_str()).unwrap_or("00:00:00:00:00:00");
+        tracing::warn!("bt_spoof - REQUIRES AUTHORIZATION - Phase 2 Week 6 stub");
+        Ok(json!({"success": true, "spoof_mac": spoof_mac, "duration_sec": 0, "message": "Phase 2 Week 6: Spoofing pending - REQUIRES AUTHORIZATION"}))
+    }
+
+    async fn ubertooth_raw(&self, params: Value) -> Result<Value> {
+        let command = params.get("command").and_then(|v| v.as_str()).unwrap_or("UNKNOWN");
+        tracing::warn!("ubertooth_raw - WARNING: Direct hardware access");
+        Ok(json!({"success": true, "command": command, "response_hex": "", "response_length": 0, "note": "Phase 2 Week 6: Raw USB commands pending"}))
     }
 }
