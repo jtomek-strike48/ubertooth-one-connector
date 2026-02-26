@@ -100,19 +100,20 @@ ubertooth-agent
 
 ## Backend Selection & Performance
 
-As of Phase 2, the connector will support **two backends**:
+The connector supports **two backends**:
 
-1. **Python Wrapper** (Phase 1) - Full feature set via ubertooth-tools (36 tools)
-2. **Rust USB** (Phase 2) - Native implementation for core operations (7-10 tools, **100-200x faster**)
+1. **Python Wrapper** (Phase 1) ✅ **IMPLEMENTED** - Wraps ubertooth-tools CLI utilities (14 tools in v0.1.0)
+2. **Rust USB** (Phase 3, future) - Native implementation via libusb (7-10 tools, **100-200x faster**)
 
 ### Choosing a Backend
 
-**Python Backend** (Phase 1):
-- All 36 tools supported
+**Python Backend** (default, Phase 1):
+- 14 Phase 1 tools implemented (device, recon, config, capture, analysis)
 - Proven, stable, battle-tested
 - Requires ubertooth-tools installed
+- All captures stored as PCAP + JSON metadata in `~/.ubertooth/`
 
-**Rust Backend** (Phase 2, future):
+**Rust Backend** (Phase 3, planned):
 - Core operations only (device, scan, sniff, specan)
 - **100-200x faster** than Python for supported operations
 - No Python dependency, pure Rust + libusb
@@ -124,7 +125,7 @@ Set the backend via environment variable:
 # Use Python backend (full features, default)
 UBERTOOTH_BACKEND=python ubertooth-agent
 
-# Use Rust backend (high performance, Phase 2)
+# Use Rust backend (high performance, Phase 3)
 UBERTOOTH_BACKEND=rust ubertooth-agent
 ```
 
@@ -144,19 +145,23 @@ Each capture is identified by a UUID (`capture_id`). The AI holds capture IDs in
 
 ---
 
-## Tool Categories (36 tools)
+## Tool Categories
 
-| Category | Count | Description |
-|----------|-------|-------------|
-| **bt-device** | 4 | Device connection and status |
-| **bt-config** | 8 | Radio configuration and presets |
-| **bt-recon** | 7 | Scanning and signal discovery |
-| **bt-capture** | 5 | Capture management and storage |
-| **bt-analysis** | 5 | Protocol analysis and fingerprinting |
-| **bt-attack** | 5 | Active operations (requires authorization) |
-| **bt-advanced** | 2 | Raw commands and firmware updates |
+**Phase 1 (v0.1.0): 14 tools** ✅
 
-See [TOOL_SCHEMAS.md](TOOL_SCHEMAS.md) for complete tool specifications.
+| Category | Phase 1 | Total | Description |
+|----------|---------|-------|-------------|
+| **bt-device** | 4/4 ✅ | 4 | Device connection and status |
+| **bt-config** | 3/8 ✅ | 8 | Radio configuration and presets |
+| **bt-recon** | 2/7 ✅ | 7 | Scanning and signal discovery |
+| **bt-capture** | 4/5 ✅ | 5 | Capture management and storage |
+| **bt-analysis** | 1/5 ✅ | 5 | Protocol analysis and fingerprinting |
+| **bt-attack** | 0/5 | 5 | Active operations (Phase 2, requires authorization) |
+| **bt-advanced** | 0/2 | 2 | Raw commands and firmware updates (Phase 2) |
+
+**Phase 2: 22 more tools planned** (advanced recon, analysis, attack operations)
+
+See [TOOL_SCHEMAS.md](TOOL_SCHEMAS.md) for complete tool specifications and [PRD.md](PRD.md) for the phased roadmap.
 
 ---
 
@@ -228,16 +233,21 @@ Re-run `just install-udev` and replug the device.
 
 ## Project Status
 
-**Current Phase: Planning & Architecture**
+**Version: v0.1.0 (Phase 1 Complete) 🎉**
 
 - ✅ Template project analyzed (yardstick-one-connector)
 - ✅ libubertooth C API analyzed for Rust feasibility
 - ✅ 36 tool schemas designed
-- ⏳ PRD document (next)
-- ⏳ Phase 1 implementation: Python wrapper (2 weeks)
-- ⏳ Phase 2 implementation: Native Rust core (4 weeks)
+- ✅ PRD document complete
+- ✅ **Phase 1 implementation complete: 14/14 tools working**
+  - All device management, recon, config, capture, and analysis tools
+  - Python backend wrapper for ubertooth-tools
+  - Capture storage with PCAP + JSON metadata
+  - Full test coverage (28 tests passing)
+- ⏳ Phase 2 (next): Advanced tools + PCAP parsing
+- ⏳ Phase 3: Native Rust USB backend (100-200x faster)
 
-See [LIBUBERTOOTH_RUST_FEASIBILITY.md](LIBUBERTOOTH_RUST_FEASIBILITY.md) for implementation roadmap.
+See [PRD.md](PRD.md) for complete roadmap and [LIBUBERTOOTH_RUST_FEASIBILITY.md](LIBUBERTOOTH_RUST_FEASIBILITY.md) for implementation details.
 
 ---
 
