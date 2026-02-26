@@ -99,6 +99,7 @@ impl UbertoothBackendProvider for SidecarManager {
         // Route method calls to appropriate ubertooth-* tools
         match method {
             "device_connect" => self.device_connect().await,
+            "device_disconnect" => self.device_disconnect().await,
             "device_status" => self.device_status().await,
             _ => Err(UbertoothError::BackendError(format!(
                 "Method not implemented: {}",
@@ -151,6 +152,20 @@ impl SidecarManager {
             "device_id": "ubertooth-001",
             "firmware_version": firmware_version,
             "message": "Connected to Ubertooth One"
+        }))
+    }
+
+    /// Device disconnect implementation.
+    async fn device_disconnect(&self) -> Result<Value> {
+        // For Python backend, there's no persistent connection to close
+        // Each ubertooth-* command opens and closes the device
+        // So this is essentially a no-op that confirms success
+
+        tracing::debug!("Device disconnect called (Python backend - no persistent connection)");
+
+        Ok(json!({
+            "success": true,
+            "message": "Device disconnected"
         }))
     }
 
