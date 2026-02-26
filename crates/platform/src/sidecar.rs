@@ -1,6 +1,7 @@
 //! Python sidecar manager for wrapping ubertooth-tools.
 
 use async_trait::async_trait;
+use chrono::Utc;
 use serde_json::{json, Value};
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
@@ -8,6 +9,7 @@ use tokio::sync::Mutex;
 use ubertooth_core::error::{Result, UbertoothError};
 
 use crate::backend::UbertoothBackendProvider;
+use crate::capture_store::{CaptureMetadata, CaptureStore};
 
 /// Python sidecar process manager.
 ///
@@ -101,6 +103,7 @@ impl UbertoothBackendProvider for SidecarManager {
             "device_connect" => self.device_connect().await,
             "device_disconnect" => self.device_disconnect().await,
             "device_status" => self.device_status().await,
+            "btle_scan" => self.btle_scan(params).await,
             _ => Err(UbertoothError::BackendError(format!(
                 "Method not implemented: {}",
                 method
@@ -189,6 +192,110 @@ impl SidecarManager {
             "device_id": "ubertooth-001",
             "firmware": firmware_version,
             "current_mode": "idle"
+        }))
+    }
+
+    /// BLE scan implementation.
+    async fn btle_scan(&self, params: Value) -> Result<Value> {
+        // Parse parameters
+        let duration_sec = params
+            .get("duration_sec")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(30);
+
+        let channel = params
+            .get("channel")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(37);
+
+        tracing::info!(
+            "Starting BLE scan: channel={}, duration={}s",
+            channel,
+            duration_sec
+        );
+
+        // Create capture store
+        let store = CaptureStore::new()?;
+
+        // Generate capture ID
+        let capture_id = CaptureStore::generate_capture_id("btle");
+
+        // Prepare output file path
+        let pcap_path = store.captures_dir().join(format!("{}.pcap", capture_id));
+        let pcap_path_str = pcap_path
+            .to_str()
+            .ok_or_else(|| UbertoothError::BackendError("Invalid path".to_string()))?;
+
+        // Build ubertooth-btle command
+        // -f: follow connections
+        // -c: channel
+        // -t: timeout (in seconds)
+        // -q: output PCAP file
+        let channel_str = channel.to_string();
+        let duration_str = duration_sec.to_string();
+        let args = vec![
+            "-f",
+            "-c",
+            channel_str.as_str(),
+            "-t",
+            duration_str.as_str(),
+            "-q",
+            pcap_path_str,
+        ];
+
+        tracing::debug!("Executing: ubertooth-btle {:?}", args);
+
+        // Execute ubertooth-btle
+        let output = self
+            .execute_ubertooth_command("ubertooth-btle", &args)
+            .await?;
+
+        tracing::debug!("ubertooth-btle output: {}", output);
+
+        // Get file size
+        let file_size = std::fs::metadata(&pcap_path)
+            .map(|m| m.len())
+            .unwrap_or(0);
+
+        // Parse output for basic statistics
+        // ubertooth-btle output format varies, for now use placeholder counts
+        let total_packets = output.lines().filter(|line| line.contains("packet") || line.contains("ADV")).count();
+
+        // Create capture metadata
+        let metadata = CaptureMetadata {
+            capture_id: capture_id.clone(),
+            timestamp: Utc::now(),
+            capture_type: "btle_sniff".to_string(),
+            packet_count: total_packets,
+            duration_sec: Some(duration_sec),
+            file_size_bytes: file_size,
+            pcap_path: pcap_path_str.to_string(),
+            tags: vec!["ble".to_string(), format!("channel_{}", channel)],
+            description: format!("BLE scan on channel {}", channel),
+        };
+
+        // Save metadata
+        store.save_metadata(&metadata)?;
+
+        tracing::info!(
+            "BLE scan complete: {} packets, {} bytes",
+            total_packets,
+            file_size
+        );
+
+        // Return result
+        Ok(json!({
+            "success": true,
+            "capture_id": capture_id,
+            "scan_duration_sec": duration_sec,
+            "channel": channel,
+            "devices_found": [],  // TODO Phase 2: Parse PCAP to extract devices
+            "total_packets": total_packets,
+            "pcap_path": pcap_path_str,
+            "preview": [
+                format!("Captured {} BLE packets on channel {}", total_packets, channel),
+                format!("Saved to: {}", pcap_path_str)
+            ]
         }))
     }
 }
