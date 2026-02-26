@@ -1,0 +1,46 @@
+[package]
+name = "ubertooth-platform"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# Internal
+ubertooth-core = { workspace = true }
+ubertooth-usb = { workspace = true, optional = true }
+
+# Async
+tokio = { workspace = true }
+async-trait = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Time
+chrono = { workspace = true }
+
+# Error handling
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# Platform
+sysinfo = { workspace = true }
+
+# Temp files
+tempfile = { workspace = true }
+
+# UUID
+uuid = { workspace = true }
+
+# Home directory
+dirs = { workspace = true }
+
+[features]
+default = ["python-backend"]
+python-backend = []
+rust-backend = ["ubertooth-usb"]

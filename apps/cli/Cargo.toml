@@ -1,0 +1,32 @@
+[package]
+name = "ubertooth-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "ubertooth-cli"
+path = "src/main.rs"
+
+[dependencies]
+# Internal
+ubertooth-core = { workspace = true }
+ubertooth-platform = { workspace = true }
+ubertooth-tools = { workspace = true }
+
+# Async
+tokio = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+
+# CLI
+clap = { workspace = true }
