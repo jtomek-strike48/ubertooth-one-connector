@@ -12,6 +12,8 @@ mod capture_list;
 mod capture_get;
 mod capture_delete;
 mod capture_tag;
+mod bt_analyze;
+mod session_context;
 
 use std::sync::Arc;
 use ubertooth_core::tools::ToolRegistry;
@@ -29,6 +31,8 @@ pub use capture_list::CaptureListTool;
 pub use capture_get::CaptureGetTool;
 pub use capture_delete::CaptureDeleteTool;
 pub use capture_tag::CaptureTagTool;
+pub use bt_analyze::BtAnalyzeTool;
+pub use session_context::SessionContextTool;
 
 /// Create and populate the tool registry with all available tools.
 ///
@@ -62,9 +66,11 @@ pub fn create_tool_registry(backend: Arc<dyn UbertoothBackendProvider>) -> ToolR
     registry.register(Arc::new(CaptureDeleteTool::new(backend.clone())));
     registry.register(Arc::new(CaptureTagTool::new(backend.clone())));
 
-    // Phase 1 tools (remaining) - to be added
-    // registry.register(Arc::new(SessionContextTool::new(backend.clone())));
-    // registry.register(Arc::new(BtAnalyzeTool::new(backend.clone())));
+    // Phase 1 tools - bt-analysis
+    registry.register(Arc::new(BtAnalyzeTool::new(backend.clone())));
+
+    // Phase 1 tools - session context
+    registry.register(Arc::new(SessionContextTool::new(backend)));
 
     registry
 }

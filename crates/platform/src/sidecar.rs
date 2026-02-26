@@ -112,6 +112,8 @@ impl UbertoothBackendProvider for SidecarManager {
             "capture_get" => self.capture_get(params).await,
             "capture_delete" => self.capture_delete(params).await,
             "capture_tag" => self.capture_tag(params).await,
+            "bt_analyze" => self.bt_analyze(params).await,
+            "session_context" => self.session_context(params).await,
             _ => Err(UbertoothError::BackendError(format!(
                 "Method not implemented: {}",
                 method
@@ -693,6 +695,123 @@ impl SidecarManager {
             "capture_id": capture_id,
             "tags": metadata.tags,
             "description": metadata.description
+        }))
+    }
+
+    /// Analyze captured packets implementation.
+    ///
+    /// Phase 1: Basic analysis with metadata only
+    /// Phase 2: Full PCAP parsing with protocol analysis
+    async fn bt_analyze(&self, params: Value) -> Result<Value> {
+        let capture_id = params
+            .get("capture_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'capture_id'".to_string()))?;
+
+        let analysis_type = params
+            .get("analysis_type")
+            .and_then(|v| v.as_str())
+            .unwrap_or("auto");
+
+        tracing::info!("Analyzing capture: {} (type: {})", capture_id, analysis_type);
+
+        let store = CaptureStore::new()?;
+        let metadata = store.load_metadata(capture_id)?;
+
+        // Phase 1: Basic analysis from metadata
+        // Phase 2: Will parse PCAP with libbtbb or Rust parser
+        let protocol_type = match metadata.capture_type.as_str() {
+            "btle_sniff" => "BLE",
+            "specan" => "Spectrum",
+            "bt_follow" => "BR/EDR",
+            _ => "Unknown",
+        };
+
+        Ok(json!({
+            "success": true,
+            "capture_id": capture_id,
+            "analysis": {
+                "protocol_summary": {
+                    "type": protocol_type,
+                    "pdu_types": {}  // TODO Phase 2: Parse PCAP
+                },
+                "devices": [],  // TODO Phase 2: Extract device info
+                "timing_analysis": {
+                    "avg_interval_ms": 0.0,
+                    "min_interval_ms": 0.0,
+                    "max_interval_ms": 0.0
+                },
+                "security_observations": [],
+                "anomalies": [],
+                "note": "Phase 1: Metadata-only analysis. Full PCAP parsing in Phase 2."
+            }
+        }))
+    }
+
+    /// Session context implementation - comprehensive AI orientation.
+    ///
+    /// Combines device_status + capture_list + configs into one response.
+    async fn session_context(&self, params: Value) -> Result<Value> {
+        let include_recent_captures = params
+            .get("include_recent_captures")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+
+        let max_captures = params
+            .get("max_captures")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(5) as usize;
+
+        let _include_configs = params
+            .get("include_configs")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+
+        tracing::info!("Building session context");
+
+        // Get device status
+        let device_info = self.device_status().await?;
+
+        // Get recent captures if requested
+        let mut recent_captures = Vec::new();
+        if include_recent_captures {
+            let captures_result = self
+                .capture_list(json!({
+                    "limit": max_captures,
+                    "sort_by": "timestamp",
+                    "sort_order": "desc"
+                }))
+                .await?;
+
+            if let Some(captures) = captures_result.get("captures").and_then(|v| v.as_array()) {
+                for capture in captures.iter().take(max_captures) {
+                    recent_captures.push(capture.clone());
+                }
+            }
+        }
+
+        // Calculate storage stats
+        let store = CaptureStore::new()?;
+        let all_captures = store.list_captures()?;
+        let total_size_bytes: u64 = all_captures
+            .iter()
+            .map(|m| m.file_size_bytes)
+            .sum();
+        let total_size_mb = total_size_bytes as f64 / 1_048_576.0;
+
+        let timestamp = chrono::Utc::now().to_rfc3339();
+
+        Ok(json!({
+            "success": true,
+            "timestamp": timestamp,
+            "device": device_info.get("device").unwrap_or(&json!({})),
+            "recent_captures": recent_captures,
+            "saved_configs": [],  // TODO Phase 2: Config persistence
+            "storage": {
+                "captures_dir": store.captures_dir().to_string_lossy(),
+                "captures_count": all_captures.len(),
+                "total_size_mb": format!("{:.1}", total_size_mb).parse::<f64>().unwrap_or(0.0)
+            }
         }))
     }
 }
