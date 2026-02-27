@@ -240,7 +240,7 @@ Re-run `just install-udev` and replug the device.
 
 ## Project Status
 
-**Version: v0.3.0 (Hardware Validated - 95% Production Ready) 🎉🎉🎉🎉**
+**Version: v0.4.0 (Production Deployed - 100% Ready) 🚀🎉🎉🎉🎉**
 
 - ✅ Template project analyzed (yardstick-one-connector)
 - ✅ libubertooth C API analyzed for Rust feasibility
@@ -264,13 +264,20 @@ Re-run `just install-udev` and replug the device.
   - Complete capture analysis pipeline
   - All attack operations with authorization checks
 - ✅ **Hardware Validation & Configuration Fixes** (v0.3.0) 🔧
-  - **95% Production Ready** - Complete hardware validation
+  - Complete hardware validation with real Ubertooth One
   - Fixed configure_squelch, configure_leds, configure_channel
   - Stderr filtering for clean logs (API version warnings removed)
   - All 23 core tools tested and validated with real hardware
   - Comprehensive hardware test report with validation results
   - 100% of testable tools working correctly
-- ⏳ **Phase 3 (next)**: Native Rust USB backend (100-200x faster)
+- ✅ **Production Deployment Success** (v0.4.0) 🚀
+  - **100% Production Ready** - Deployed to Prospector Studio
+  - Connected to jt-demo-01.strike48.engineering (wss://)
+  - AI integration validated and working
+  - Connector showing healthy in production environment
+  - All 36 tools accessible through AI interface
+  - Production deployment script (run-connector.sh) ready
+- ⏳ **Phase 3 (future)**: Native Rust USB backend (100-200x faster)
 
 See [PRD.md](PRD.md) for complete roadmap and [LIBUBERTOOTH_RUST_FEASIBILITY.md](LIBUBERTOOTH_RUST_FEASIBILITY.md) for implementation details.
 
