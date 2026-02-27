@@ -31,3 +31,4 @@ ENV/
 # Temp files
 *.tmp
 .temp/
+*.pcap

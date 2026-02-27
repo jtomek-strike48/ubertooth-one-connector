@@ -38,10 +38,12 @@
 
 pub mod constants;
 pub mod device;
+pub mod device_nusb;
 pub mod error;
 pub mod protocol;
 pub mod commands;
 pub mod async_reader;
+pub mod stream_reader;
 
 // Re-exports for convenience
 pub use constants::*;

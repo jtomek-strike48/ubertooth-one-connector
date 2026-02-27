@@ -72,6 +72,25 @@ pub enum UsbError {
     /// IO error
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+
+    /// Other USB error
+    #[error("{0}")]
+    Other(String),
+}
+
+impl UsbError {
+    /// Convert nusb error to UsbError.
+    pub fn from_nusb(err: nusb::Error) -> Self {
+        // nusb::Error is opaque, so we convert based on error message
+        let msg = err.to_string();
+        if msg.contains("permission") || msg.contains("access") {
+            UsbError::PermissionDenied
+        } else if msg.contains("not found") {
+            UsbError::Other("Device not found".to_string())
+        } else {
+            UsbError::Other(format!("nusb error: {}", err))
+        }
+    }
 }
 
 /// Convert USB errors to core Ubertooth errors.

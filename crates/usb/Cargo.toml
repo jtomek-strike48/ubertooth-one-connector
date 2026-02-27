@@ -11,7 +11,7 @@ ubertooth-core = { path = "../core" }
 
 # USB
 rusb = { workspace = true }
-nusb = "0.2"
+nusb = { version = "0.2", features = ["tokio"] }
 
 # Async
 tokio = { workspace = true }
@@ -48,3 +48,15 @@ path = "../../examples/test_usb_diagnostics.rs"
 [[example]]
 name = "test_nusb_async"
 path = "../../examples/test_nusb_async.rs"
+
+[[example]]
+name = "test_nusb_device"
+path = "../../examples/test_nusb_device.rs"
+
+[[example]]
+name = "test_nusb_stream"
+path = "../../examples/test_nusb_stream.rs"
+
+[[example]]
+name = "test_nusb_simple"
+path = "../../examples/test_nusb_simple.rs"
