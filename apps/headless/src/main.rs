@@ -157,7 +157,26 @@ async fn run_production(connector: Arc<UbertoothConnector>) -> anyhow::Result<()
     config.connector_type = "ubertooth".to_string();
     config.version = env!("CARGO_PKG_VERSION").to_string();
     config.max_concurrent_requests = 1;
-    config.display_name = Some("Ubertooth One".to_string());
+
+    // Use INSTANCE_ID from env if set, otherwise use generated one
+    if let Ok(instance_id) = std::env::var("INSTANCE_ID") {
+        config.instance_id = instance_id;
+    }
+
+    // Use CONNECTOR_DISPLAY_NAME from env, or default to "Ubertooth One"
+    if config.display_name.is_none() {
+        config.display_name = Some("Ubertooth One".to_string());
+    }
+
+    tracing::info!("Connector configuration:");
+    tracing::info!("  Type: {}", config.connector_type);
+    tracing::info!("  Instance ID: {}", config.instance_id);
+    tracing::info!("  Version: {}", config.version);
+    tracing::info!("  Display Name: {:?}", config.display_name);
+    tracing::info!("  Host: {}", config.host);
+    tracing::info!("  Tenant: {}", config.tenant_id);
+    tracing::info!("  Transport: {:?}", config.transport_type);
+    tracing::info!("  TLS: {}", config.use_tls);
 
     let runner = ConnectorRunner::new(config, connector);
     let shutdown = runner.shutdown_handle();
