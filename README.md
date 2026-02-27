@@ -102,30 +102,32 @@ ubertooth-agent
 
 The connector supports **two backends**:
 
-1. **Python Wrapper** (Phase 1) ✅ **IMPLEMENTED** - Wraps ubertooth-tools CLI utilities (14 tools in v0.1.0)
+1. **CLI Wrapper** (Phase 2) ✅ **FULLY IMPLEMENTED** - Wraps ubertooth-tools CLI utilities (all 36 tools)
 2. **Rust USB** (Phase 3, future) - Native implementation via libusb (7-10 tools, **100-200x faster**)
 
 ### Choosing a Backend
 
-**Python Backend** (default, Phase 1):
-- 14 Phase 1 tools implemented (device, recon, config, capture, analysis)
-- Proven, stable, battle-tested
-- Requires ubertooth-tools installed
-- All captures stored as PCAP + JSON metadata in `~/.ubertooth/`
+**CLI Backend** (default, fully functional):
+- ✅ All 36 tools implemented with complete backend integration
+- ✅ Device management, scanning, sniffing, analysis, configuration, attack operations
+- ✅ Proven, stable, battle-tested ubertooth-tools
+- ✅ Requires ubertooth-tools installed (`sudo apt-get install ubertooth`)
+- ✅ All captures stored as PCAP + JSON metadata in `~/.ubertooth/`
+- ✅ PCAP parsing and manipulation via tshark/editcap/mergecap
 
 **Rust Backend** (Phase 3, planned):
 - Core operations only (device, scan, sniff, specan)
-- **100-200x faster** than Python for supported operations
+- **100-200x faster** than CLI wrapper for supported operations
 - No Python dependency, pure Rust + libusb
 - Lower memory footprint
 
 Set the backend via environment variable:
 
 ```bash
-# Use Python backend (full features, default)
+# Use CLI backend (full features, default)
 UBERTOOTH_BACKEND=python ubertooth-agent
 
-# Use Rust backend (high performance, Phase 3)
+# Use Rust backend (high performance, Phase 3 - not yet implemented)
 UBERTOOTH_BACKEND=rust ubertooth-agent
 ```
 
@@ -238,7 +240,7 @@ Re-run `just install-udev` and replug the device.
 
 ## Project Status
 
-**Version: v0.2.0 (Phase 2 Complete) 🎉🎉**
+**Version: v0.2.1 (Phase 2 Complete + Backend Integration) 🎉🎉🎉**
 
 - ✅ Template project analyzed (yardstick-one-connector)
 - ✅ libubertooth C API analyzed for Rust feasibility
@@ -246,7 +248,7 @@ Re-run `just install-udev` and replug the device.
 - ✅ PRD document complete
 - ✅ **Phase 1 complete: 14/14 tools working** (v0.1.0)
   - Device management, basic recon, config, capture, analysis
-  - Python backend wrapper for ubertooth-tools
+  - CLI backend wrapper for ubertooth-tools
   - Capture storage with PCAP + JSON metadata
 - ✅ **Phase 2 complete: 36/36 tools implemented** (v0.2.0) 🎉
   - Week 3: Advanced reconnaissance (7 tools)
@@ -255,8 +257,14 @@ Re-run `just install-udev` and replug the device.
   - Week 6: Attack operations (6 tools)
   - Authorization framework for attack tools
   - All 72 unit tests passing
+- ✅ **Backend Integration complete: All 36 tools fully functional** (v0.2.1) 🚀
+  - Week 3-6 backends implemented (18 tools)
+  - Full ubertooth-tools command wrappers
+  - PCAP parsing and manipulation (tshark, editcap, mergecap)
+  - Complete capture analysis pipeline
+  - All attack operations with authorization checks
+  - **Production-ready for real hardware testing**
 - ⏳ **Phase 3 (next)**: Native Rust USB backend (100-200x faster)
-- ⏳ **Backend integration**: Full ubertooth-tools wrappers + PCAP parsing
 
 See [PRD.md](PRD.md) for complete roadmap and [LIBUBERTOOTH_RUST_FEASIBILITY.md](LIBUBERTOOTH_RUST_FEASIBILITY.md) for implementation details.
 
