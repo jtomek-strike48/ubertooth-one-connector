@@ -209,20 +209,15 @@ impl Drop for AsyncTransfer {
 
 /// Callback function called by libusb when transfer completes.
 extern "C" fn transfer_callback(transfer: *mut LibusbTransfer) {
-    eprintln!("[libusb_async] transfer_callback called!");
-
     unsafe {
         if transfer.is_null() {
-            eprintln!("[libusb_async] transfer_callback: transfer is NULL");
             return;
         }
 
         let t = &*transfer;
-        eprintln!("[libusb_async] transfer_callback: status={}, actual_length={}", t.status, t.actual_length);
 
         let completion_ptr = t.user_data as *const Mutex<Option<TransferCompletion>>;
         if completion_ptr.is_null() {
-            eprintln!("[libusb_async] transfer_callback: user_data is NULL");
             return;
         }
 
@@ -242,7 +237,6 @@ extern "C" fn transfer_callback(transfer: *mut LibusbTransfer) {
             data,
         };
 
-        eprintln!("[libusb_async] transfer_callback: storing completion");
         trace!(
             "Transfer callback: status={}, length={}",
             result.status,
@@ -289,7 +283,6 @@ impl AsyncTransferManager {
     ///
     /// This should be called in a background thread.
     pub fn run_event_loop(&self) -> Result<()> {
-        eprintln!("[libusb_async] run_event_loop starting");
         debug!("Starting libusb event loop");
 
         let mut completed = 0;
@@ -298,13 +291,7 @@ impl AsyncTransferManager {
             tv_usec: 100_000,  // 100ms
         };
 
-        let mut loop_count = 0;
         while *self.running.lock().unwrap() {
-            loop_count += 1;
-            if loop_count == 1 || loop_count % 100 == 0 {
-                eprintln!("[libusb_async] Event loop iteration {}", loop_count);
-            }
-
             unsafe {
                 let ret = libusb_handle_events_timeout_completed(
                     self.context,
@@ -312,12 +299,7 @@ impl AsyncTransferManager {
                     &mut completed,
                 );
 
-                if loop_count % 100 == 0 {
-                    eprintln!("[libusb_async] libusb_handle_events returned: {}, completed: {}", ret, completed);
-                }
-
                 if ret < 0 {
-                    eprintln!("[libusb_async] libusb_handle_events error: {}", ret);
                     warn!("libusb_handle_events error: {}", ret);
                     if ret == -1 {  // LIBUSB_ERROR_IO
                         return Err(UsbError::Disconnected);
@@ -329,7 +311,6 @@ impl AsyncTransferManager {
             std::thread::yield_now();
         }
 
-        eprintln!("[libusb_async] Event loop stopping");
         debug!("Event loop stopped");
         Ok(())
     }
@@ -444,16 +425,14 @@ fn run_streaming_raw(
     const TRANSFER_SIZE: usize = USB_PKT_SIZE;
     const TIMEOUT_MS: u32 = 5000;
 
-    eprintln!("[libusb_async] Starting run_streaming_raw");
-    eprintln!("[libusb_async] raw_handle: {:?}, raw_context: {:?}, endpoint: 0x{:02x}",
-              raw_handle, raw_context, endpoint);
+    debug!("Starting run_streaming_raw");
     debug!("Setting up {} concurrent transfers with raw handle", NUM_TRANSFERS);
 
     // Create transfer manager
     let manager = unsafe { AsyncTransferManager::new(raw_context, packet_tx.clone()) };
 
     // Create and submit initial transfers
-    eprintln!("[libusb_async] Creating {} transfers...", NUM_TRANSFERS);
+    debug!("Creating {} transfers", NUM_TRANSFERS);
     let mut transfers = Vec::new();
     for i in 0..NUM_TRANSFERS {
         let mut transfer = unsafe {
@@ -461,38 +440,26 @@ fn run_streaming_raw(
         };
 
         transfer.submit()?;
-        eprintln!("[libusb_async] Submitted transfer {}/{}", i + 1, NUM_TRANSFERS);
         debug!("Submitted transfer {}/{}", i + 1, NUM_TRANSFERS);
         transfers.push(transfer);
     }
-    eprintln!("[libusb_async] All transfers submitted");
+    debug!("All transfers submitted");
 
     // Spawn event loop in background thread
-    eprintln!("[libusb_async] About to spawn event loop thread");
     let manager_clone = Arc::new(manager);
     let manager_for_loop = Arc::clone(&manager_clone);
 
-    eprintln!("[libusb_async] Spawning event loop thread");
     std::thread::spawn(move || {
-        eprintln!("[libusb_async] Event loop thread started");
+        debug!("Event loop thread started");
         if let Err(e) = manager_for_loop.run_event_loop() {
-            eprintln!("[libusb_async] Event loop error: {}", e);
             warn!("Event loop error: {}", e);
         }
-        eprintln!("[libusb_async] Event loop thread exiting");
+        debug!("Event loop thread exiting");
     });
 
-    eprintln!("[libusb_async] Event loop thread spawned, starting main loop");
-
     // Main transfer management loop
-    eprintln!("[libusb_async] Entering main transfer management loop");
     let mut packet_count = 0;
-    let mut loop_count = 0;
     loop {
-        loop_count += 1;
-        if loop_count == 1 || loop_count % 1000 == 0 {
-            eprintln!("[libusb_async] Loop iteration {}, packets: {}", loop_count, packet_count);
-        }
 
         // Check all transfers for completion
         let mut any_completed = false;
@@ -571,7 +538,7 @@ fn run_streaming(
     let manager = unsafe { AsyncTransferManager::new(raw_context, packet_tx.clone()) };
 
     // Create and submit initial transfers
-    eprintln!("[libusb_async] Creating {} transfers...", NUM_TRANSFERS);
+    debug!("Creating {} transfers", NUM_TRANSFERS);
     let mut transfers = Vec::new();
     for i in 0..NUM_TRANSFERS {
         let mut transfer = unsafe {
@@ -579,38 +546,26 @@ fn run_streaming(
         };
 
         transfer.submit()?;
-        eprintln!("[libusb_async] Submitted transfer {}/{}", i + 1, NUM_TRANSFERS);
         debug!("Submitted transfer {}/{}", i + 1, NUM_TRANSFERS);
         transfers.push(transfer);
     }
-    eprintln!("[libusb_async] All transfers submitted");
+    debug!("All transfers submitted");
 
     // Spawn event loop in background thread
-    eprintln!("[libusb_async] About to spawn event loop thread");
     let manager_clone = Arc::new(manager);
     let manager_for_loop = Arc::clone(&manager_clone);
 
-    eprintln!("[libusb_async] Spawning event loop thread");
     std::thread::spawn(move || {
-        eprintln!("[libusb_async] Event loop thread started");
+        debug!("Event loop thread started");
         if let Err(e) = manager_for_loop.run_event_loop() {
-            eprintln!("[libusb_async] Event loop error: {}", e);
             warn!("Event loop error: {}", e);
         }
-        eprintln!("[libusb_async] Event loop thread exiting");
+        debug!("Event loop thread exiting");
     });
 
-    eprintln!("[libusb_async] Event loop thread spawned, starting main loop");
-
     // Main transfer management loop
-    eprintln!("[libusb_async] Entering main transfer management loop");
     let mut packet_count = 0;
-    let mut loop_count = 0;
     loop {
-        loop_count += 1;
-        if loop_count == 1 || loop_count % 1000 == 0 {
-            eprintln!("[libusb_async] Loop iteration {}, packets: {}", loop_count, packet_count);
-        }
 
         // Check all transfers for completion
         let mut any_completed = false;

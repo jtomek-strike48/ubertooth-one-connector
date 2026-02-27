@@ -4,7 +4,8 @@ use crate::constants::*;
 use crate::device::UbertoothDevice;
 use crate::error::UsbError;
 use crate::protocol::{BlePacket, UsbPacket};
-use crate::async_reader::{AsyncPacketReader, flush_usb_buffer};
+use crate::async_reader::flush_usb_buffer;
+use crate::libusb_async::LibusbStreamReader;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -301,96 +302,107 @@ impl UbertoothCommands {
 
     /// Scan for BLE packets (helper function).
     async fn scan_ble_packets(&self, duration_sec: u64, _channel: u8) -> Result<ScanResult> {
-        let scan_duration = Duration::from_secs(duration_sec);
-
         let mut devices: HashMap<String, DeviceStats> = HashMap::new();
         let mut total_packets = 0;
         let mut preview = Vec::new();
-        let mut received_bytes = 0;
+        let mut packet_count = 0;
 
-        info!("Starting async packet capture ({}s)...", duration_sec);
+        info!("Starting libusb async packet capture ({}s)...", duration_sec);
 
-        // Create async packet reader
-        let reader = AsyncPacketReader::new(self.device.clone(), USB_PKT_SIZE);
+        // Create libusb async stream reader
+        let device = self.device.lock().await;
+        let mut reader = usb_result!(device.create_libusb_stream_reader().await)?;
+        drop(device);
 
-        // Read packets using async reader
-        let packet_count = reader.read_packets(scan_duration, |buffer| {
-            received_bytes += buffer.len();
+        let start = tokio::time::Instant::now();
+        let scan_duration = Duration::from_secs(duration_sec);
 
-            debug!("Received {} bytes: {:02X?}", buffer.len(), &buffer[..buffer.len().min(16)]);
+        // Read packets with timeout for each read
+        while start.elapsed() < scan_duration {
+            match tokio::time::timeout(Duration::from_millis(100), reader.read_packet()).await {
+                Ok(Some(buffer)) => {
+                    packet_count += 1;
+                    debug!("Received packet #{}: {} bytes", packet_count, buffer.len());
 
-            // Parse USB packet
-            if buffer.len() >= 14 {
-                match UsbPacket::from_bytes(&buffer) {
-                    Ok(usb_pkt) => {
-                        debug!("Parsed USB packet: type={}, channel={}, payload_len={}",
-                              usb_pkt.header.pkt_type,
-                              usb_pkt.header.channel,
-                              usb_pkt.payload.len());
+                    // Parse USB packet
+                    if buffer.len() >= 14 {
+                        match UsbPacket::from_bytes(&buffer) {
+                            Ok(usb_pkt) => {
+                                debug!("Parsed USB packet: type={}, channel={}, payload_len={}",
+                                      usb_pkt.header.pkt_type,
+                                      usb_pkt.header.channel,
+                                      usb_pkt.payload.len());
 
-                        if usb_pkt.is_ble() {
-                            // Parse BLE packet
-                            match BlePacket::from_usb_packet(&usb_pkt) {
-                                Ok(ble_pkt) => {
-                                    total_packets += 1;
-                                    info!("BLE packet #{}: RSSI={}", total_packets, ble_pkt.rssi);
+                                if usb_pkt.is_ble() {
+                                    // Parse BLE packet
+                                    match BlePacket::from_usb_packet(&usb_pkt) {
+                                        Ok(ble_pkt) => {
+                                            total_packets += 1;
+                                            info!("BLE packet #{}: RSSI={}", total_packets, ble_pkt.rssi);
 
-                                    // Extract device info
-                                    if let Some(addr) = ble_pkt.advertiser_address() {
-                                        let mac = format!(
-                                            "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
-                                            addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]
-                                        );
+                                            // Extract device info
+                                            if let Some(addr) = ble_pkt.advertiser_address() {
+                                                let mac = format!(
+                                                    "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+                                                    addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]
+                                                );
 
-                                        let stats = devices.entry(mac.clone()).or_insert(DeviceStats {
-                                            address_type: "public".to_string(),
-                                            name: None,
-                                            rssi_sum: 0,
-                                            packet_count: 0,
-                                            rssi_avg: 0,
-                                        });
+                                                let stats = devices.entry(mac.clone()).or_insert(DeviceStats {
+                                                    address_type: "public".to_string(),
+                                                    name: None,
+                                                    rssi_sum: 0,
+                                                    packet_count: 0,
+                                                    rssi_avg: 0,
+                                                });
 
-                                        stats.packet_count += 1;
-                                        stats.rssi_sum += ble_pkt.rssi as i32;
-                                        stats.rssi_avg = stats.rssi_sum / stats.packet_count as i32;
+                                                stats.packet_count += 1;
+                                                stats.rssi_sum += ble_pkt.rssi as i32;
+                                                stats.rssi_avg = stats.rssi_sum / stats.packet_count as i32;
 
-                                        // Try to extract device name
-                                        if stats.name.is_none() {
-                                            if let Some(name) = ble_pkt.device_name() {
-                                                info!("Device discovered: {} ({})", mac, name);
-                                                stats.name = Some(name);
+                                                // Try to extract device name
+                                                if stats.name.is_none() {
+                                                    if let Some(name) = ble_pkt.device_name() {
+                                                        info!("Device discovered: {} ({})", mac, name);
+                                                        stats.name = Some(name);
+                                                    }
+                                                }
+
+                                                // Add to preview (first 5 packets)
+                                                if preview.len() < 5 {
+                                                    preview.push(format!(
+                                                        "{}: {} (RSSI: {})",
+                                                        mac,
+                                                        stats.name.as_deref().unwrap_or("Unknown"),
+                                                        ble_pkt.rssi
+                                                    ));
+                                                }
                                             }
                                         }
-
-                                        // Add to preview (first 5 packets)
-                                        if preview.len() < 5 {
-                                            preview.push(format!(
-                                                "{}: {} (RSSI: {})",
-                                                mac,
-                                                stats.name.as_deref().unwrap_or("Unknown"),
-                                                ble_pkt.rssi
-                                            ));
+                                        Err(e) => {
+                                            debug!("Failed to parse BLE packet: {}", e);
                                         }
                                     }
                                 }
-                                Err(e) => {
-                                    debug!("Failed to parse BLE packet: {}", e);
-                                }
+                            }
+                            Err(e) => {
+                                debug!("Failed to parse USB packet: {}", e);
                             }
                         }
                     }
-                    Err(e) => {
-                        debug!("Failed to parse USB packet: {}", e);
-                    }
+                }
+                Ok(None) => {
+                    info!("Stream ended");
+                    break;
+                }
+                Err(_) => {
+                    // Timeout - no data in 100ms, continue
                 }
             }
-
-            true  // Continue reading
-        }).await?;
+        }
 
         info!(
-            "Packet capture complete: {} raw packets, {} BLE packets, {} devices, {} bytes",
-            packet_count, total_packets, devices.len(), received_bytes
+            "Packet capture complete: {} raw packets, {} BLE packets, {} devices",
+            packet_count, total_packets, devices.len()
         );
 
         Ok(ScanResult {
