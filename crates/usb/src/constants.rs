@@ -145,6 +145,9 @@ pub const BLE_CHANNEL_38: u8 = 38;
 /// BLE advertising channel 39 (2480 MHz)
 pub const BLE_CHANNEL_39: u8 = 39;
 
+/// BLE advertising access address (standard for all advertising)
+pub const BLE_ADV_ACCESS_ADDRESS: u32 = 0x8E89BED6;
+
 /// Minimum BLE data channel
 pub const BLE_CHANNEL_MIN: u8 = 0;
 

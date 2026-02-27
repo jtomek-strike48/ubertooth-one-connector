@@ -215,13 +215,33 @@ impl UbertoothCommands {
         usb_result!(device.set_modulation(MOD_BT_LOW_ENERGY))?;
         usb_result!(device.set_channel(channel))?;
 
-        // Start BLE promiscuous mode
-        usb_result!(device.control_transfer(CMD_BTLE_PROMISC, 0, 0, &[], USB_TIMEOUT_SHORT_MS))?;
+        // Set BLE advertising access address (required for advertisement sniffing)
+        let aa_bytes = BLE_ADV_ACCESS_ADDRESS.to_le_bytes();
+        usb_result!(device.control_transfer(
+            CMD_BTLE_SET_ACCESS_ADDRESS,
+            0,
+            0,
+            &aa_bytes,
+            USB_TIMEOUT_SHORT_MS
+        ))?;
+        info!("Set BLE access address to 0x{:08X}", BLE_ADV_ACCESS_ADDRESS);
 
-        info!("BLE scan started on channel {}", channel);
+        // Start BLE advertisement sniffing
+        usb_result!(device.control_transfer(CMD_BTLE_SNIFF_AA, 0, 0, &[], USB_TIMEOUT_SHORT_MS))?;
+
+        info!("BLE scan started on channel {} (sniffing advertisements)", channel);
+
+        // Try to flush any stale data in the USB buffer
+        let mut flush_buffer = vec![0u8; USB_PKT_SIZE];
+        for _ in 0..5 {
+            let _ = device.bulk_read(&mut flush_buffer, 10);  // Quick 10ms reads to flush
+        }
 
         // Drop the lock while scanning
         drop(device);
+
+        // Small delay to let device start capturing
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
         // Scan for the specified duration
         let scan_result = self.scan_ble_packets(duration_sec, channel).await?;
@@ -298,21 +318,36 @@ impl UbertoothCommands {
         let mut devices: HashMap<String, DeviceStats> = HashMap::new();
         let mut total_packets = 0;
         let mut preview = Vec::new();
+        let mut read_attempts = 0;
+        let mut timeout_count = 0;
+        let mut received_bytes = 0;
+
+        info!("Starting packet capture loop...");
 
         // Read packets in a loop
         while start_time.elapsed() < scan_duration {
             // Lock device for reading
             let device = self.device.lock().await;
 
-            // Try to read a packet (with short timeout to check duration frequently)
+            // Try to read a packet (with 1 second timeout)
             let mut buffer = vec![0u8; USB_PKT_SIZE];
-            match device.bulk_read(&mut buffer, 100) {
+            read_attempts += 1;
+
+            match device.bulk_read(&mut buffer, 1000) {
                 Ok(len) => {
                     drop(device); // Release lock immediately
+                    received_bytes += len;
+
+                    info!("Received {} bytes (attempt #{}): {:02X?}", len, read_attempts, &buffer[..len]);
 
                     if len >= 14 {
                         // Parse USB packet
                         if let Ok(usb_pkt) = UsbPacket::from_bytes(&buffer[..len]) {
+                            info!("Parsed USB packet: type={}, channel={}, payload_len={}",
+                                  usb_pkt.header.pkt_type,
+                                  usb_pkt.header.channel,
+                                  usb_pkt.payload.len());
+
                             if usb_pkt.is_ble() {
                                 // Parse BLE packet
                                 if let Ok(ble_pkt) = BlePacket::from_usb_packet(&usb_pkt) {
@@ -361,6 +396,7 @@ impl UbertoothCommands {
                 }
                 Err(UsbError::Timeout { .. }) => {
                     drop(device);
+                    timeout_count += 1;
                     // Timeout is expected, just continue
                     tokio::time::sleep(Duration::from_millis(10)).await;
                 }
@@ -371,6 +407,11 @@ impl UbertoothCommands {
                 }
             }
         }
+
+        info!(
+            "Packet capture complete: {} attempts, {} timeouts, {} bytes received, {} packets parsed",
+            read_attempts, timeout_count, received_bytes, total_packets
+        );
 
         Ok(ScanResult {
             devices,

@@ -124,6 +124,16 @@ impl UbertoothDevice {
 
         self.device_index = device_index;
 
+        // Ping device to ensure it's responsive
+        debug!("Pinging device to verify connection...");
+        match self.ping() {
+            Ok(_) => debug!("Device ping successful"),
+            Err(e) => warn!("Device ping failed: {}, continuing anyway", e),
+        }
+
+        // Small delay to let device settle
+        std::thread::sleep(std::time::Duration::from_millis(100));
+
         // Retrieve device info
         self.refresh_device_info()?;
 
@@ -172,11 +182,19 @@ impl UbertoothDevice {
 
     /// Refresh device information from hardware.
     fn refresh_device_info(&mut self) -> Result<()> {
-        // Get board ID (required)
-        let board_id = self.get_board_id()?;
+        // Get board ID (optional - may not work on all firmware)
+        let board_id = self.get_board_id()
+            .unwrap_or_else(|e| {
+                debug!("Failed to get board ID: {}, using default (1=Ubertooth One)", e);
+                1  // Default to Ubertooth One
+            });
 
-        // Get firmware version (required)
-        let firmware_version = self.get_firmware_version()?;
+        // Get firmware version (optional)
+        let firmware_version = self.get_firmware_version()
+            .unwrap_or_else(|e| {
+                debug!("Failed to get firmware version: {}, using default", e);
+                "unknown".to_string()
+            });
 
         // Get API version (optional - may not be supported on all firmware)
         let api_version = self.get_api_version()

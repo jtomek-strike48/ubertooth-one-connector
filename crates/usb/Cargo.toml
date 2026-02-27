@@ -28,3 +28,10 @@ serde_json = { workspace = true }
 
 # Time
 chrono = "0.4"
+
+[dev-dependencies]
+tracing-subscriber = { workspace = true }
+
+[[example]]
+name = "test_btle_scan"
+path = "../../examples/test_btle_scan.rs"
