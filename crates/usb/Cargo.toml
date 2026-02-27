@@ -6,6 +6,9 @@ authors.workspace = true
 license.workspace = true
 
 [dependencies]
+# Internal dependencies
+ubertooth-core = { path = "../core" }
+
 # USB
 rusb = { workspace = true }
 
@@ -22,3 +25,6 @@ tracing = { workspace = true }
 # Serialization
 serde = { workspace = true }
 serde_json = { workspace = true }
+
+# Time
+chrono = "0.4"

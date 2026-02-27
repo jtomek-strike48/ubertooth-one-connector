@@ -33,3 +33,7 @@ clap = { workspace = true }
 
 # Strike48 SDK
 strike48-connector = { workspace = true }
+
+[features]
+default = []
+rust-backend = ["ubertooth-platform/rust-backend"]
