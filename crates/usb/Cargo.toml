@@ -35,3 +35,7 @@ tracing-subscriber = { workspace = true }
 [[example]]
 name = "test_btle_scan"
 path = "../../examples/test_btle_scan.rs"
+
+[[example]]
+name = "test_bulk_read"
+path = "../../examples/test_bulk_read.rs"

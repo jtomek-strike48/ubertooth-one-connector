@@ -102,6 +102,10 @@ impl UbertoothDevice {
             Err(e) => return Err(UsbError::from(e)),
         };
 
+        // Set USB configuration (should be 1 for Ubertooth)
+        debug!("Setting USB configuration to 1");
+        handle.set_active_configuration(1)?;
+
         // Detach kernel driver if necessary (Linux)
         #[cfg(target_os = "linux")]
         {
@@ -112,6 +116,7 @@ impl UbertoothDevice {
         }
 
         // Claim interface
+        debug!("Claiming interface 0");
         handle.claim_interface(0)?;
 
         info!("Successfully connected to Ubertooth device");

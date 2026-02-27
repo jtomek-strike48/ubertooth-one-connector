@@ -215,21 +215,12 @@ impl UbertoothCommands {
         usb_result!(device.set_modulation(MOD_BT_LOW_ENERGY))?;
         usb_result!(device.set_channel(channel))?;
 
-        // Set BLE advertising access address (required for advertisement sniffing)
-        let aa_bytes = BLE_ADV_ACCESS_ADDRESS.to_le_bytes();
-        usb_result!(device.control_transfer(
-            CMD_BTLE_SET_ACCESS_ADDRESS,
-            0,
-            0,
-            &aa_bytes,
-            USB_TIMEOUT_SHORT_MS
-        ))?;
-        info!("Set BLE access address to 0x{:08X}", BLE_ADV_ACCESS_ADDRESS);
+        // Try CMD_BTLE_PROMISC (command 37) for promiscuous mode
+        // This is what ubertooth-btle -f uses
+        info!("Starting BLE promiscuous mode...");
+        usb_result!(device.control_transfer(CMD_BTLE_PROMISC, 0, 0, &[], USB_TIMEOUT_SHORT_MS))?;
 
-        // Start BLE advertisement sniffing
-        usb_result!(device.control_transfer(CMD_BTLE_SNIFF_AA, 0, 0, &[], USB_TIMEOUT_SHORT_MS))?;
-
-        info!("BLE scan started on channel {} (sniffing advertisements)", channel);
+        info!("BLE promiscuous mode started on channel {}", channel);
 
         // Try to flush any stale data in the USB buffer
         let mut flush_buffer = vec![0u8; USB_PKT_SIZE];
