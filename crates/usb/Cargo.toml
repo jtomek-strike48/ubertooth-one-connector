@@ -11,6 +11,7 @@ ubertooth-core = { path = "../core" }
 
 # USB
 rusb = { workspace = true }
+nusb = "0.2"
 
 # Async
 tokio = { workspace = true }
@@ -39,3 +40,11 @@ path = "../../examples/test_btle_scan.rs"
 [[example]]
 name = "test_bulk_read"
 path = "../../examples/test_bulk_read.rs"
+
+[[example]]
+name = "test_usb_diagnostics"
+path = "../../examples/test_usb_diagnostics.rs"
+
+[[example]]
+name = "test_nusb_async"
+path = "../../examples/test_nusb_async.rs"

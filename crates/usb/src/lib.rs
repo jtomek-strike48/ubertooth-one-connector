@@ -41,6 +41,7 @@ pub mod device;
 pub mod error;
 pub mod protocol;
 pub mod commands;
+pub mod async_reader;
 
 // Re-exports for convenience
 pub use constants::*;
@@ -48,3 +49,4 @@ pub use device::UbertoothDevice;
 pub use error::{Result, UsbError};
 pub use protocol::{BlePacket, DeviceInfo, UsbPacket};
 pub use commands::UbertoothCommands;
+pub use async_reader::{AsyncPacketReader, flush_usb_buffer};

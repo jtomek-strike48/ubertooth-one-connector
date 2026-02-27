@@ -4,12 +4,13 @@ use crate::constants::*;
 use crate::device::UbertoothDevice;
 use crate::error::UsbError;
 use crate::protocol::{BlePacket, UsbPacket};
+use crate::async_reader::{AsyncPacketReader, flush_usb_buffer};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::Mutex;
-use tracing::{info, warn};
+use tracing::{info, warn, debug};
 use ubertooth_core::error::Result;
 
 /// High-level command executor for Ubertooth operations.
@@ -222,14 +223,11 @@ impl UbertoothCommands {
 
         info!("BLE promiscuous mode started on channel {}", channel);
 
-        // Try to flush any stale data in the USB buffer
-        let mut flush_buffer = vec![0u8; USB_PKT_SIZE];
-        for _ in 0..5 {
-            let _ = device.bulk_read(&mut flush_buffer, 10);  // Quick 10ms reads to flush
-        }
-
-        // Drop the lock while scanning
+        // Drop the lock before flushing
         drop(device);
+
+        // Flush any stale data from USB buffer
+        flush_usb_buffer(self.device.clone()).await?;
 
         // Small delay to let device start capturing
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -303,46 +301,39 @@ impl UbertoothCommands {
 
     /// Scan for BLE packets (helper function).
     async fn scan_ble_packets(&self, duration_sec: u64, _channel: u8) -> Result<ScanResult> {
-        let start_time = Instant::now();
         let scan_duration = Duration::from_secs(duration_sec);
 
         let mut devices: HashMap<String, DeviceStats> = HashMap::new();
         let mut total_packets = 0;
         let mut preview = Vec::new();
-        let mut read_attempts = 0;
-        let mut timeout_count = 0;
         let mut received_bytes = 0;
 
-        info!("Starting packet capture loop...");
+        info!("Starting async packet capture ({}s)...", duration_sec);
 
-        // Read packets in a loop
-        while start_time.elapsed() < scan_duration {
-            // Lock device for reading
-            let device = self.device.lock().await;
+        // Create async packet reader
+        let reader = AsyncPacketReader::new(self.device.clone(), USB_PKT_SIZE);
 
-            // Try to read a packet (with 1 second timeout)
-            let mut buffer = vec![0u8; USB_PKT_SIZE];
-            read_attempts += 1;
+        // Read packets using async reader
+        let packet_count = reader.read_packets(scan_duration, |buffer| {
+            received_bytes += buffer.len();
 
-            match device.bulk_read(&mut buffer, 1000) {
-                Ok(len) => {
-                    drop(device); // Release lock immediately
-                    received_bytes += len;
+            debug!("Received {} bytes: {:02X?}", buffer.len(), &buffer[..buffer.len().min(16)]);
 
-                    info!("Received {} bytes (attempt #{}): {:02X?}", len, read_attempts, &buffer[..len]);
+            // Parse USB packet
+            if buffer.len() >= 14 {
+                match UsbPacket::from_bytes(&buffer) {
+                    Ok(usb_pkt) => {
+                        debug!("Parsed USB packet: type={}, channel={}, payload_len={}",
+                              usb_pkt.header.pkt_type,
+                              usb_pkt.header.channel,
+                              usb_pkt.payload.len());
 
-                    if len >= 14 {
-                        // Parse USB packet
-                        if let Ok(usb_pkt) = UsbPacket::from_bytes(&buffer[..len]) {
-                            info!("Parsed USB packet: type={}, channel={}, payload_len={}",
-                                  usb_pkt.header.pkt_type,
-                                  usb_pkt.header.channel,
-                                  usb_pkt.payload.len());
-
-                            if usb_pkt.is_ble() {
-                                // Parse BLE packet
-                                if let Ok(ble_pkt) = BlePacket::from_usb_packet(&usb_pkt) {
+                        if usb_pkt.is_ble() {
+                            // Parse BLE packet
+                            match BlePacket::from_usb_packet(&usb_pkt) {
+                                Ok(ble_pkt) => {
                                     total_packets += 1;
+                                    info!("BLE packet #{}: RSSI={}", total_packets, ble_pkt.rssi);
 
                                     // Extract device info
                                     if let Some(addr) = ble_pkt.advertiser_address() {
@@ -366,6 +357,7 @@ impl UbertoothCommands {
                                         // Try to extract device name
                                         if stats.name.is_none() {
                                             if let Some(name) = ble_pkt.device_name() {
+                                                info!("Device discovered: {} ({})", mac, name);
                                                 stats.name = Some(name);
                                             }
                                         }
@@ -381,27 +373,24 @@ impl UbertoothCommands {
                                         }
                                     }
                                 }
+                                Err(e) => {
+                                    debug!("Failed to parse BLE packet: {}", e);
+                                }
                             }
                         }
                     }
-                }
-                Err(UsbError::Timeout { .. }) => {
-                    drop(device);
-                    timeout_count += 1;
-                    // Timeout is expected, just continue
-                    tokio::time::sleep(Duration::from_millis(10)).await;
-                }
-                Err(e) => {
-                    drop(device);
-                    warn!("Error reading packet: {}", e);
-                    break;
+                    Err(e) => {
+                        debug!("Failed to parse USB packet: {}", e);
+                    }
                 }
             }
-        }
+
+            true  // Continue reading
+        }).await?;
 
         info!(
-            "Packet capture complete: {} attempts, {} timeouts, {} bytes received, {} packets parsed",
-            read_attempts, timeout_count, received_bytes, total_packets
+            "Packet capture complete: {} raw packets, {} BLE packets, {} devices, {} bytes",
+            packet_count, total_packets, devices.len(), received_bytes
         );
 
         Ok(ScanResult {
