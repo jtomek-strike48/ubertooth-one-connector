@@ -36,8 +36,8 @@ export STRIKE48_ACCEPT_INVALID_CERTS=true
 export MATRIX_TLS_INSECURE=true  # SDK also checks this
 export RUST_LOG=info
 export INSTANCE_ID=ubertooth-connector-1
-export MATRIX_HOST=connectors-jt-demo-01.strike48.test
-export MATRIX_API_URL=https://jt-demo-01.strike48.test
+export MATRIX_HOST=wss://jt-demo-01.strike48.engineering
+export MATRIX_API_URL=https://jt-demo-01.strike48.engineering
 export MATRIX_TENANT_ID=non-prod
 export TENANT_ID=non-prod
 export SK_PORT=3033
@@ -58,7 +58,8 @@ echo
 
 # Set STRIKE48_URL from MATRIX_HOST (SDK will parse this)
 # SDK supports: wss://host, grpc://host, grpcs://host
-export STRIKE48_URL="grpcs://${MATRIX_HOST}"
+# MATRIX_HOST already includes the protocol (wss://)
+export STRIKE48_URL="${MATRIX_HOST}"
 
 echo "Starting connector..."
 echo "Press Ctrl+C to stop"
