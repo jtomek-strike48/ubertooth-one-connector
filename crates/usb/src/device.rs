@@ -172,20 +172,32 @@ impl UbertoothDevice {
 
     /// Refresh device information from hardware.
     fn refresh_device_info(&mut self) -> Result<()> {
-        // Get board ID
+        // Get board ID (required)
         let board_id = self.get_board_id()?;
 
-        // Get firmware version
+        // Get firmware version (required)
         let firmware_version = self.get_firmware_version()?;
 
-        // Get API version
-        let api_version = self.get_api_version()?;
+        // Get API version (optional - may not be supported on all firmware)
+        let api_version = self.get_api_version()
+            .unwrap_or_else(|e| {
+                debug!("Failed to get API version: {}, using default", e);
+                "unknown".to_string()
+            });
 
-        // Get serial number
-        let serial_number = self.get_serial_number()?;
+        // Get serial number (optional)
+        let serial_number = self.get_serial_number()
+            .unwrap_or_else(|e| {
+                debug!("Failed to get serial number: {}, using default", e);
+                "unknown".to_string()
+            });
 
-        // Get compile info
-        let compile_info = self.get_compile_info()?;
+        // Get compile info (optional)
+        let compile_info = self.get_compile_info()
+            .unwrap_or_else(|e| {
+                debug!("Failed to get compile info: {}, using default", e);
+                "unknown".to_string()
+            });
 
         let info = DeviceInfo {
             board_id,
@@ -354,8 +366,14 @@ impl UbertoothDevice {
             USB_TIMEOUT_SHORT_MS,
         )?;
 
-        String::from_utf8(buffer[..len].to_vec())
-            .map_err(|e| UsbError::InvalidPacket(format!("Invalid UTF-8: {}", e)))
+        // Trim null bytes and convert to string (lossy to handle non-UTF8)
+        let bytes = &buffer[..len];
+        let trimmed = bytes.iter()
+            .take_while(|&&b| b != 0)
+            .copied()
+            .collect::<Vec<u8>>();
+
+        Ok(String::from_utf8_lossy(&trimmed).trim().to_string())
     }
 
     /// Get API version.
@@ -390,8 +408,14 @@ impl UbertoothDevice {
             USB_TIMEOUT_SHORT_MS,
         )?;
 
-        String::from_utf8(buffer[..len].to_vec())
-            .map_err(|e| UsbError::InvalidPacket(format!("Invalid UTF-8: {}", e)))
+        // Trim null bytes and convert to string (lossy to handle non-UTF8)
+        let bytes = &buffer[..len];
+        let trimmed = bytes.iter()
+            .take_while(|&&b| b != 0)
+            .copied()
+            .collect::<Vec<u8>>();
+
+        Ok(String::from_utf8_lossy(&trimmed).trim().to_string())
     }
 
     /// Get compile information.
@@ -405,8 +429,14 @@ impl UbertoothDevice {
             USB_TIMEOUT_SHORT_MS,
         )?;
 
-        String::from_utf8(buffer[..len].to_vec())
-            .map_err(|e| UsbError::InvalidPacket(format!("Invalid UTF-8: {}", e)))
+        // Trim null bytes and convert to string (lossy to handle non-UTF8)
+        let bytes = &buffer[..len];
+        let trimmed = bytes.iter()
+            .take_while(|&&b| b != 0)
+            .copied()
+            .collect::<Vec<u8>>();
+
+        Ok(String::from_utf8_lossy(&trimmed).trim().to_string())
     }
 
     /// Set channel.
