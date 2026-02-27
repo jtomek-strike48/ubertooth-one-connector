@@ -60,6 +60,8 @@ impl SidecarManager {
     }
 
     /// Execute a ubertooth command-line tool.
+    ///
+    /// Filters out benign API version mismatch warnings from stderr.
     async fn execute_ubertooth_command(
         &self,
         tool: &str,
@@ -76,12 +78,37 @@ impl SidecarManager {
                 UbertoothError::BackendError(format!("Failed to execute {}: {}", tool, e))
             })?;
 
+        // Filter stderr to remove benign API version warnings
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let filtered_stderr = stderr
+            .lines()
+            .filter(|line| {
+                // Filter out API version mismatch warnings (firmware newer than libubertooth)
+                !line.contains("API version") &&
+                !line.contains("newer than that supported") &&
+                !line.contains("Things will still work")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        // Log filtered warnings at debug level for troubleshooting
+        if stderr.contains("API version") {
+            tracing::debug!("Filtered benign API version warning from {}", tool);
+        }
+
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(UbertoothError::CommandFailed(format!(
-                "{} failed: {}",
-                tool, stderr
-            )));
+            // Only return actual errors, not filtered warnings
+            if !filtered_stderr.trim().is_empty() {
+                return Err(UbertoothError::CommandFailed(format!(
+                    "{} failed: {}",
+                    tool, filtered_stderr
+                )));
+            } else {
+                return Err(UbertoothError::CommandFailed(format!(
+                    "{} failed with exit code: {}",
+                    tool, output.status
+                )));
+            }
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout).to_string();
