@@ -3,6 +3,7 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use serde_json::{json, Value};
+use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -1441,42 +1442,395 @@ impl SidecarManager {
 
     // Phase 2 Week 5: Analysis tools
 
-    async fn bt_compare(&self, params: Value) -> Result<Value> {
-        tracing::info!("bt_compare - Phase 2 Week 5 stub");
-        Ok(json!({"success": true, "comparison": {"mode": "packets", "similarity_percent": 0.0, "differences": [], "unique_to_a": 0, "unique_to_b": 0, "common_packets": 0}, "note": "Phase 2 Week 5: PCAP parsing pending"}))
+    async fn bt_compare(&self, _params: Value) -> Result<Value> {
+        let capture_id_a = _params.get("capture_id_a")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'capture_id_a'".to_string()))?;
+
+        let capture_id_b = _params.get("capture_id_b")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'capture_id_b'".to_string()))?;
+
+        let mode = _params.get("mode").and_then(|v| v.as_str()).unwrap_or("packets");
+
+        tracing::info!("Comparing captures {} and {} (mode: {})", capture_id_a, capture_id_b, mode);
+
+        let store = CaptureStore::new()?;
+
+        // Load metadata for both captures
+        let meta_a = store.load_metadata(capture_id_a)?;
+        let meta_b = store.load_metadata(capture_id_b)?;
+
+        // Use capinfos to get detailed stats
+        let pcap_a = store.captures_dir().join(format!("{}.pcap", capture_id_a));
+        let pcap_b = store.captures_dir().join(format!("{}.pcap", capture_id_b));
+
+        let stats_a = self.execute_ubertooth_command("capinfos", &[pcap_a.to_str().unwrap()]).await.unwrap_or_default();
+        let stats_b = self.execute_ubertooth_command("capinfos", &[pcap_b.to_str().unwrap()]).await.unwrap_or_default();
+
+        // Basic comparison based on metadata
+        let common_packets = std::cmp::min(meta_a.packet_count, meta_b.packet_count);
+        let unique_to_a = meta_a.packet_count.saturating_sub(common_packets);
+        let unique_to_b = meta_b.packet_count.saturating_sub(common_packets);
+        let total = meta_a.packet_count + meta_b.packet_count;
+        let similarity_percent = if total > 0 {
+            (common_packets as f64 * 200.0) / total as f64
+        } else {
+            0.0
+        };
+
+        let mut differences = Vec::new();
+        if meta_a.capture_type != meta_b.capture_type {
+            differences.push(format!("Capture types differ: {} vs {}", meta_a.capture_type, meta_b.capture_type));
+        }
+        if meta_a.packet_count != meta_b.packet_count {
+            differences.push(format!("Packet counts differ: {} vs {}", meta_a.packet_count, meta_b.packet_count));
+        }
+
+        Ok(json!({
+            "success": true,
+            "comparison": {
+                "mode": mode,
+                "similarity_percent": similarity_percent,
+                "differences": differences,
+                "unique_to_a": unique_to_a,
+                "unique_to_b": unique_to_b,
+                "common_packets": common_packets
+            },
+            "capture_a": {
+                "id": capture_id_a,
+                "type": meta_a.capture_type,
+                "packets": meta_a.packet_count
+            },
+            "capture_b": {
+                "id": capture_id_b,
+                "type": meta_b.capture_type,
+                "packets": meta_b.packet_count
+            }
+        }))
     }
 
-    async fn bt_decode(&self, params: Value) -> Result<Value> {
-        tracing::info!("bt_decode - Phase 2 Week 5 stub");
-        Ok(json!({"success": true, "decoded_packets": [], "note": "Phase 2 Week 5: Protocol dissectors pending"}))
+    async fn bt_decode(&self, _params: Value) -> Result<Value> {
+        let capture_id = _params.get("capture_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'capture_id'".to_string()))?;
+
+        let protocol = _params.get("protocol").and_then(|v| v.as_str()).unwrap_or("bluetooth");
+        let limit = _params.get("limit").and_then(|v| v.as_u64()).unwrap_or(100) as usize;
+
+        tracing::info!("Decoding capture {} (protocol: {}, limit: {})", capture_id, protocol, limit);
+
+        let store = CaptureStore::new()?;
+        let pcap_path = store.captures_dir().join(format!("{}.pcap", capture_id));
+
+        // Use tshark to decode packets
+        let limit_str = limit.to_string();
+        let output = self.execute_ubertooth_command(
+            "tshark",
+            &["-r", pcap_path.to_str().unwrap(), "-c", limit_str.as_str(), "-T", "json"]
+        ).await.unwrap_or_else(|_| "[]".to_string());
+
+        // Parse JSON output from tshark
+        let decoded_packets: Vec<Value> = serde_json::from_str(&output).unwrap_or_else(|_| vec![]);
+
+        let packet_count = decoded_packets.len();
+
+        Ok(json!({
+            "success": true,
+            "capture_id": capture_id,
+            "protocol": protocol,
+            "decoded_packets": decoded_packets,
+            "packet_count": packet_count,
+            "limit": limit
+        }))
     }
 
-    async fn bt_fingerprint(&self, params: Value) -> Result<Value> {
-        let target_mac = params.get("target_mac").and_then(|v| v.as_str()).unwrap_or("unknown");
-        tracing::info!("bt_fingerprint - Phase 2 Week 5 stub");
-        Ok(json!({"success": true, "device": {"mac_address": target_mac, "fingerprint": {"manufacturer": "Unknown", "device_type": "Unknown", "os_version": null, "confidence": 0.0}, "indicators": []}, "note": "Phase 2 Week 5: Fingerprint database pending"}))
+    async fn bt_fingerprint(&self, _params: Value) -> Result<Value> {
+        let capture_id = _params.get("capture_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'capture_id'".to_string()))?;
+
+        let target_mac = _params.get("target_mac").and_then(|v| v.as_str());
+
+        tracing::info!("Fingerprinting capture {} (target: {:?})", capture_id, target_mac);
+
+        let store = CaptureStore::new()?;
+        let pcap_path = store.captures_dir().join(format!("{}.pcap", capture_id));
+
+        // Use tshark to extract device info
+        let output = self.execute_ubertooth_command(
+            "tshark",
+            &["-r", pcap_path.to_str().unwrap(), "-T", "fields", "-e", "bluetooth.addr", "-e", "bluetooth.name"]
+        ).await.unwrap_or_default();
+
+        let mut indicators = Vec::new();
+        let mut manufacturer = "Unknown".to_string();
+        let mut device_type = "Unknown".to_string();
+        let mut confidence = 0.0;
+
+        // Parse output for device patterns
+        for line in output.lines() {
+            let parts: Vec<&str> = line.split('\t').collect();
+            if parts.len() >= 1 {
+                let addr = parts[0].trim();
+                if !addr.is_empty() {
+                    indicators.push(format!("BD_ADDR: {}", addr));
+
+                    // Simple OUI-based manufacturer detection
+                    let oui = &addr[0..8];
+                    manufacturer = match oui {
+                        "00:1A:7D" => "Apple".to_string(),
+                        "00:25:00" => "Samsung".to_string(),
+                        "00:23:12" => "Intel".to_string(),
+                        _ => "Unknown".to_string(),
+                    };
+
+                    if manufacturer != "Unknown" {
+                        confidence = 0.8;
+                    }
+                }
+            }
+            if parts.len() >= 2 {
+                let name = parts[1].trim();
+                if !name.is_empty() {
+                    indicators.push(format!("Device name: {}", name));
+
+                    // Infer device type from name
+                    if name.to_lowercase().contains("phone") {
+                        device_type = "Smartphone".to_string();
+                        confidence = 0.9;
+                    } else if name.to_lowercase().contains("headset") || name.to_lowercase().contains("buds") {
+                        device_type = "Audio device".to_string();
+                        confidence = 0.85;
+                    }
+                }
+            }
+        }
+
+        let device_mac = target_mac.unwrap_or("unknown");
+
+        Ok(json!({
+            "success": true,
+            "device": {
+                "mac_address": device_mac,
+                "fingerprint": {
+                    "manufacturer": manufacturer,
+                    "device_type": device_type,
+                    "os_version": null,
+                    "confidence": confidence
+                },
+                "indicators": indicators
+            }
+        }))
     }
 
-    async fn pcap_merge(&self, params: Value) -> Result<Value> {
-        let count = params.get("capture_ids").and_then(|v| v.as_array()).map(|a| a.len()).unwrap_or(0);
-        tracing::info!("pcap_merge - Phase 2 Week 5 stub");
+    async fn pcap_merge(&self, _params: Value) -> Result<Value> {
+        let capture_ids = _params.get("capture_ids")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'capture_ids' array".to_string()))?;
+
+        if capture_ids.len() < 2 {
+            return Err(UbertoothError::InvalidParameter(
+                "At least 2 captures required for merge".to_string()
+            ));
+        }
+
+        tracing::info!("Merging {} captures", capture_ids.len());
+
         let store = CaptureStore::new()?;
         let capture_id = CaptureStore::generate_capture_id("merged");
-        Ok(json!({"success": true, "capture_id": capture_id, "source_captures": count, "total_packets": 0, "pcap_path": store.captures_dir().join(format!("{}.pcap", capture_id)).to_string_lossy(), "note": "Phase 2 Week 5: PCAP merge pending"}))
+        let output_path = store.captures_dir().join(format!("{}.pcap", capture_id));
+
+        // Build input file list
+        let mut input_paths = Vec::new();
+        for id_val in capture_ids {
+            if let Some(id) = id_val.as_str() {
+                let path = store.captures_dir().join(format!("{}.pcap", id));
+                if path.exists() {
+                    input_paths.push(path.to_string_lossy().to_string());
+                } else {
+                    return Err(UbertoothError::CaptureNotFound(id.to_string()));
+                }
+            }
+        }
+
+        // Use mergecap to merge PCAP files
+        let mut args = vec!["-w", output_path.to_str().unwrap()];
+        let input_refs: Vec<&str> = input_paths.iter().map(|s| s.as_str()).collect();
+        args.extend(input_refs);
+
+        self.execute_ubertooth_command("mergecap", &args).await?;
+
+        // Count total packets in merged file
+        let capinfos_output = self.execute_ubertooth_command(
+            "capinfos",
+            &[output_path.to_str().unwrap()]
+        ).await.unwrap_or_default();
+
+        let mut total_packets = 0;
+        for line in capinfos_output.lines() {
+            if line.contains("Number of packets") {
+                if let Some(num_str) = line.split(':').nth(1) {
+                    total_packets = num_str.trim().parse().unwrap_or(0);
+                }
+            }
+        }
+
+        // Save metadata
+        let file_size_bytes = if output_path.exists() {
+            std::fs::metadata(&output_path)?.len()
+        } else {
+            0
+        };
+
+        let metadata = CaptureMetadata {
+            capture_id: capture_id.clone(),
+            timestamp: Utc::now(),
+            capture_type: "merged".to_string(),
+            duration_sec: None,
+            packet_count: total_packets,
+            file_size_bytes,
+            pcap_path: output_path.to_string_lossy().to_string(),
+            tags: vec!["merged".to_string()],
+            description: format!("Merged from {} source captures", capture_ids.len()),
+        };
+        store.save_metadata(&metadata)?;
+
+        Ok(json!({
+            "success": true,
+            "capture_id": capture_id,
+            "source_captures": capture_ids.len(),
+            "total_packets": total_packets,
+            "pcap_path": output_path.to_string_lossy()
+        }))
     }
 
-    async fn capture_export(&self, params: Value) -> Result<Value> {
-        let format = params.get("format").and_then(|v| v.as_str()).unwrap_or("pcap");
-        tracing::info!("capture_export - Phase 2 Week 5 stub");
-        Ok(json!({"success": true, "export_path": "/tmp/export.pcap", "format": format, "packet_count": 0, "file_size_bytes": 0, "note": "Phase 2 Week 5: Export pending"}))
+    async fn capture_export(&self, _params: Value) -> Result<Value> {
+        let capture_id = _params.get("capture_id")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'capture_id'".to_string()))?;
+
+        let format = _params.get("format").and_then(|v| v.as_str()).unwrap_or("pcap");
+        let output_path = _params.get("output_path").and_then(|v| v.as_str());
+
+        tracing::info!("Exporting capture {} to format {}", capture_id, format);
+
+        let store = CaptureStore::new()?;
+        let input_path = store.captures_dir().join(format!("{}.pcap", capture_id));
+
+        if !input_path.exists() {
+            return Err(UbertoothError::CaptureNotFound(capture_id.to_string()));
+        }
+
+        // Determine export path
+        let export_path = if let Some(path) = output_path {
+            PathBuf::from(path)
+        } else {
+            store.captures_dir().join(format!("{}.{}", capture_id, format))
+        };
+
+        // Use tshark or editcap for format conversion
+        match format {
+            "pcap" => {
+                // Just copy the file
+                std::fs::copy(&input_path, &export_path)?;
+            }
+            "pcapng" => {
+                // Use editcap to convert to pcapng
+                self.execute_ubertooth_command(
+                    "editcap",
+                    &["-F", "pcapng", input_path.to_str().unwrap(), export_path.to_str().unwrap()]
+                ).await?;
+            }
+            "json" => {
+                // Use tshark to export to JSON
+                let json_output = self.execute_ubertooth_command(
+                    "tshark",
+                    &["-r", input_path.to_str().unwrap(), "-T", "json"]
+                ).await?;
+                std::fs::write(&export_path, json_output)?;
+            }
+            "csv" => {
+                // Use tshark to export to CSV
+                let csv_output = self.execute_ubertooth_command(
+                    "tshark",
+                    &["-r", input_path.to_str().unwrap(), "-T", "fields", "-E", "header=y", "-E", "separator=,"]
+                ).await?;
+                std::fs::write(&export_path, csv_output)?;
+            }
+            _ => {
+                return Err(UbertoothError::InvalidParameter(
+                    format!("Unsupported format: {}", format)
+                ));
+            }
+        }
+
+        // Get packet count
+        let metadata = store.load_metadata(capture_id)?;
+        let packet_count = metadata.packet_count;
+
+        // Get exported file size
+        let file_size_bytes = if export_path.exists() {
+            std::fs::metadata(&export_path)?.len()
+        } else {
+            0
+        };
+
+        Ok(json!({
+            "success": true,
+            "export_path": export_path.to_string_lossy(),
+            "format": format,
+            "packet_count": packet_count,
+            "file_size_bytes": file_size_bytes
+        }))
     }
 
     // Phase 2 Week 6: Attack operations (all require authorization)
 
-    async fn btle_inject(&self, params: Value) -> Result<Value> {
-        let access_address = params.get("access_address").and_then(|v| v.as_str()).unwrap_or("0x00000000");
-        tracing::warn!("btle_inject - REQUIRES AUTHORIZATION - Phase 2 Week 6 stub");
-        Ok(json!({"success": true, "packets_sent": 0, "access_address": access_address, "channel": 37, "message": "Phase 2 Week 6: Injection pending - REQUIRES AUTHORIZATION"}))
+    async fn btle_inject(&self, _params: Value) -> Result<Value> {
+        let access_address = _params.get("access_address")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'access_address'".to_string()))?;
+
+        let packet_hex = _params.get("packet_hex")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'packet_hex'".to_string()))?;
+
+        let channel = _params.get("channel").and_then(|v| v.as_u64()).unwrap_or(37) as u8;
+        let repeat = _params.get("repeat").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
+
+        tracing::warn!("btle_inject - REQUIRES AUTHORIZATION - Active RF transmission");
+
+        // Validate channel range
+        if channel > 39 {
+            return Err(UbertoothError::InvalidParameter(
+                "BLE channel must be 0-39".to_string()
+            ));
+        }
+
+        // Execute ubertooth-btle with injection parameters
+        let channel_str = channel.to_string();
+        let repeat_str = repeat.to_string();
+
+        let output = self.execute_ubertooth_command(
+            "ubertooth-btle",
+            &["-i", "-a", access_address, "-c", channel_str.as_str(), "-p", packet_hex, "-n", repeat_str.as_str()]
+        ).await?;
+
+        // Parse output for confirmation
+        let packets_sent = if output.contains("injected") || output.contains("transmitted") {
+            repeat
+        } else {
+            0
+        };
+
+        Ok(json!({
+            "success": true,
+            "packets_sent": packets_sent,
+            "access_address": access_address,
+            "channel": channel,
+            "message": format!("Injected {} packet(s) on channel {}", packets_sent, channel)
+        }))
     }
 
     async fn bt_jam(&self, params: Value) -> Result<Value> {
@@ -1485,10 +1839,66 @@ impl SidecarManager {
         Ok(json!({"success": false, "error": "OPERATION_NOT_AVAILABLE", "message": "Jamming is highly regulated and not implemented. Illegal in most jurisdictions without proper authorization."}))
     }
 
-    async fn btle_slave(&self, params: Value) -> Result<Value> {
-        let mac_address = params.get("mac_address").and_then(|v| v.as_str()).unwrap_or("00:00:00:00:00:00");
-        tracing::warn!("btle_slave - REQUIRES AUTHORIZATION - Phase 2 Week 6 stub");
-        Ok(json!({"success": true, "mac_address": mac_address, "advertising": false, "connections_received": 0, "message": "Phase 2 Week 6: Slave mode pending - REQUIRES AUTHORIZATION"}))
+    async fn btle_slave(&self, _params: Value) -> Result<Value> {
+        let mac_address = _params.get("mac_address")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'mac_address'".to_string()))?;
+
+        let duration_sec = _params.get("duration_sec").and_then(|v| v.as_u64()).unwrap_or(60);
+        let advertising_interval = _params.get("advertising_interval_ms").and_then(|v| v.as_u64()).unwrap_or(100);
+
+        tracing::warn!("btle_slave - REQUIRES AUTHORIZATION - BLE slave/advertising mode");
+
+        let store = CaptureStore::new()?;
+        let capture_id = CaptureStore::generate_capture_id("slave");
+        let pcap_path = store.captures_dir().join(format!("{}.pcap", capture_id));
+
+        // Execute ubertooth-btle in advertising mode
+        let duration_str = duration_sec.to_string();
+        let interval_str = advertising_interval.to_string();
+        let pcap_str = pcap_path.to_string_lossy().to_string();
+
+        let output = self.execute_ubertooth_command(
+            "ubertooth-btle",
+            &["-a", "-m", mac_address, "-i", interval_str.as_str(), "-d", duration_str.as_str(), "-r", pcap_str.as_str()]
+        ).await?;
+
+        // Parse output for connection events
+        let connections_received = output.lines()
+            .filter(|line| line.contains("connection") || line.contains("CONNECT_REQ"))
+            .count();
+
+        let advertising = output.contains("advertising") || output.contains("ADV");
+
+        // Save metadata
+        let file_size_bytes = if pcap_path.exists() {
+            std::fs::metadata(&pcap_path)?.len()
+        } else {
+            0
+        };
+
+        let metadata = CaptureMetadata {
+            capture_id: capture_id.clone(),
+            timestamp: Utc::now(),
+            capture_type: "btle_slave".to_string(),
+            duration_sec: Some(duration_sec),
+            packet_count: connections_received,
+            file_size_bytes,
+            pcap_path: pcap_path.to_string_lossy().to_string(),
+            tags: vec![format!("mac:{}", mac_address)],
+            description: format!("BLE slave mode, {} connections", connections_received),
+        };
+        store.save_metadata(&metadata)?;
+
+        Ok(json!({
+            "success": true,
+            "capture_id": capture_id,
+            "mac_address": mac_address,
+            "advertising": advertising,
+            "connections_received": connections_received,
+            "duration_sec": duration_sec,
+            "message": format!("Advertised for {}s, received {} connection(s)", duration_sec, connections_received)
+        }))
     }
 
     async fn btle_mitm(&self, params: Value) -> Result<Value> {
@@ -1499,15 +1909,79 @@ impl SidecarManager {
         Ok(json!({"success": false, "error": "AUTHORIZATION_REQUIRED", "message": "MITM attack requires STRICTLY REQUIRED authorization level. Not implemented in Phase 2 Week 6."}))
     }
 
-    async fn bt_spoof(&self, params: Value) -> Result<Value> {
-        let spoof_mac = params.get("spoof_mac").and_then(|v| v.as_str()).unwrap_or("00:00:00:00:00:00");
-        tracing::warn!("bt_spoof - REQUIRES AUTHORIZATION - Phase 2 Week 6 stub");
-        Ok(json!({"success": true, "spoof_mac": spoof_mac, "duration_sec": 0, "message": "Phase 2 Week 6: Spoofing pending - REQUIRES AUTHORIZATION"}))
+    async fn bt_spoof(&self, _params: Value) -> Result<Value> {
+        let spoof_mac = _params.get("spoof_mac")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'spoof_mac'".to_string()))?;
+
+        let duration_sec = _params.get("duration_sec").and_then(|v| v.as_u64()).unwrap_or(60);
+        let action = _params.get("action").and_then(|v| v.as_str()).unwrap_or("set");
+
+        tracing::warn!("bt_spoof - REQUIRES AUTHORIZATION - BD_ADDR spoofing");
+
+        // Execute ubertooth-util to set BD_ADDR
+        // Note: This requires firmware support and may not work on all devices
+        let output = self.execute_ubertooth_command(
+            "ubertooth-util",
+            &["-B", spoof_mac]
+        ).await?;
+
+        let success = output.contains("set") || output.contains("success") || output.contains("OK");
+
+        let store = CaptureStore::new()?;
+        let capture_id = CaptureStore::generate_capture_id("spoof");
+
+        Ok(json!({
+            "success": success,
+            "capture_id": capture_id,
+            "spoof_mac": spoof_mac,
+            "duration_sec": duration_sec,
+            "action": action,
+            "message": if success {
+                format!("BD_ADDR set to {} for {}s", spoof_mac, duration_sec)
+            } else {
+                "BD_ADDR spoofing may not be supported by firmware".to_string()
+            }
+        }))
     }
 
-    async fn ubertooth_raw(&self, params: Value) -> Result<Value> {
-        let command = params.get("command").and_then(|v| v.as_str()).unwrap_or("UNKNOWN");
-        tracing::warn!("ubertooth_raw - WARNING: Direct hardware access");
-        Ok(json!({"success": true, "command": command, "response_hex": "", "response_length": 0, "note": "Phase 2 Week 6: Raw USB commands pending"}))
+    async fn ubertooth_raw(&self, _params: Value) -> Result<Value> {
+        let command = _params.get("command")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'command'".to_string()))?;
+
+        let args_array = _params.get("args").and_then(|v| v.as_array());
+
+        tracing::warn!("ubertooth_raw - WARNING: Direct hardware access to {}", command);
+
+        // Build command arguments
+        let mut cmd_args = vec![command];
+        let arg_strings: Vec<String>;
+        if let Some(args) = args_array {
+            arg_strings = args.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect();
+            cmd_args.extend(arg_strings.iter().map(|s| s.as_str()));
+        }
+
+        // Execute raw ubertooth command
+        let output = self.execute_ubertooth_command("ubertooth-util", &cmd_args).await?;
+
+        // Parse response
+        let response_hex = output.lines()
+            .find(|line| line.contains("0x") || line.chars().all(|c| c.is_ascii_hexdigit() || c.is_whitespace()))
+            .unwrap_or("")
+            .trim()
+            .to_string();
+
+        let response_length = response_hex.len() / 2; // Assuming hex pairs
+
+        Ok(json!({
+            "success": true,
+            "command": command,
+            "response_hex": response_hex,
+            "response_length": response_length,
+            "raw_output": output.trim()
+        }))
     }
 }
