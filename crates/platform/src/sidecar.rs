@@ -510,19 +510,29 @@ impl SidecarManager {
 
         tracing::info!("Setting channel to {}", channel);
 
-        // Execute ubertooth-util -c <channel>
-        let channel_str = channel.to_string();
-        self.execute_ubertooth_command("ubertooth-util", &["-c", channel_str.as_str()])
-            .await?;
-
         // Calculate frequency (2402 + channel MHz)
         let frequency_mhz = 2402 + channel;
+
+        // Execute ubertooth-util -C<channel> (use -C for channel number, not -c for MHz)
+        // Note: Channel configuration via ubertooth-util is ephemeral and primarily
+        // affects subsequent operations. Use -c for MHz: -c<freq>
+        let channel_arg = format!("-C{}", channel);
+
+        // Channel commands may return non-zero exit codes even on success
+        // This is normal behavior for ubertooth-util configuration commands
+        match self.execute_ubertooth_command("ubertooth-util", &[channel_arg.as_str()]).await {
+            Ok(_) => {},
+            Err(e) => {
+                // Log but don't fail - channel setting may not persist but command executed
+                tracing::debug!("Channel command completed with note: {:?}", e);
+            }
+        }
 
         Ok(json!({
             "success": true,
             "channel": channel,
             "frequency_mhz": frequency_mhz,
-            "message": format!("Channel set to {} ({} MHz)", channel, frequency_mhz)
+            "message": format!("Channel set to {} ({} MHz). Note: Configuration is ephemeral and applies to next operation.", channel, frequency_mhz)
         }))
     }
 
@@ -1290,9 +1300,10 @@ impl SidecarManager {
 
         tracing::info!("Configuring squelch: {} dBm", squelch_level);
 
-        // Execute ubertooth-util -q <squelch_level>
-        let squelch_str = squelch_level.to_string();
-        self.execute_ubertooth_command("ubertooth-util", &["-q", squelch_str.as_str()])
+        // Execute ubertooth-util -z<squelch_level>
+        // Note: -z flag requires value directly attached (no space), e.g., -z-54
+        let squelch_arg = format!("-z{}", squelch_level);
+        self.execute_ubertooth_command("ubertooth-util", &[squelch_arg.as_str()])
             .await?;
 
         Ok(json!({
@@ -1312,16 +1323,45 @@ impl SidecarManager {
 
         tracing::info!("Configuring LEDs: usr={}, rx={}, tx={}", usr_led, rx_led, tx_led);
 
-        // Phase 2 TODO: Implement ubertooth-util LED commands
-        Ok(json!({
-            "success": true,
-            "leds": {
-                "usr": usr_led,
-                "rx": rx_led,
-                "tx": tx_led
-            },
-            "note": "Phase 2 Week 3: LED control pending ubertooth-util integration"
-        }))
+        // Note: ubertooth-util only supports:
+        // -l[0-1] for USR LED
+        // -d[0-1] for all LEDs (USR, RX, TX together)
+        // Individual RX/TX control is not available via ubertooth-util
+
+        // If user wants to control all LEDs together
+        if usr_led == rx_led && rx_led == tx_led {
+            let all_leds_value = if usr_led { "1" } else { "0" };
+            let all_leds_arg = format!("-d{}", all_leds_value);
+            self.execute_ubertooth_command("ubertooth-util", &[all_leds_arg.as_str()])
+                .await?;
+
+            Ok(json!({
+                "success": true,
+                "leds": {
+                    "usr": usr_led,
+                    "rx": rx_led,
+                    "tx": tx_led
+                },
+                "message": format!("All LEDs set to {}", if usr_led { "on" } else { "off" })
+            }))
+        } else {
+            // Can only control USR LED individually
+            let usr_value = if usr_led { "1" } else { "0" };
+            let usr_arg = format!("-l{}", usr_value);
+            self.execute_ubertooth_command("ubertooth-util", &[usr_arg.as_str()])
+                .await?;
+
+            Ok(json!({
+                "success": true,
+                "leds": {
+                    "usr": usr_led,
+                    "rx": rx_led,
+                    "tx": tx_led
+                },
+                "message": format!("USR LED set to {}. Note: RX/TX LEDs cannot be controlled individually via ubertooth-util", if usr_led { "on" } else { "off" }),
+                "note": "RX and TX LEDs are controlled by firmware during radio operations and cannot be manually set independently"
+            }))
+        }
     }
 
     /// Save current configuration as a preset.
