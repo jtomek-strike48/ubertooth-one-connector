@@ -60,3 +60,7 @@ path = "../../examples/test_nusb_stream.rs"
 [[example]]
 name = "test_nusb_simple"
 path = "../../examples/test_nusb_simple.rs"
+
+[[example]]
+name = "test_libusb_async"
+path = "../../examples/test_libusb_async.rs"

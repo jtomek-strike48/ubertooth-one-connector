@@ -542,6 +542,56 @@ impl UbertoothDevice {
         self.control_transfer(CMD_STOP, 0, 0, &[], USB_TIMEOUT_SHORT_MS)?;
         Ok(())
     }
+
+    /// Create a libusb async stream reader for high-performance packet capture.
+    ///
+    /// This uses libusb-1.0's async transfer API (proven to work with Ubertooth).
+    pub async fn create_libusb_stream_reader(&self) -> Result<crate::libusb_async::LibusbStreamReader> {
+        // Check if connected
+        {
+            let handle_guard = self.handle.lock().unwrap();
+            if handle_guard.is_none() {
+                return Err(UsbError::NotOpen);
+            }
+        }
+
+        // Create a new Arc<Mutex<DeviceHandle>> from our Option wrapper
+        // We need to clone the inner handle to match the expected type
+        let handle_guard = self.handle.lock().unwrap();
+        let handle_ref = handle_guard.as_ref().unwrap();
+
+        // Create a new Arc<Mutex<DeviceHandle>> with the cloned handle
+        // Note: We can't actually clone a DeviceHandle, so we need to restructure this
+        // Instead, let's pass the raw pointer
+        drop(handle_guard);
+
+        let raw_handle = self.raw_handle().ok_or(UsbError::NotOpen)?;
+        let raw_context = self.raw_context();
+
+        crate::libusb_async::LibusbStreamReader::start_from_raw(
+            raw_handle,
+            raw_context,
+            ENDPOINT_DATA_IN,
+        ).await
+    }
+
+    /// Get raw device handle pointer for FFI.
+    ///
+    /// # Safety
+    /// The pointer is only valid while the device is connected.
+    pub(crate) fn raw_handle(&self) -> Option<*mut std::ffi::c_void> {
+        let handle_guard = self.handle.lock().unwrap();
+        handle_guard.as_ref().map(|h| h.as_raw() as *mut std::ffi::c_void)
+    }
+
+    /// Get raw context pointer for FFI.
+    ///
+    /// # Safety
+    /// The pointer is only valid while the device exists.
+    pub(crate) fn raw_context(&self) -> *mut std::ffi::c_void {
+        // rusb Context uses libusb internally, we can get its raw pointer
+        self.context.as_raw() as *mut std::ffi::c_void
+    }
 }
 
 impl Drop for UbertoothDevice {
