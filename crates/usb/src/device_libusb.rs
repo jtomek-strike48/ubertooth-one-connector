@@ -140,9 +140,8 @@ impl UbertoothDeviceLibusb {
             self.handle = Some(handle);
             info!("Successfully connected to Ubertooth device");
 
-            // NOTE: Skip device_info during connect - doing control transfers here
-            // seems to interfere with subsequent bulk transfers.
-            // Device info can be queried later if needed.
+            // Get device info after connection
+            self.refresh_device_info()?;
 
             Ok(())
         }
