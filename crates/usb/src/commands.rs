@@ -213,16 +213,30 @@ impl UbertoothCommands {
 
         let device = self.device.lock().await;
 
-        // Configure device for BLE scanning
+        // Configure device for BLE scanning using the CORRECT sequence
+        // (discovered via USB traffic analysis of working Python tool)
+
+        // 1. Stop any previous mode
+        usb_result!(device.control_transfer(CMD_STOP, 0, 0, &[], USB_TIMEOUT_SHORT_MS))?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // 2. Set JAM mode to NONE
+        usb_result!(device.control_transfer(CMD_JAM_MODE, 0, 0, &[], USB_TIMEOUT_SHORT_MS))?;
+
+        // 3. Set modulation to BLE
         usb_result!(device.set_modulation(MOD_BT_LOW_ENERGY))?;
-        usb_result!(device.set_channel(channel))?;
 
-        // Try CMD_BTLE_PROMISC (command 37) for promiscuous mode
-        // This is what ubertooth-btle -f uses
-        info!("Starting BLE promiscuous mode...");
-        usb_result!(device.control_transfer(CMD_BTLE_PROMISC, 0, 0, &[], USB_TIMEOUT_SHORT_MS))?;
+        // 4. Set channel using FREQUENCY in MHz (not channel number!)
+        let frequency = 2402 + (channel - 37) as u16; // Channel 37=2402, 38=2426, 39=2480
+        info!("Setting channel {} (frequency {} MHz)", channel, frequency);
+        usb_result!(device.control_transfer(CMD_SET_CHANNEL, frequency, 0, &[], USB_TIMEOUT_SHORT_MS))?;
 
-        info!("BLE promiscuous mode started on channel {}", channel);
+        // 5. Use CMD_BTLE_SNIFFING (42) for advertisement scanning
+        // (NOT CMD_BTLE_PROMISC which is for connection following)
+        info!("Starting BLE advertisement scanning...");
+        usb_result!(device.control_transfer(CMD_BTLE_SNIFFING, 0, 0, &[], USB_TIMEOUT_SHORT_MS))?;
+
+        info!("BLE advertisement scanning started on channel {} ({} MHz)", channel, frequency);
 
         // Drop the lock before flushing
         drop(device);

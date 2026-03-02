@@ -112,3 +112,11 @@ path = "../../examples/test_no_stop.rs"
 [[example]]
 name = "test_exact_python_sequence"
 path = "../../examples/test_exact_python_sequence.rs"
+
+[[example]]
+name = "test_async_vs_poll"
+path = "../../examples/test_async_vs_poll.rs"
+
+[[example]]
+name = "test_ble_parsing"
+path = "../../examples/test_ble_parsing.rs"

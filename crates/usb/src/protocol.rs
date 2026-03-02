@@ -258,6 +258,205 @@ impl BlePacket {
 
         None
     }
+
+    /// Get PDU type name
+    pub fn pdu_type_name(&self) -> &'static str {
+        match self.pdu_header & 0x0F {
+            0x00 => "ADV_IND",
+            0x01 => "ADV_DIRECT_IND",
+            0x02 => "ADV_NONCONN_IND",
+            0x03 => "SCAN_REQ",
+            0x04 => "SCAN_RSP",
+            0x05 => "CONNECT_REQ",
+            0x06 => "ADV_SCAN_IND",
+            _ => "UNKNOWN",
+        }
+    }
+
+    /// Check if this is an advertising packet
+    pub fn is_advertising(&self) -> bool {
+        let pdu_type = self.pdu_header & 0x0F;
+        matches!(pdu_type, 0x00 | 0x02 | 0x04 | 0x06)
+    }
+
+    /// Parse advertising data structures
+    pub fn parse_advertising_data(&self) -> Result<AdvertisingData> {
+        if !self.is_advertising() {
+            return Err(UsbError::InvalidPacket("Not an advertising packet".to_string()));
+        }
+
+        AdvertisingData::parse(&self.payload)
+    }
+}
+
+/// Parsed BLE advertising data structures
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AdvertisingData {
+    /// Advertiser address (first 6 bytes)
+    pub address: [u8; 6],
+
+    /// Address type (public/random from PDU header)
+    pub address_type: AddressType,
+
+    /// Complete or shortened local name
+    pub name: Option<String>,
+
+    /// Flags
+    pub flags: Option<u8>,
+
+    /// TX power level (dBm)
+    pub tx_power: Option<i8>,
+
+    /// Service UUIDs (16-bit)
+    pub service_uuids_16: Vec<u16>,
+
+    /// Service UUIDs (128-bit)
+    pub service_uuids_128: Vec<u128>,
+
+    /// Manufacturer specific data (company ID + data)
+    pub manufacturer_data: Option<(u16, Vec<u8>)>,
+
+    /// Service data
+    pub service_data: Vec<(u16, Vec<u8>)>,
+
+    /// Raw AD structures for unparsed types
+    pub raw_ad_structures: Vec<(u8, Vec<u8>)>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub enum AddressType {
+    Public,
+    Random,
+}
+
+impl AdvertisingData {
+    /// Parse advertising data from BLE payload
+    pub fn parse(payload: &[u8]) -> Result<Self> {
+        if payload.len() < 6 {
+            return Err(UsbError::InvalidPacket("Payload too short for address".to_string()));
+        }
+
+        // Extract address (first 6 bytes)
+        let mut address = [0u8; 6];
+        address.copy_from_slice(&payload[0..6]);
+
+        let mut ad_data = Self {
+            address,
+            address_type: AddressType::Public, // Will be set from PDU header
+            name: None,
+            flags: None,
+            tx_power: None,
+            service_uuids_16: Vec::new(),
+            service_uuids_128: Vec::new(),
+            manufacturer_data: None,
+            service_data: Vec::new(),
+            raw_ad_structures: Vec::new(),
+        };
+
+        // Parse AD structures starting after address
+        if payload.len() <= 6 {
+            return Ok(ad_data);
+        }
+
+        let ad_bytes = &payload[6..];
+        let mut offset = 0;
+
+        while offset < ad_bytes.len() {
+            if offset + 1 >= ad_bytes.len() {
+                break;
+            }
+
+            let length = ad_bytes[offset] as usize;
+            if length == 0 {
+                break;
+            }
+
+            if offset + 1 + length > ad_bytes.len() {
+                break; // Incomplete structure
+            }
+
+            let ad_type = ad_bytes[offset + 1];
+            let data = &ad_bytes[offset + 2..offset + 1 + length];
+
+            match ad_type {
+                0x01 => {
+                    // Flags
+                    if !data.is_empty() {
+                        ad_data.flags = Some(data[0]);
+                    }
+                }
+                0x08 | 0x09 => {
+                    // Shortened (0x08) or Complete (0x09) Local Name
+                    if let Ok(name) = String::from_utf8(data.to_vec()) {
+                        ad_data.name = Some(name);
+                    }
+                }
+                0x0A => {
+                    // TX Power Level
+                    if !data.is_empty() {
+                        ad_data.tx_power = Some(data[0] as i8);
+                    }
+                }
+                0x02 | 0x03 => {
+                    // 16-bit Service UUIDs (incomplete/complete)
+                    for chunk in data.chunks(2) {
+                        if chunk.len() == 2 {
+                            let uuid = u16::from_le_bytes([chunk[0], chunk[1]]);
+                            ad_data.service_uuids_16.push(uuid);
+                        }
+                    }
+                }
+                0x06 | 0x07 => {
+                    // 128-bit Service UUIDs (incomplete/complete)
+                    for chunk in data.chunks(16) {
+                        if chunk.len() == 16 {
+                            let mut bytes = [0u8; 16];
+                            bytes.copy_from_slice(chunk);
+                            let uuid = u128::from_le_bytes(bytes);
+                            ad_data.service_uuids_128.push(uuid);
+                        }
+                    }
+                }
+                0xFF => {
+                    // Manufacturer Specific Data
+                    if data.len() >= 2 {
+                        let company_id = u16::from_le_bytes([data[0], data[1]]);
+                        let mfg_data = data[2..].to_vec();
+                        ad_data.manufacturer_data = Some((company_id, mfg_data));
+                    }
+                }
+                0x16 => {
+                    // Service Data - 16-bit UUID
+                    if data.len() >= 2 {
+                        let uuid = u16::from_le_bytes([data[0], data[1]]);
+                        let service_data = data[2..].to_vec();
+                        ad_data.service_data.push((uuid, service_data));
+                    }
+                }
+                _ => {
+                    // Store unknown AD types
+                    ad_data.raw_ad_structures.push((ad_type, data.to_vec()));
+                }
+            }
+
+            offset += 1 + length;
+        }
+
+        Ok(ad_data)
+    }
+
+    /// Format address as MAC string (XX:XX:XX:XX:XX:XX)
+    pub fn address_string(&self) -> String {
+        format!(
+            "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+            self.address[5],
+            self.address[4],
+            self.address[3],
+            self.address[2],
+            self.address[1],
+            self.address[0]
+        )
+    }
 }
 
 /// Spectrum analysis data point.
