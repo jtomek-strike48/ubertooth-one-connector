@@ -126,6 +126,26 @@ async fn main() -> anyhow::Result<()> {
 
     let connector = Arc::new(UbertoothConnector::new(tools));
 
+    // Verify Strike48 SDK Tool behavior integration
+    tracing::info!("Connector behavior: {:?}", connector.behavior());
+    let metadata = connector.metadata();
+    if let Some(tool_count) = metadata.get("tool_count") {
+        tracing::info!("Tool schemas exported: {} tools", tool_count);
+    }
+    if let Some(tool_schemas_json) = metadata.get("tool_schemas") {
+        match serde_json::from_str::<Vec<serde_json::Value>>(tool_schemas_json) {
+            Ok(schemas) => {
+                tracing::info!("✓ Tool schemas valid (Strike48 SDK format)");
+                if let Some(first) = schemas.first() {
+                    tracing::debug!("Example schema: {}", serde_json::to_string_pretty(first).unwrap_or_default());
+                }
+            }
+            Err(e) => {
+                tracing::warn!("Tool schemas JSON parsing failed: {}", e);
+            }
+        }
+    }
+
     // Subscribe to tool events and log them in a background task
     let mut event_rx = connector.subscribe_events();
     tokio::spawn(async move {

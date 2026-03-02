@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
-use strike48_connector::{BaseConnector, ConnectorError, Result, TaskTypeSchema};
+use strike48_connector::{BaseConnector, ConnectorBehavior, ConnectorError, Result, TaskTypeSchema};
 use tokio::sync::broadcast;
 
 use crate::events::ToolEvent;
@@ -49,6 +49,10 @@ impl BaseConnector for UbertoothConnector {
 
     fn version(&self) -> &str {
         env!("CARGO_PKG_VERSION")
+    }
+
+    fn behavior(&self) -> ConnectorBehavior {
+        ConnectorBehavior::Tool
     }
 
     fn execute(
@@ -136,9 +140,48 @@ impl BaseConnector for UbertoothConnector {
 
     fn metadata(&self) -> HashMap<String, String> {
         let mut metadata = HashMap::new();
+
+        // Device metadata
+        metadata.insert("name".to_string(), "Ubertooth One".to_string());
         metadata.insert("device".to_string(), "Ubertooth One".to_string());
         metadata.insert("protocol".to_string(), "Bluetooth/BLE".to_string());
         metadata.insert("frequency".to_string(), "2.4 GHz".to_string());
+        metadata.insert("vendor".to_string(), "Ubertooth Project".to_string());
+        metadata.insert("icon".to_string(), "hero-signal".to_string());
+        metadata.insert(
+            "description".to_string(),
+            "Bluetooth and BLE sniffing, analysis, and security testing".to_string(),
+        );
+
+        // Convert tool schemas to Strike48 SDK format
+        let tool_schemas: Vec<Value> = self.registry
+            .tools()
+            .iter()
+            .map(|tool| {
+                json!({
+                    "name": tool.name(),
+                    "description": tool.description(),
+                    "parameters": tool.input_schema()
+                })
+            })
+            .collect();
+
+        // Add tool schemas (REQUIRED for TOOL behavior)
+        metadata.insert(
+            "tool_schemas".to_string(),
+            serde_json::to_string(&tool_schemas).unwrap_or_default(),
+        );
+        metadata.insert("tool_count".to_string(), tool_schemas.len().to_string());
+        metadata.insert(
+            "tool_names".to_string(),
+            self.registry
+                .tools()
+                .iter()
+                .map(|t| t.name())
+                .collect::<Vec<_>>()
+                .join(","),
+        );
+
         metadata
     }
 }
