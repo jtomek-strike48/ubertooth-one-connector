@@ -64,3 +64,51 @@ path = "../../examples/test_nusb_simple.rs"
 [[example]]
 name = "test_libusb_async"
 path = "../../examples/test_libusb_async.rs"
+
+[[example]]
+name = "test_libusb_diagnostic"
+path = "../../examples/test_libusb_diagnostic.rs"
+
+[[example]]
+name = "test_sync_read"
+path = "../../examples/test_sync_read.rs"
+
+[[example]]
+name = "test_with_access_addr"
+path = "../../examples/test_with_access_addr.rs"
+
+[[example]]
+name = "test_pure_libusb"
+path = "../../examples/test_pure_libusb.rs"
+
+[[example]]
+name = "test_pure_libusb_async"
+path = "../../examples/test_pure_libusb_async.rs"
+
+[[example]]
+name = "test_libusb_device"
+path = "../../examples/test_libusb_device.rs"
+
+[[example]]
+name = "test_minimal_ble"
+path = "../../examples/test_minimal_ble.rs"
+
+[[example]]
+name = "test_verify_mode"
+path = "../../examples/test_verify_mode.rs"
+
+[[example]]
+name = "test_with_rx_start"
+path = "../../examples/test_with_rx_start.rs"
+
+[[example]]
+name = "test_with_channel"
+path = "../../examples/test_with_channel.rs"
+
+[[example]]
+name = "test_no_stop"
+path = "../../examples/test_no_stop.rs"
+
+[[example]]
+name = "test_exact_python_sequence"
+path = "../../examples/test_exact_python_sequence.rs"

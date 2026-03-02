@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 /// USB packet header structure (14 bytes).
 ///
-/// This is the common header for all USB packets from Ubertooth.
+/// This matches the usb_pkt_rx structure from the Ubertooth firmware.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UsbPacketHeader {
     /// Packet type (PKT_TYPE_*)
@@ -18,18 +18,30 @@ pub struct UsbPacketHeader {
     /// Channel number
     pub channel: u8,
 
-    /// Clock value (4 bytes, little-endian)
-    pub clock: u32,
+    /// Clock high byte
+    pub clkn_high: u8,
 
-    /// RSSI value (signed)
-    pub rssi: i8,
+    /// Clock 100ns counter (4 bytes, little-endian)
+    pub clk100ns: u32,
 
-    /// Reserved bytes (6 bytes)
-    pub reserved: [u8; 6],
+    /// Maximum RSSI
+    pub rssi_max: i8,
+
+    /// Minimum RSSI
+    pub rssi_min: i8,
+
+    /// Average RSSI
+    pub rssi_avg: i8,
+
+    /// RSSI count
+    pub rssi_count: u8,
+
+    /// Reserved bytes (2 bytes)
+    pub reserved: [u8; 2],
 }
 
 impl UsbPacketHeader {
-    /// Parse header from raw bytes.
+    /// Parse header from raw bytes (matches firmware usb_pkt_rx structure).
     pub fn from_bytes(data: &[u8]) -> Result<Self> {
         if data.len() < 14 {
             return Err(UsbError::InvalidPacket(format!(
@@ -42,9 +54,13 @@ impl UsbPacketHeader {
             pkt_type: data[0],
             status: data[1],
             channel: data[2],
-            clock: u32::from_le_bytes([data[3], data[4], data[5], data[6]]),
-            rssi: data[7] as i8,
-            reserved: [data[8], data[9], data[10], data[11], data[12], data[13]],
+            clkn_high: data[3],
+            clk100ns: u32::from_le_bytes([data[4], data[5], data[6], data[7]]),
+            rssi_max: data[8] as i8,
+            rssi_min: data[9] as i8,
+            rssi_avg: data[10] as i8,
+            rssi_count: data[11],
+            reserved: [data[12], data[13]],
         })
     }
 
@@ -54,10 +70,14 @@ impl UsbPacketHeader {
         bytes[0] = self.pkt_type;
         bytes[1] = self.status;
         bytes[2] = self.channel;
-        let clock_bytes = self.clock.to_le_bytes();
-        bytes[3..7].copy_from_slice(&clock_bytes);
-        bytes[7] = self.rssi as u8;
-        bytes[8..14].copy_from_slice(&self.reserved);
+        bytes[3] = self.clkn_high;
+        let clk_bytes = self.clk100ns.to_le_bytes();
+        bytes[4..8].copy_from_slice(&clk_bytes);
+        bytes[8] = self.rssi_max as u8;
+        bytes[9] = self.rssi_min as u8;
+        bytes[10] = self.rssi_avg as u8;
+        bytes[11] = self.rssi_count;
+        bytes[12..14].copy_from_slice(&self.reserved);
         bytes
     }
 }
@@ -188,9 +208,9 @@ impl BlePacket {
             length,
             payload: ble_payload,
             crc,
-            rssi: pkt.header.rssi,
+            rssi: pkt.header.rssi_avg,
             channel: pkt.header.channel,
-            timestamp: pkt.header.clock,
+            timestamp: pkt.header.clk100ns,
         })
     }
 
@@ -342,9 +362,13 @@ mod tests {
             pkt_type: PKT_TYPE_LE_PACKET,
             status: 0,
             channel: 38,
-            clock: 0xDEADBEEF,
-            rssi: -45,
-            reserved: [0; 6],
+            clkn_high: 0xDE,
+            clk100ns: 0xADBEEF,
+            rssi_max: -40,
+            rssi_min: -50,
+            rssi_avg: -45,
+            rssi_count: 10,
+            reserved: [0; 2],
         };
 
         let bytes = header.to_bytes();
@@ -352,8 +376,9 @@ mod tests {
 
         assert_eq!(parsed.pkt_type, header.pkt_type);
         assert_eq!(parsed.channel, header.channel);
-        assert_eq!(parsed.clock, header.clock);
-        assert_eq!(parsed.rssi, header.rssi);
+        assert_eq!(parsed.clkn_high, header.clkn_high);
+        assert_eq!(parsed.clk100ns, header.clk100ns);
+        assert_eq!(parsed.rssi_avg, header.rssi_avg);
     }
 
     #[test]

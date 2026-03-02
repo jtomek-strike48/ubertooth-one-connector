@@ -39,6 +39,9 @@
 pub mod constants;
 pub mod device;
 pub mod device_nusb;
+pub mod device_libusb;
+pub mod libusb_ffi;
+pub mod libusb_stream;
 pub mod error;
 pub mod protocol;
 pub mod commands;
