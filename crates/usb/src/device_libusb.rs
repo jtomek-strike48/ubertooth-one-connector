@@ -333,14 +333,14 @@ impl UbertoothDeviceLibusb {
     }
 
     /// Create an async stream reader for bulk packet capture
-    pub async fn create_async_stream_reader(&self) -> Result<crate::libusb_stream::LibusbAsyncReader> {
+    pub fn create_async_stream_reader(&self) -> Result<crate::libusb_stream::LibusbAsyncReader> {
         let raw_handle = self.raw_handle().ok_or(UsbError::NotOpen)?;
         let raw_context = self.raw_context();
         crate::libusb_stream::LibusbAsyncReader::start(
             raw_handle,
             raw_context,
             ENDPOINT_DATA_IN,
-        ).await
+        )
     }
 
     /// Refresh device information

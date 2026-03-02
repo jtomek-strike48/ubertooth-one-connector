@@ -6,6 +6,7 @@
 use crate::constants::*;
 use crate::error::{Result, UsbError};
 use crate::device::UbertoothDevice;
+use crate::device_libusb::UbertoothDeviceLibusb;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::time::{Duration, sleep};
@@ -156,7 +157,7 @@ impl AsyncPacketReader {
     }
 }
 
-/// Helper function to prepare device for streaming.
+/// Helper function to prepare device for streaming (old rusb-based device).
 ///
 /// Clears any stale data from the USB buffer.
 pub async fn flush_usb_buffer(device: Arc<Mutex<UbertoothDevice>>) -> Result<()> {
@@ -179,6 +180,39 @@ pub async fn flush_usb_buffer(device: Arc<Mutex<UbertoothDevice>>) -> Result<()>
             }
             Err(e) => {
                 warn!("Error flushing buffer: {}", e);
+                break;
+            }
+        }
+    }
+
+    if flushed_bytes > 0 {
+        debug!("Flushed {} bytes of stale data", flushed_bytes);
+    } else {
+        debug!("USB buffer already clean");
+    }
+
+    Ok(())
+}
+
+/// Helper function to prepare device for streaming (libusb-based device).
+///
+/// Clears any stale data from the USB buffer.
+pub async fn flush_usb_buffer_libusb(device: Arc<Mutex<UbertoothDeviceLibusb>>) -> Result<()> {
+    debug!("Flushing USB buffer...");
+
+    let dev = device.lock().await;
+    let mut buffer = vec![0u8; USB_PKT_SIZE];
+    let mut flushed_bytes = 0;
+
+    // Quick non-blocking reads to clear any stale data
+    for _ in 0..10 {
+        match dev.bulk_read(&mut buffer, 5) {  // 5ms timeout
+            Ok(len) => {
+                flushed_bytes += len;
+                trace!("Flushed {} bytes", len);
+            }
+            Err(_) => {
+                // Timeout or error - buffer is clear
                 break;
             }
         }

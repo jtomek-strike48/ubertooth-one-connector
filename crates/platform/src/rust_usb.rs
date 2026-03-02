@@ -9,7 +9,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 use ubertooth_core::error::{Result, UbertoothError};
-use ubertooth_usb::{UbertoothCommands, UbertoothDevice};
+use ubertooth_usb::UbertoothCommands;
+use ubertooth_usb::device_libusb::UbertoothDeviceLibusb;
 
 use crate::backend::UbertoothBackendProvider;
 
@@ -19,7 +20,7 @@ use crate::backend::UbertoothBackendProvider;
 /// Implements 7-10 core tools with native USB, falls back to Python for others.
 pub struct RustUsbBackend {
     /// USB device (shared with commands)
-    device: Arc<Mutex<UbertoothDevice>>,
+    device: Arc<Mutex<UbertoothDeviceLibusb>>,
 
     /// High-level command executor
     commands: Arc<UbertoothCommands>,
@@ -31,7 +32,7 @@ pub struct RustUsbBackend {
 impl RustUsbBackend {
     /// Create a new Rust USB backend.
     pub fn new() -> Result<Self> {
-        let device = UbertoothDevice::new()
+        let device = UbertoothDeviceLibusb::new()
             .map_err(|e| UbertoothError::UsbError(e.to_string()))?;
 
         let device = Arc::new(Mutex::new(device));

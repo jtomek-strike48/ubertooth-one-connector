@@ -24,7 +24,7 @@ pub struct LibusbAsyncReader {
 
 impl LibusbAsyncReader {
     /// Start async streaming from raw libusb handles
-    pub async fn start(
+    pub fn start(
         raw_handle: *mut c_void,
         raw_context: *mut c_void,
         endpoint: u8,

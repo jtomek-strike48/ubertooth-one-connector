@@ -1,10 +1,10 @@
 //! High-level USB command implementations.
 
 use crate::constants::*;
-use crate::device::UbertoothDevice;
+use crate::device_libusb::UbertoothDeviceLibusb;
 use crate::error::UsbError;
 use crate::protocol::{BlePacket, UsbPacket};
-use crate::async_reader::flush_usb_buffer;
+use crate::async_reader::flush_usb_buffer_libusb;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -16,7 +16,7 @@ use ubertooth_core::error::Result;
 /// High-level command executor for Ubertooth operations.
 pub struct UbertoothCommands {
     /// USB device
-    device: Arc<Mutex<UbertoothDevice>>,
+    device: Arc<Mutex<UbertoothDeviceLibusb>>,
 }
 
 /// Helper macro to convert UsbError to UbertoothError
@@ -28,7 +28,7 @@ macro_rules! usb_result {
 
 impl UbertoothCommands {
     /// Create a new command executor.
-    pub fn new(device: Arc<Mutex<UbertoothDevice>>) -> Self {
+    pub fn new(device: Arc<Mutex<UbertoothDeviceLibusb>>) -> Self {
         Self { device }
     }
 
@@ -241,7 +241,7 @@ impl UbertoothCommands {
         drop(device);
 
         // Flush any stale data from USB buffer
-        flush_usb_buffer(self.device.clone()).await?;
+        flush_usb_buffer_libusb(self.device.clone()).await?;
 
         // Small delay to let device start capturing
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -324,7 +324,7 @@ impl UbertoothCommands {
 
         // Create libusb async stream reader
         let device = self.device.lock().await;
-        let mut reader = usb_result!(device.create_libusb_stream_reader().await)?;
+        let mut reader = usb_result!(device.create_async_stream_reader())?;
         drop(device);
 
         let start = tokio::time::Instant::now();
@@ -495,7 +495,7 @@ impl UbertoothCommands {
         drop(device);
 
         // Flush any stale data
-        flush_usb_buffer(self.device.clone()).await?;
+        flush_usb_buffer_libusb(self.device.clone()).await?;
 
         // Small delay to let device start capturing
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
@@ -661,7 +661,7 @@ impl UbertoothCommands {
             let device = self.device.lock().await;
             let mut buffer = [0u8; 64];
 
-            match device.control_transfer_read(CMD_POLL, 0, 0, &mut buffer, 100) {
+            match device.control_transfer_in(CMD_POLL, 0, 0, &mut buffer, 100) {
                 Ok(len) if len >= 14 => {
                     drop(device);
 
