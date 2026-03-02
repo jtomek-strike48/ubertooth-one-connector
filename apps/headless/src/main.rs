@@ -132,11 +132,17 @@ async fn main() -> anyhow::Result<()> {
     if let Some(tool_count) = metadata.get("tool_count") {
         tracing::info!("Tool schemas exported: {} tools", tool_count);
     }
+
+    // Show all metadata keys for debugging
+    tracing::info!("Metadata keys: {:?}", metadata.keys().collect::<Vec<_>>());
+
     if let Some(tool_schemas_json) = metadata.get("tool_schemas") {
+        tracing::info!("tool_schemas size: {} bytes", tool_schemas_json.len());
         match serde_json::from_str::<Vec<serde_json::Value>>(tool_schemas_json) {
             Ok(schemas) => {
                 tracing::info!("✓ Tool schemas valid (Strike48 SDK format)");
                 if let Some(first) = schemas.first() {
+                    tracing::info!("Example tool: {}", first["name"].as_str().unwrap_or("unknown"));
                     tracing::debug!("Example schema: {}", serde_json::to_string_pretty(first).unwrap_or_default());
                 }
             }
@@ -144,6 +150,8 @@ async fn main() -> anyhow::Result<()> {
                 tracing::warn!("Tool schemas JSON parsing failed: {}", e);
             }
         }
+    } else {
+        tracing::error!("❌ tool_schemas NOT FOUND in metadata!");
     }
 
     // Subscribe to tool events and log them in a background task
