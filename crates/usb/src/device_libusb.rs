@@ -251,6 +251,36 @@ impl UbertoothDeviceLibusb {
         }
     }
 
+    /// Perform a synchronous bulk read from endpoint 0x82
+    pub fn bulk_read(&self, buffer: &mut [u8], timeout_ms: u64) -> Result<usize> {
+        let handle = self.handle.ok_or(UsbError::NotOpen)?;
+
+        unsafe {
+            let mut transferred: i32 = 0;
+            let ret = libusb_bulk_transfer(
+                handle,
+                ENDPOINT_DATA_IN,
+                buffer.as_mut_ptr(),
+                buffer.len() as i32,
+                &mut transferred,
+                timeout_ms as u32,
+            );
+
+            if ret < 0 {
+                // Timeout is not necessarily an error for bulk reads
+                if ret == LIBUSB_ERROR_TIMEOUT {
+                    return Ok(0);
+                }
+                return Err(UsbError::BulkTransferFailed {
+                    endpoint: ENDPOINT_DATA_IN,
+                    details: error_name(ret).to_string(),
+                });
+            }
+
+            Ok(transferred as usize)
+        }
+    }
+
     /// Ping device
     pub fn ping(&self) -> Result<()> {
         debug!("Sending ping command");

@@ -7,7 +7,6 @@
 
 use crate::constants::*;
 use crate::error::{Result, UsbError};
-use std::time::Duration;
 use tokio::sync::mpsc;
 use tracing::{debug, trace, warn};
 

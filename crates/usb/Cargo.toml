@@ -120,3 +120,7 @@ path = "../../examples/test_async_vs_poll.rs"
 [[example]]
 name = "test_ble_parsing"
 path = "../../examples/test_ble_parsing.rs"
+
+[[example]]
+name = "test_spectrum_analysis"
+path = "../../examples/test_spectrum_analysis.rs"

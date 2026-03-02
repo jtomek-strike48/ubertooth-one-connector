@@ -44,3 +44,8 @@ dirs = { workspace = true }
 default = ["python-backend"]
 python-backend = []
 rust-backend = ["ubertooth-usb"]
+
+[[example]]
+name = "test_backend_integration"
+path = "../../examples/test_backend_integration.rs"
+required-features = ["rust-backend"]

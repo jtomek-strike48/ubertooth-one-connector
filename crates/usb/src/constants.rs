@@ -136,4 +136,5 @@ pub const BLE_CHANNEL_MAX: u8 = 39;
 pub const PKT_TYPE_STATUS: u8 = 0;
 pub const PKT_TYPE_LE_PACKET: u8 = 1;  // BLE packets - FIXED!
 pub const PKT_TYPE_BR_PACKET: u8 = 2;  // BR/EDR packets
-pub const PKT_TYPE_SPECAN: u8 = 3;  // Spectrum analysis
+pub const PKT_TYPE_SPECAN: u8 = 3;  // Spectrum analysis (old format)
+pub const PKT_TYPE_SPECAN_RAW: u8 = 4;  // Spectrum analysis (raw format with 09 markers)

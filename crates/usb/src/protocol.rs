@@ -120,7 +120,8 @@ impl UsbPacket {
 
     /// Check if this is a spectrum analysis packet.
     pub fn is_specan(&self) -> bool {
-        self.header.pkt_type == PKT_TYPE_SPECAN
+        self.header.pkt_type == PKT_TYPE_SPECAN ||
+        self.header.pkt_type == PKT_TYPE_SPECAN_RAW
     }
 
     /// Check if this is a BLE packet.
@@ -481,19 +482,43 @@ impl SpectrumPoint {
             ));
         }
 
-        // Spectrum data is RSSI values for consecutive channels
         let mut points = Vec::new();
-        let base_channel = pkt.header.channel;
 
-        for (i, &rssi_byte) in pkt.payload.iter().enumerate() {
-            let channel = base_channel + i as u8;
-            let frequency_mhz = 2402 + (channel as u16 * 1); // Bluetooth frequency mapping
+        // Type 4 (PKT_TYPE_SPECAN_RAW): Raw format with marker bytes
+        // Format: [09 channel rssi] [09 channel rssi] ...
+        if pkt.header.pkt_type == PKT_TYPE_SPECAN_RAW {
+            let mut i = 0;
+            while i + 2 < pkt.payload.len() {
+                let marker = pkt.payload[i];
+                let channel = pkt.payload[i + 1];
+                let rssi = pkt.payload[i + 2] as i8;
 
-            points.push(SpectrumPoint {
-                frequency_mhz,
-                rssi: rssi_byte as i8,
-                channel,
-            });
+                // Skip if not the expected marker byte
+                if marker == 0x09 {
+                    let frequency_mhz = 2402 + channel as u16;
+
+                    points.push(SpectrumPoint {
+                        frequency_mhz,
+                        rssi,
+                        channel,
+                    });
+                }
+
+                i += 3;
+            }
+        } else {
+            // Type 3 (PKT_TYPE_SPECAN): Simple RSSI bytes for consecutive channels
+            let base_channel = pkt.header.channel;
+            for (i, &rssi_byte) in pkt.payload.iter().enumerate() {
+                let channel = base_channel + i as u8;
+                let frequency_mhz = 2402 + (channel as u16 * 1);
+
+                points.push(SpectrumPoint {
+                    frequency_mhz,
+                    rssi: rssi_byte as i8,
+                    channel,
+                });
+            }
         }
 
         Ok(points)

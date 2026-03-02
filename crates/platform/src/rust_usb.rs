@@ -64,6 +64,7 @@ impl RustUsbBackend {
                 | "configure_modulation"
                 | "configure_power"
                 | "btle_scan"
+                | "btle_follow"
                 | "bt_specan"
         )
     }
@@ -80,6 +81,7 @@ impl RustUsbBackend {
             "configure_modulation" => self.commands.configure_modulation(params).await,
             "configure_power" => self.commands.configure_power(params).await,
             "btle_scan" => self.commands.btle_scan(params).await,
+            "btle_follow" => self.commands.btle_follow(params).await,
             "bt_specan" => self.commands.bt_specan(params).await,
             _ => Err(UbertoothError::BackendError(format!(
                 "Method not implemented: {}",

@@ -5,7 +5,6 @@ use crate::device::UbertoothDevice;
 use crate::error::UsbError;
 use crate::protocol::{BlePacket, UsbPacket};
 use crate::async_reader::flush_usb_buffer;
-use crate::libusb_async::LibusbStreamReader;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -426,6 +425,149 @@ impl UbertoothCommands {
         })
     }
 
+    /// Execute btle_follow command (BLE connection following).
+    ///
+    /// Follows a specific BLE connection by its access address, capturing data channel packets.
+    pub async fn btle_follow(&self, params: Value) -> Result<Value> {
+        let access_address = params["access_address"]
+            .as_u64()
+            .ok_or_else(|| UsbError::InvalidParameter(
+                "access_address parameter required (32-bit hex value)".to_string()
+            ))? as u32;
+        let channel = params["channel"].as_u64().unwrap_or(0) as u8;
+        let duration_sec = params["duration_sec"].as_u64().unwrap_or(30);
+        let save_pcap = params["save_pcap"].as_bool().unwrap_or(true);
+
+        info!("Starting BLE connection following:");
+        info!("  Access Address: 0x{:08x}", access_address);
+        info!("  Channel: {}", channel);
+        info!("  Duration: {} seconds", duration_sec);
+
+        let device = self.device.lock().await;
+
+        // 1. Stop any current operation
+        usb_result!(device.control_transfer(CMD_STOP, 0, 0, &[], USB_TIMEOUT_SHORT_MS))?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // 2. Set jam mode to NONE
+        usb_result!(device.control_transfer(CMD_JAM_MODE, 0, 0, &[], USB_TIMEOUT_SHORT_MS))?;
+
+        // 3. Set modulation to BLE
+        usb_result!(device.set_modulation(MOD_BT_LOW_ENERGY))?;
+
+        // 4. Set target access address
+        info!("Setting target access address: 0x{:08x}", access_address);
+        let aa_bytes = access_address.to_le_bytes();
+        usb_result!(device.control_transfer(
+            CMD_SET_ACCESS_ADDRESS,
+            u16::from_le_bytes([aa_bytes[0], aa_bytes[1]]),
+            u16::from_le_bytes([aa_bytes[2], aa_bytes[3]]),
+            &[],
+            USB_TIMEOUT_SHORT_MS
+        ))?;
+
+        // 5. Set channel (convert to frequency)
+        let frequency = if channel >= 37 {
+            // Advertising channels
+            match channel {
+                37 => 2402,
+                38 => 2426,
+                39 => 2480,
+                _ => return usb_result!(Err(UsbError::InvalidParameter(
+                    format!("Invalid advertising channel: {}", channel)
+                ))),
+            }
+        } else {
+            // Data channels 0-36
+            2404 + (channel as u16 * 2)
+        };
+
+        info!("Setting channel {} (frequency {} MHz)", channel, frequency);
+        usb_result!(device.control_transfer(CMD_SET_CHANNEL, frequency, 0, &[], USB_TIMEOUT_SHORT_MS))?;
+
+        // 6. Start promiscuous mode (connection following)
+        info!("Starting BLE promiscuous mode (connection following)...");
+        usb_result!(device.control_transfer(CMD_BTLE_PROMISC, 0, 0, &[], USB_TIMEOUT_SHORT_MS))?;
+
+        info!("Connection following started on channel {} ({} MHz)", channel, frequency);
+
+        // Drop lock before packet collection
+        drop(device);
+
+        // Flush any stale data
+        flush_usb_buffer(self.device.clone()).await?;
+
+        // Small delay to let device start capturing
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        // Collect packets using existing scan method
+        let scan_result = self.scan_ble_packets(duration_sec, channel).await?;
+
+        // Stop device
+        let device = self.device.lock().await;
+        usb_result!(device.stop())?;
+
+        info!(
+            "Connection following completed: {} packets, {} devices",
+            scan_result.total_packets,
+            scan_result.devices.len()
+        );
+
+        // Generate capture ID
+        let capture_id = format!(
+            "cap-follow-{:08x}-{}",
+            access_address,
+            chrono::Utc::now().format("%Y%m%d-%H%M%S")
+        );
+
+        // Save PCAP if requested
+        let pcap_path = if save_pcap {
+            let path = format!(
+                "/home/{}/.ubertooth/captures/{}.pcap",
+                std::env::var("USER").unwrap_or_else(|_| "user".to_string()),
+                capture_id
+            );
+
+            // Ensure parent directory exists
+            if let Some(parent) = std::path::Path::new(&path).parent() {
+                let _ = std::fs::create_dir_all(parent);
+            }
+
+            // TODO: Write PCAP file (will be implemented in pcap.rs)
+            Some(path)
+        } else {
+            None
+        };
+
+        // Format devices
+        let devices_found: Vec<Value> = scan_result
+            .devices
+            .into_iter()
+            .map(|(mac, dev)| {
+                json!({
+                    "mac_address": mac,
+                    "address_type": dev.address_type,
+                    "device_name": dev.name.unwrap_or_else(|| "Unknown".to_string()),
+                    "rssi_avg": dev.rssi_avg,
+                    "packet_count": dev.packet_count
+                })
+            })
+            .collect();
+
+        Ok(json!({
+            "success": true,
+            "access_address": format!("0x{:08x}", access_address),
+            "capture_id": capture_id,
+            "channel": channel,
+            "frequency_mhz": frequency,
+            "scan_duration_sec": duration_sec,
+            "total_packets": scan_result.total_packets,
+            "devices_found": devices_found,
+            "pcap_path": pcap_path,
+            "preview": scan_result.preview,
+        }))
+    }
+
     /// Execute bt_specan command (spectrum analysis).
     pub async fn bt_specan(&self, params: Value) -> Result<Value> {
         let duration_sec = params["duration_sec"].as_u64().unwrap_or(10);
@@ -437,26 +579,153 @@ impl UbertoothCommands {
             duration_sec, low_freq, high_freq
         );
 
+        // Validate frequency range
+        if low_freq < 2400 || high_freq > 2483 || low_freq >= high_freq {
+            return usb_result!(Err(UsbError::InvalidParameter(format!(
+                "Invalid frequency range: {}-{} MHz (must be 2400-2483 MHz)",
+                low_freq, high_freq
+            ))));
+        }
+
         let device = self.device.lock().await;
 
+        // Stop any previous mode
+        usb_result!(device.control_transfer(CMD_STOP, 0, 0, &[], USB_TIMEOUT_SHORT_MS))?;
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
         // Start spectrum analysis mode
+        // wValue = low_freq, wIndex = high_freq
         usb_result!(device.control_transfer(CMD_SPECAN, low_freq, high_freq, &[], USB_TIMEOUT_SHORT_MS))?;
 
-        info!("Spectrum analysis started");
+        info!("Spectrum analysis started: scanning {}-{} MHz", low_freq, high_freq);
 
-        // TODO: Implement actual spectrum data collection
-        // For now, return placeholder data
+        // Drop lock before scanning
+        drop(device);
 
+        // Small delay to let device start
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // Collect spectrum data
+        let spectrum_result = self.scan_spectrum_data(duration_sec).await?;
+
+        // Stop scanning
+        let device = self.device.lock().await;
         usb_result!(device.stop())?;
+
+        info!(
+            "Spectrum analysis completed: {} sweeps, {} channels monitored",
+            spectrum_result.sweep_count,
+            spectrum_result.channel_stats.len()
+        );
+
+        // Build channel statistics
+        let channel_data: Vec<Value> = spectrum_result
+            .channel_stats
+            .into_iter()
+            .map(|(channel, stats)| {
+                json!({
+                    "channel": channel,
+                    "frequency_mhz": 2402 + channel as u16,
+                    "rssi_min": stats.rssi_min,
+                    "rssi_max": stats.rssi_max,
+                    "rssi_avg": stats.rssi_avg,
+                    "sample_count": stats.sample_count
+                })
+            })
+            .collect();
 
         Ok(json!({
             "success": true,
             "duration_sec": duration_sec,
             "low_frequency_mhz": low_freq,
             "high_frequency_mhz": high_freq,
-            "spectrum_data": [],
-            "message": "Spectrum analysis completed (placeholder - full implementation pending)"
+            "sweep_count": spectrum_result.sweep_count,
+            "total_samples": spectrum_result.total_samples,
+            "spectrum_data": channel_data,
+            "message": format!("Analyzed {} channels over {} sweeps", channel_data.len(), spectrum_result.sweep_count)
         }))
+    }
+
+    /// Scan and collect spectrum data.
+    async fn scan_spectrum_data(&self, duration_sec: u64) -> Result<SpectrumScanResult> {
+        let mut channel_stats: HashMap<u8, ChannelStats> = HashMap::new();
+        let mut sweep_count = 0;
+        let mut total_samples = 0;
+
+        info!("Collecting spectrum data for {}s using CMD_POLL...", duration_sec);
+
+        let start = tokio::time::Instant::now();
+        let scan_duration = Duration::from_secs(duration_sec);
+
+        while start.elapsed() < scan_duration {
+            let device = self.device.lock().await;
+            let mut buffer = [0u8; 64];
+
+            match device.control_transfer_read(CMD_POLL, 0, 0, &mut buffer, 100) {
+                Ok(len) if len >= 14 => {
+                    drop(device);
+
+                    // Parse USB packet
+                    if let Ok(usb_pkt) = UsbPacket::from_bytes(&buffer[..len].to_vec()) {
+                        if usb_pkt.is_specan() {
+                            // Parse spectrum points
+                            match crate::protocol::SpectrumPoint::from_usb_packet(&usb_pkt) {
+                                Ok(points) => {
+                                    sweep_count += 1;
+                                    let point_count = points.len();
+
+                                    for point in points {
+                                        total_samples += 1;
+
+                                        let stats = channel_stats
+                                            .entry(point.channel)
+                                            .or_insert(ChannelStats {
+                                                rssi_min: point.rssi,
+                                                rssi_max: point.rssi,
+                                                rssi_sum: 0,
+                                                sample_count: 0,
+                                                rssi_avg: 0,
+                                            });
+
+                                        stats.sample_count += 1;
+                                        stats.rssi_sum += point.rssi as i32;
+                                        stats.rssi_min = stats.rssi_min.min(point.rssi);
+                                        stats.rssi_max = stats.rssi_max.max(point.rssi);
+                                        stats.rssi_avg = stats.rssi_sum / stats.sample_count as i32;
+                                    }
+
+                                    // Log progress periodically
+                                    if sweep_count % 100 == 0 {
+                                        debug!("Sweep #{}: {} channels", sweep_count, point_count);
+                                    }
+                                }
+                                Err(e) => {
+                                    warn!("Failed to parse spectrum packet: {}", e);
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    drop(device);
+                }
+            }
+
+            tokio::time::sleep(Duration::from_micros(500)).await;
+        }
+
+        info!(
+            "Spectrum scan complete: {} sweeps, {} total samples, {} unique channels",
+            sweep_count,
+            total_samples,
+            channel_stats.len()
+        );
+
+        Ok(SpectrumScanResult {
+            channel_stats,
+            sweep_count,
+            total_samples,
+        })
     }
 }
 
@@ -476,4 +745,22 @@ struct ScanResult {
     devices: HashMap<String, DeviceStats>,
     total_packets: usize,
     preview: Vec<String>,
+}
+
+/// Spectrum scan result structure.
+#[derive(Debug)]
+struct SpectrumScanResult {
+    channel_stats: HashMap<u8, ChannelStats>,
+    sweep_count: usize,
+    total_samples: usize,
+}
+
+/// Channel statistics for spectrum analysis.
+#[derive(Debug, Clone)]
+struct ChannelStats {
+    rssi_min: i8,
+    rssi_max: i8,
+    rssi_sum: i32,
+    sample_count: usize,
+    rssi_avg: i32,
 }
