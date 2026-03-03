@@ -11,7 +11,7 @@ use std::sync::Arc;
 use ubertooth_core::ToolRegistry;
 
 use super::app::AppState;
-use super::views::{Category, FieldType};
+use super::views::{Category, FieldInputMode, FieldType};
 
 /// Render the entire UI
 pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>) {
@@ -164,6 +164,7 @@ fn render_tool_form(f: &mut Frame, area: Rect, form: &crate::tui::views::ToolFor
     // Form fields
     let fields = form.fields();
     let inputs = form.inputs();
+    let input_modes = form.input_modes();
     let focused = form.focused_index();
 
     if fields.is_empty() {
@@ -206,18 +207,42 @@ fn render_tool_form(f: &mut Frame, area: Rect, form: &crate::tui::views::ToolFor
                 .style(Style::default().fg(if i == focused { Color::Yellow } else { Color::White }));
             f.render_widget(label, field_chunks[label_idx]);
 
-            // Input field - render text content in a bordered paragraph
-            let input_text = inputs[i].lines().join("\n");
-            let input_widget = Paragraph::new(input_text)
-                .block(Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(if i == focused {
-                        Color::Yellow
-                    } else {
-                        Color::Gray
-                    })));
+            // Input field - render dropdown or text input
+            match &input_modes[i] {
+                FieldInputMode::Dropdown { selected_index } => {
+                    // Render dropdown
+                    if let Some(options) = &field.dropdown_options {
+                        let selected_value = options.get(*selected_index).cloned().unwrap_or_default();
+                        let display = format!("[ {} ]  (use Up/Down to change)", selected_value);
 
-            f.render_widget(input_widget, field_chunks[input_idx]);
+                        let dropdown_widget = Paragraph::new(display)
+                            .style(Style::default().fg(if i == focused { Color::Cyan } else { Color::White }))
+                            .block(Block::default()
+                                .borders(Borders::ALL)
+                                .border_style(Style::default().fg(if i == focused {
+                                    Color::Yellow
+                                } else {
+                                    Color::Gray
+                                })));
+
+                        f.render_widget(dropdown_widget, field_chunks[input_idx]);
+                    }
+                }
+                FieldInputMode::Text => {
+                    // Render text input
+                    let input_text = inputs[i].lines().join("\n");
+                    let input_widget = Paragraph::new(input_text)
+                        .block(Block::default()
+                            .borders(Borders::ALL)
+                            .border_style(Style::default().fg(if i == focused {
+                                Color::Yellow
+                            } else {
+                                Color::Gray
+                            })));
+
+                    f.render_widget(input_widget, field_chunks[input_idx]);
+                }
+            }
         }
     }
 
@@ -229,7 +254,18 @@ fn render_tool_form(f: &mut Frame, area: Rect, form: &crate::tui::views::ToolFor
             .block(Block::default().borders(Borders::ALL));
         f.render_widget(footer, chunks[2]);
     } else {
-        let footer_text = "[Tab] Next field  [Shift+Tab] Previous  [Enter] Execute  [Esc] Back";
+        // Check if focused field is dropdown
+        let is_dropdown = matches!(
+            input_modes.get(focused),
+            Some(FieldInputMode::Dropdown { .. })
+        );
+
+        let footer_text = if is_dropdown {
+            "[Up/Down] Select  [Tab] Next field  [Enter] Execute  [Esc] Back"
+        } else {
+            "[Tab] Next field  [Shift+Tab] Previous  [Enter] Execute  [Esc] Back"
+        };
+
         let footer = Paragraph::new(footer_text)
             .style(Style::default().fg(Color::Gray))
             .alignment(Alignment::Center)

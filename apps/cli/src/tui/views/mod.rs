@@ -4,4 +4,4 @@ mod category;
 mod tool_form;
 
 pub use category::Category;
-pub use tool_form::{FieldType, FormField, ToolForm};
+pub use tool_form::{FieldInputMode, FieldType, FormField, ToolForm};

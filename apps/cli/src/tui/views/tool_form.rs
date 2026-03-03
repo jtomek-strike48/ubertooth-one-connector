@@ -38,6 +38,16 @@ pub struct FormField {
     pub description: String,
     pub required: bool,
     pub default: Option<String>,
+    pub dropdown_options: Option<Vec<String>>,
+}
+
+/// Field input mode
+#[derive(Debug, Clone)]
+pub enum FieldInputMode {
+    /// Text input
+    Text,
+    /// Dropdown/select menu
+    Dropdown { selected_index: usize },
 }
 
 /// Tool parameter form
@@ -48,8 +58,11 @@ pub struct ToolForm {
     /// Form fields
     fields: Vec<FormField>,
 
-    /// Text inputs for each field
+    /// Text inputs for each field (used when not dropdown)
     inputs: Vec<TextArea<'static>>,
+
+    /// Input modes for each field
+    input_modes: Vec<FieldInputMode>,
 
     /// Currently focused field index
     focused_index: usize,
@@ -60,6 +73,7 @@ impl std::fmt::Debug for ToolForm {
         f.debug_struct("ToolForm")
             .field("tool_name", &self.tool.name())
             .field("fields", &self.fields)
+            .field("input_modes", &self.input_modes)
             .field("focused_index", &self.focused_index)
             .finish()
     }
@@ -71,24 +85,83 @@ impl ToolForm {
         let schema = tool.input_schema();
         let fields = Self::parse_schema(&schema)?;
 
-        // Create text input for each field
-        let inputs = fields
-            .iter()
-            .map(|field| {
+        // Create input mode for each field (dropdown or text)
+        let mut inputs = Vec::new();
+        let mut input_modes = Vec::new();
+
+        for field in &fields {
+            if let Some(options) = &field.dropdown_options {
+                // Dropdown field
+                let default_index = if let Some(default) = &field.default {
+                    options.iter().position(|o| o == default).unwrap_or(0)
+                } else {
+                    0
+                };
+                input_modes.push(FieldInputMode::Dropdown {
+                    selected_index: default_index,
+                });
+                // Still create textarea for compatibility
+                inputs.push(TextArea::default());
+            } else {
+                // Text input field
                 let mut textarea = TextArea::default();
                 if let Some(default) = &field.default {
                     textarea.insert_str(default);
                 }
-                textarea
-            })
-            .collect();
+                inputs.push(textarea);
+                input_modes.push(FieldInputMode::Text);
+            }
+        }
 
         Ok(Self {
             tool,
             fields,
             inputs,
+            input_modes,
             focused_index: 0,
         })
+    }
+
+    /// Determine if a field should have dropdown options
+    fn get_dropdown_options(name: &str, field_type: &FieldType, prop: &Value) -> Option<Vec<String>> {
+        // Check for explicit enum in schema
+        if let Some(enum_values) = prop.get("enum").and_then(|e| e.as_array()) {
+            return Some(
+                enum_values
+                    .iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect(),
+            );
+        }
+
+        // Boolean fields → Yes/No dropdown
+        if matches!(field_type, FieldType::Boolean) {
+            return Some(vec!["true".to_string(), "false".to_string()]);
+        }
+
+        // Channel field → BLE advertising channels
+        if name == "channel" {
+            return Some(vec!["37".to_string(), "38".to_string(), "39".to_string()]);
+        }
+
+        // Duration presets (common values)
+        if name.contains("duration") && matches!(field_type, FieldType::Integer) {
+            return Some(vec![
+                "5".to_string(),
+                "10".to_string(),
+                "30".to_string(),
+                "60".to_string(),
+                "120".to_string(),
+                "300".to_string(),
+            ]);
+        }
+
+        // Save/capture boolean flags
+        if name.starts_with("save_") || name.ends_with("_pcap") {
+            return Some(vec!["true".to_string(), "false".to_string()]);
+        }
+
+        None
     }
 
     /// Parse JSON schema into form fields
@@ -123,12 +196,16 @@ impl ToolForm {
                 .get("default")
                 .map(|v| v.to_string().trim_matches('"').to_string());
 
+            // Detect dropdown options
+            let dropdown_options = Self::get_dropdown_options(name, &field_type, prop);
+
             fields.push(FormField {
                 name: name.clone(),
                 field_type,
                 description,
                 required,
                 default,
+                dropdown_options,
             });
         }
 
@@ -155,9 +232,36 @@ impl ToolForm {
         &self.inputs
     }
 
+    /// Get input modes
+    pub fn input_modes(&self) -> &[FieldInputMode] {
+        &self.input_modes
+    }
+
     /// Get currently focused field index
     pub fn focused_index(&self) -> usize {
         self.focused_index
+    }
+
+    /// Navigate dropdown up
+    pub fn dropdown_prev(&mut self) {
+        if let Some(FieldInputMode::Dropdown { selected_index }) = self.input_modes.get_mut(self.focused_index) {
+            if let Some(options) = &self.fields[self.focused_index].dropdown_options {
+                if *selected_index > 0 {
+                    *selected_index -= 1;
+                }
+            }
+        }
+    }
+
+    /// Navigate dropdown down
+    pub fn dropdown_next(&mut self) {
+        if let Some(FieldInputMode::Dropdown { selected_index }) = self.input_modes.get_mut(self.focused_index) {
+            if let Some(options) = &self.fields[self.focused_index].dropdown_options {
+                if *selected_index < options.len() - 1 {
+                    *selected_index += 1;
+                }
+            }
+        }
     }
 
     /// Move focus to next field
@@ -221,7 +325,21 @@ impl ToolForm {
         let mut params = serde_json::Map::new();
 
         for (i, field) in self.fields.iter().enumerate() {
-            let value = self.inputs[i].lines().join("");
+            // Get value from dropdown or text input
+            let value = match &self.input_modes[i] {
+                FieldInputMode::Dropdown { selected_index } => {
+                    // Get value from dropdown selection
+                    if let Some(options) = &field.dropdown_options {
+                        options.get(*selected_index).cloned().unwrap_or_default()
+                    } else {
+                        String::new()
+                    }
+                }
+                FieldInputMode::Text => {
+                    // Get value from text input
+                    self.inputs[i].lines().join("")
+                }
+            };
 
             if value.trim().is_empty() {
                 continue; // Skip empty optional fields

@@ -160,6 +160,12 @@ impl App {
         // Handle form input specially
         if let AppState::ToolForm { form, error } = &mut self.state {
             if let Event::Key(KeyEvent { code, modifiers, .. }) = event {
+                // Check if current field is a dropdown
+                let is_dropdown = matches!(
+                    form.input_modes().get(form.focused_index()),
+                    Some(super::views::FieldInputMode::Dropdown { .. })
+                );
+
                 match code {
                     KeyCode::Esc => {
                         self.go_back();
@@ -173,15 +179,27 @@ impl App {
                         }
                         return Ok(());
                     }
+                    KeyCode::Up if is_dropdown => {
+                        // Navigate dropdown up
+                        form.dropdown_prev();
+                        return Ok(());
+                    }
+                    KeyCode::Down if is_dropdown => {
+                        // Navigate dropdown down
+                        form.dropdown_next();
+                        return Ok(());
+                    }
                     KeyCode::Enter => {
                         // Enter to submit form
                         self.execute_tool()?;
                         return Ok(());
                     }
                     _ => {
-                        // Pass event to focused input
-                        if let Some(input) = form.focused_input_mut() {
-                            input.input(event);
+                        // Pass event to focused input (text fields only)
+                        if !is_dropdown {
+                            if let Some(input) = form.focused_input_mut() {
+                                input.input(event);
+                            }
                         }
                         // Clear error on input
                         *error = None;
