@@ -7,7 +7,7 @@ mod events;
 mod ui;
 mod views;
 
-pub use app::{App, AppState};
+pub use app::{App, AppState, DeviceStatus};
 pub use events::EventHandler;
 
 use anyhow::Result;

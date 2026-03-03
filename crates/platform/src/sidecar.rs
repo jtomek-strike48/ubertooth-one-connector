@@ -311,20 +311,49 @@ impl SidecarManager {
         tracing::debug!("Executing: ubertooth-btle {:?}", args);
 
         // Execute ubertooth-btle with timeout
-        // Since ubertooth-btle doesn't have built-in timeout, we use tokio timeout
+        // ubertooth-btle runs forever, so we need to kill it after duration
         use tokio::time::{timeout, Duration};
+        use std::process::Stdio;
 
-        let command_future = self.execute_ubertooth_command("ubertooth-btle", &args);
-        let output = match timeout(Duration::from_secs(duration_sec + 5), command_future).await {
-            Ok(result) => result?,
-            Err(_) => {
-                // Timeout - kill the process and return what we have
-                tracing::warn!("ubertooth-btle timeout after {}s", duration_sec);
-                String::new()
-            }
-        };
+        let duration_str = duration_sec.to_string();
+        let pcap_str = pcap_path_str.to_string();
 
-        tracing::debug!("ubertooth-btle output: {}", output);
+        // Spawn process so we can kill it
+        let mut child = tokio::process::Command::new("ubertooth-btle")
+            .args(&args)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| UbertoothError::BackendError(format!("Failed to spawn ubertooth-btle: {}", e)))?;
+
+        // Wait for duration, then kill process
+        tokio::time::sleep(Duration::from_secs(duration_sec)).await;
+
+        tracing::debug!("Duration elapsed, killing ubertooth-btle process...");
+        let _ = child.kill().await;
+
+        let output_result = child.wait_with_output().await
+            .map_err(|e| UbertoothError::BackendError(format!("Failed to wait for ubertooth-btle: {}", e)))?;
+
+        let output = String::from_utf8_lossy(&output_result.stdout).to_string();
+        let stderr = String::from_utf8_lossy(&output_result.stderr);
+
+        // Filter stderr for benign warnings
+        let filtered_stderr = stderr
+            .lines()
+            .filter(|line| {
+                !line.contains("API version") &&
+                !line.contains("newer than that supported") &&
+                !line.contains("Things will still work")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        if !filtered_stderr.is_empty() {
+            tracing::debug!("ubertooth-btle stderr: {}", filtered_stderr);
+        }
+
+        tracing::debug!("ubertooth-btle completed, output: {} bytes", output.len());
 
         // Get file size
         let file_size = std::fs::metadata(&pcap_path)

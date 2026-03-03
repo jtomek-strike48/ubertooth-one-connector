@@ -10,11 +10,11 @@ use ratatui::{
 use std::sync::Arc;
 use ubertooth_core::ToolRegistry;
 
-use super::app::AppState;
+use super::app::{AppState, DeviceStatus};
 use super::views::{Category, FieldInputMode, FieldType};
 
 /// Render the entire UI
-pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>) {
+pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>, device_status: &DeviceStatus) {
     // Main layout: header + content + footer
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -25,17 +25,33 @@ pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>) {
         ])
         .split(f.size());
 
-    render_header(f, chunks[0], registry);
+    render_header(f, chunks[0], device_status);
     render_content(f, chunks[1], state, registry);
     render_footer(f, chunks[2], state);
 }
 
 /// Render header with device status
-fn render_header(f: &mut Frame, area: Rect, _registry: &Arc<ToolRegistry>) {
+fn render_header(f: &mut Frame, area: Rect, device_status: &DeviceStatus) {
+    // Build status string
+    let device_str = if device_status.connected {
+        if let Some(fw) = &device_status.firmware {
+            format!("Device: Connected ({})", fw)
+        } else {
+            "Device: Connected".to_string()
+        }
+    } else {
+        "Device: Not Connected".to_string()
+    };
+
+    let backend_str = "Backend: Python";
+    let strike48_str = "Strike48: Not Connected";
+
+    let title = format!("{} | {} | {}", device_str, backend_str, strike48_str);
+
     let header = Paragraph::new("Ubertooth CLI")
         .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
         .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL).title("Device: Not Connected | Backend: Rust | Strike48: Not Connected"));
+        .block(Block::default().borders(Borders::ALL).title(title));
 
     f.render_widget(header, area);
 }

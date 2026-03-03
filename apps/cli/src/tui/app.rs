@@ -62,6 +62,13 @@ pub enum AppState {
     Settings {},
 }
 
+/// Device connection status
+#[derive(Debug, Clone)]
+pub struct DeviceStatus {
+    pub connected: bool,
+    pub firmware: Option<String>,
+}
+
 /// Main TUI application
 pub struct App {
     /// Current application state
@@ -69,6 +76,9 @@ pub struct App {
 
     /// Tool registry
     registry: Arc<ToolRegistry>,
+
+    /// Device connection status
+    device_status: DeviceStatus,
 
     /// Should quit?
     should_quit: bool,
@@ -84,6 +94,10 @@ impl App {
         Ok(Self {
             state: AppState::MainMenu { selected_index: 0 },
             registry,
+            device_status: DeviceStatus {
+                connected: false,
+                firmware: None,
+            },
             should_quit: false,
         })
     }
@@ -114,7 +128,7 @@ impl App {
         let result = (|| -> Result<()> {
             loop {
                 // Render UI (catch and log any render errors)
-                if let Err(e) = terminal.draw(|f| ui::render(f, &self.state, &self.registry)) {
+                if let Err(e) = terminal.draw(|f| ui::render(f, &self.state, &self.registry, &self.device_status)) {
                     tracing::error!("Render error: {}", e);
                     // Continue anyway - might be transient
                 }
@@ -128,6 +142,17 @@ impl App {
                                 let tool_name = tool_name.clone();
                                 match result {
                                     ExecutionResult::Success(output) => {
+                                        // Update device status if this was a device_connect command
+                                        if tool_name == "device_connect" {
+                                            if let Some(firmware) = output.get("firmware_version").and_then(|v| v.as_str()) {
+                                                self.device_status.connected = true;
+                                                self.device_status.firmware = Some(firmware.to_string());
+                                            }
+                                        } else if tool_name == "device_disconnect" {
+                                            self.device_status.connected = false;
+                                            self.device_status.firmware = None;
+                                        }
+
                                         self.state = AppState::Results {
                                             tool_name,
                                             output,
