@@ -126,12 +126,25 @@ impl ToolForm {
     fn get_dropdown_options(name: &str, field_type: &FieldType, prop: &Value) -> Option<Vec<String>> {
         // Check for explicit enum in schema
         if let Some(enum_values) = prop.get("enum").and_then(|e| e.as_array()) {
-            return Some(
-                enum_values
-                    .iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                    .collect(),
-            );
+            let options: Vec<String> = enum_values
+                .iter()
+                .filter_map(|v| {
+                    // Handle both string and integer enum values
+                    if let Some(s) = v.as_str() {
+                        Some(s.to_string())
+                    } else if let Some(n) = v.as_i64() {
+                        Some(n.to_string())
+                    } else if let Some(n) = v.as_u64() {
+                        Some(n.to_string())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            if !options.is_empty() {
+                return Some(options);
+            }
         }
 
         // Boolean fields → Yes/No dropdown
@@ -192,9 +205,20 @@ impl ToolForm {
                 .unwrap_or("")
                 .to_string();
             let required = required_fields.contains(&name.as_str());
-            let default = prop
-                .get("default")
-                .map(|v| v.to_string().trim_matches('"').to_string());
+            // Get default value, handling both strings and integers
+            let default = prop.get("default").map(|v| {
+                if let Some(s) = v.as_str() {
+                    s.to_string()
+                } else if let Some(n) = v.as_i64() {
+                    n.to_string()
+                } else if let Some(n) = v.as_u64() {
+                    n.to_string()
+                } else if let Some(b) = v.as_bool() {
+                    b.to_string()
+                } else {
+                    v.to_string().trim_matches('"').to_string()
+                }
+            });
 
             // Detect dropdown options
             let dropdown_options = Self::get_dropdown_options(name, &field_type, prop);
@@ -290,7 +314,21 @@ impl ToolForm {
     /// Validate the form
     pub fn validate(&self) -> Result<(), String> {
         for (i, field) in self.fields.iter().enumerate() {
-            let value = self.inputs[i].lines().join("");
+            // Get value from dropdown or text input
+            let value = match &self.input_modes[i] {
+                FieldInputMode::Dropdown { selected_index } => {
+                    // Get value from dropdown selection
+                    if let Some(options) = &field.dropdown_options {
+                        options.get(*selected_index).cloned().unwrap_or_default()
+                    } else {
+                        String::new()
+                    }
+                }
+                FieldInputMode::Text => {
+                    // Get value from text input
+                    self.inputs[i].lines().join("")
+                }
+            };
 
             if field.required && value.trim().is_empty() {
                 return Err(format!("Field '{}' is required", field.name));
