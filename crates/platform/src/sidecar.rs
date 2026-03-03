@@ -3,6 +3,7 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use serde_json::{json, Value};
+use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
@@ -267,7 +268,7 @@ impl SidecarManager {
     /// BLE scan implementation.
     async fn btle_scan(&self, params: Value) -> Result<Value> {
         // Parse parameters
-        let duration_sec = params
+        let total_duration = params
             .get("duration_sec")
             .and_then(|v| v.as_u64())
             .unwrap_or(30);
@@ -278,9 +279,8 @@ impl SidecarManager {
             .unwrap_or(37);
 
         tracing::info!(
-            "Starting BLE scan: channel={}, duration={}s",
-            channel,
-            duration_sec
+            "Starting multi-channel BLE scan: duration={}s (scanning channels 37, 38, 39)",
+            total_duration
         );
 
         // Create capture store
@@ -289,34 +289,120 @@ impl SidecarManager {
         // Generate capture ID
         let capture_id = CaptureStore::generate_capture_id("btle");
 
-        // Prepare output file path
-        let pcap_path = store.captures_dir().join(format!("{}.pcap", capture_id));
-        let pcap_path_str = pcap_path
+        // BLE advertising channels
+        let channels = vec![37u64, 38u64, 39u64];
+
+        // Split duration across channels
+        let duration_per_channel = std::cmp::max(total_duration / channels.len() as u64, 1);
+
+        // Scan each channel and collect results
+        let mut channel_pcaps = Vec::new();
+        let mut total_packets = 0u64;
+
+        for ch in &channels {
+            tracing::info!("Scanning channel {} for {}s...", ch, duration_per_channel);
+
+            // Prepare output file path for this channel
+            let channel_pcap_path = store.captures_dir().join(format!("{}_ch{}.pcap", capture_id, ch));
+            let channel_pcap_str = channel_pcap_path
+                .to_str()
+                .ok_or_else(|| UbertoothError::BackendError("Invalid path".to_string()))?
+                .to_string();
+
+            // Scan single channel
+            match self.scan_single_channel(*ch, duration_per_channel, &channel_pcap_str).await {
+                Ok(packet_count) => {
+                    total_packets += packet_count;
+                    channel_pcaps.push(channel_pcap_str);
+                    tracing::info!("Channel {} scan complete: {} packets", ch, packet_count);
+                }
+                Err(e) => {
+                    tracing::warn!("Channel {} scan failed: {}", ch, e);
+                    // Continue with other channels
+                }
+            }
+        }
+
+        // Merge all PCAP files into one
+        let final_pcap_path = store.captures_dir().join(format!("{}.pcap", capture_id));
+        let final_pcap_str = final_pcap_path
             .to_str()
             .ok_or_else(|| UbertoothError::BackendError("Invalid path".to_string()))?;
 
+        if !channel_pcaps.is_empty() {
+            self.merge_pcap_files(&channel_pcaps, final_pcap_str).await?;
+
+            // Clean up individual channel files
+            for pcap in &channel_pcaps {
+                let _ = std::fs::remove_file(pcap);
+            }
+        } else {
+            // No captures, create empty PCAP
+            tracing::warn!("No packets captured on any channel");
+            std::fs::write(&final_pcap_path, &[])
+                .map_err(|e| UbertoothError::BackendError(format!("Failed to create empty PCAP: {}", e)))?;
+        }
+
+        // Get final file size
+        let file_size = std::fs::metadata(&final_pcap_path)
+            .map(|m| m.len())
+            .unwrap_or(0);
+
+        // Create capture metadata
+        let metadata = CaptureMetadata {
+            capture_id: capture_id.clone(),
+            timestamp: Utc::now(),
+            capture_type: "btle_sniff".to_string(),
+            packet_count: total_packets as usize,
+            duration_sec: Some(total_duration),
+            file_size_bytes: file_size,
+            pcap_path: final_pcap_str.to_string(),
+            tags: vec!["ble".to_string(), "multi-channel".to_string()],
+            description: format!("Multi-channel BLE scan (channels 37, 38, 39)"),
+        };
+
+        // Save metadata
+        store.save_metadata(&metadata)?;
+
+        tracing::info!(
+            "Multi-channel BLE scan complete: {} packets total, {} bytes",
+            total_packets,
+            file_size
+        );
+
+        // Return result
+        Ok(json!({
+            "success": true,
+            "capture_id": capture_id,
+            "scan_duration_sec": total_duration,
+            "channels_scanned": channels,
+            "devices_found": [],  // TODO Phase 2: Parse PCAP to extract devices
+            "total_packets": total_packets,
+            "pcap_path": final_pcap_str,
+            "preview": [
+                format!("Scanned channels 37, 38, 39 ({}s each)", duration_per_channel),
+                format!("Captured {} BLE packets total", total_packets),
+                format!("Saved to: {}", final_pcap_str)
+            ]
+        }))
+    }
+
+    /// Scan a single BLE advertising channel
+    async fn scan_single_channel(&self, channel: u64, duration_sec: u64, pcap_path: &str) -> Result<u64> {
+        use tokio::time::Duration;
+        use std::process::Stdio;
+
         // Build ubertooth-btle command
-        // -n: don't follow, only print advertisements (scan mode)
-        // -A: advertising channel index (37, 38, or 39)
-        // -q: output PCAP file
         let channel_str = channel.to_string();
         let args = vec![
             "-n",              // Scan mode (don't follow connections)
             "-A",
             channel_str.as_str(),
             "-q",
-            pcap_path_str,
+            pcap_path,
         ];
 
         tracing::debug!("Executing: ubertooth-btle {:?}", args);
-
-        // Execute ubertooth-btle with timeout
-        // ubertooth-btle runs forever, so we need to kill it after duration
-        use tokio::time::{timeout, Duration};
-        use std::process::Stdio;
-
-        let duration_str = duration_sec.to_string();
-        let pcap_str = pcap_path_str.to_string();
 
         // Spawn process so we can kill it
         let mut child = tokio::process::Command::new("ubertooth-btle")
@@ -335,71 +421,69 @@ impl SidecarManager {
         let output_result = child.wait_with_output().await
             .map_err(|e| UbertoothError::BackendError(format!("Failed to wait for ubertooth-btle: {}", e)))?;
 
-        let output = String::from_utf8_lossy(&output_result.stdout).to_string();
-        let stderr = String::from_utf8_lossy(&output_result.stderr);
-
-        // Filter stderr for benign warnings
-        let filtered_stderr = stderr
-            .lines()
-            .filter(|line| {
-                !line.contains("API version") &&
-                !line.contains("newer than that supported") &&
-                !line.contains("Things will still work")
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        if !filtered_stderr.is_empty() {
-            tracing::debug!("ubertooth-btle stderr: {}", filtered_stderr);
-        }
-
-        tracing::debug!("ubertooth-btle completed, output: {} bytes", output.len());
-
-        // Get file size
-        let file_size = std::fs::metadata(&pcap_path)
+        // Count packets from PCAP file size (rough estimate)
+        let file_size = std::fs::metadata(pcap_path)
             .map(|m| m.len())
             .unwrap_or(0);
 
-        // Parse output for basic statistics
-        // ubertooth-btle output format varies, for now use placeholder counts
-        let total_packets = output.lines().filter(|line| line.contains("packet") || line.contains("ADV")).count();
-
-        // Create capture metadata
-        let metadata = CaptureMetadata {
-            capture_id: capture_id.clone(),
-            timestamp: Utc::now(),
-            capture_type: "btle_sniff".to_string(),
-            packet_count: total_packets,
-            duration_sec: Some(duration_sec),
-            file_size_bytes: file_size,
-            pcap_path: pcap_path_str.to_string(),
-            tags: vec!["ble".to_string(), format!("channel_{}", channel)],
-            description: format!("BLE scan on channel {}", channel),
+        // Estimate packet count: PCAP header is 24 bytes, typical BLE packet ~50-100 bytes
+        let packet_count = if file_size > 24 {
+            (file_size - 24) / 75  // Conservative estimate
+        } else {
+            0
         };
 
-        // Save metadata
-        store.save_metadata(&metadata)?;
+        Ok(packet_count)
+    }
 
-        tracing::info!(
-            "BLE scan complete: {} packets, {} bytes",
-            total_packets,
-            file_size
-        );
+    /// Merge multiple PCAP files into one using mergecap or manual merge
+    async fn merge_pcap_files(&self, input_files: &[String], output_file: &str) -> Result<()> {
+        // Try using mergecap first (from wireshark-common)
+        let mergecap_result = tokio::process::Command::new("mergecap")
+            .arg("-w")
+            .arg(output_file)
+            .args(input_files)
+            .output()
+            .await;
 
-        // Return result
-        Ok(json!({
-            "success": true,
-            "capture_id": capture_id,
-            "scan_duration_sec": duration_sec,
-            "channel": channel,
-            "devices_found": [],  // TODO Phase 2: Parse PCAP to extract devices
-            "total_packets": total_packets,
-            "pcap_path": pcap_path_str,
-            "preview": [
-                format!("Captured {} BLE packets on channel {}", total_packets, channel),
-                format!("Saved to: {}", pcap_path_str)
-            ]
-        }))
+        match mergecap_result {
+            Ok(output) if output.status.success() => {
+                tracing::debug!("Merged PCAP files using mergecap");
+                Ok(())
+            }
+            _ => {
+                // Fallback: manual merge by copying first file and appending packets from others
+                tracing::debug!("mergecap not available, using manual merge");
+
+                if input_files.is_empty() {
+                    return Err(UbertoothError::BackendError("No PCAP files to merge".to_string()));
+                }
+
+                // Copy first file as base
+                std::fs::copy(&input_files[0], output_file)
+                    .map_err(|e| UbertoothError::BackendError(format!("Failed to copy base PCAP: {}", e)))?;
+
+                // Append packets from other files (skip their headers)
+                for input_file in &input_files[1..] {
+                    let data = std::fs::read(input_file)
+                        .map_err(|e| UbertoothError::BackendError(format!("Failed to read PCAP: {}", e)))?;
+
+                    // Skip PCAP global header (24 bytes) and append packet data
+                    if data.len() > 24 {
+                        let mut output = std::fs::OpenOptions::new()
+                            .append(true)
+                            .open(output_file)
+                            .map_err(|e| UbertoothError::BackendError(format!("Failed to open output PCAP: {}", e)))?;
+
+                        std::io::Write::write_all(&mut output, &data[24..])
+                            .map_err(|e| UbertoothError::BackendError(format!("Failed to append PCAP data: {}", e)))?;
+                    }
+                }
+
+                tracing::debug!("Manual PCAP merge complete");
+                Ok(())
+            }
+        }
     }
 
     /// Spectrum analysis implementation.
