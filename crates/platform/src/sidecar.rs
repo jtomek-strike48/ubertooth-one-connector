@@ -202,13 +202,17 @@ impl SidecarManager {
             .execute_ubertooth_command("ubertooth-util", &["-V"])
             .await?;
 
-        // Parse output (simplified for v0.0.1)
-        // Expected format: "Firmware version: 2020-12-R1"
+        // Parse output
+        // Expected format: "ubertooth 2020-12-R1 (mikeryan@steel) Fri Dec 25 13:55:05 PST 2020"
         let firmware_version = output
             .lines()
-            .find(|line| line.contains("Firmware"))
-            .and_then(|line| line.split(':').nth(1))
-            .map(|s| s.trim().to_string())
+            .find(|line| line.contains("ubertooth"))
+            .and_then(|line| {
+                // Extract version number (e.g., "2020-12-R1")
+                line.split_whitespace()
+                    .nth(1)
+                    .map(|s| s.to_string())
+            })
             .unwrap_or_else(|| "unknown".to_string());
 
         Ok(json!({
@@ -242,9 +246,13 @@ impl SidecarManager {
 
         let firmware_version = output
             .lines()
-            .find(|line| line.contains("Firmware"))
-            .and_then(|line| line.split(':').nth(1))
-            .map(|s| s.trim().to_string())
+            .find(|line| line.contains("ubertooth"))
+            .and_then(|line| {
+                // Extract version number (e.g., "2020-12-R1")
+                line.split_whitespace()
+                    .nth(1)
+                    .map(|s| s.to_string())
+            })
             .unwrap_or_else(|| "unknown".to_string());
 
         Ok(json!({

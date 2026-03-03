@@ -33,7 +33,7 @@ impl Category {
     /// Get tools in this category
     pub fn get_tools(&self, registry: &Arc<ToolRegistry>) -> Vec<Arc<dyn PentestTool>> {
         let category_prefix = self.category_prefix();
-        registry
+        let mut tools: Vec<Arc<dyn PentestTool>> = registry
             .tools()
             .iter()
             .filter(|tool| {
@@ -78,7 +78,28 @@ impl Category {
                 }
             })
             .cloned()
-            .collect()
+            .collect();
+
+        // Custom ordering for specific categories
+        match self {
+            Category::DeviceManagement => {
+                // Order: device_connect, device_disconnect, device_status
+                tools.sort_by_key(|tool| {
+                    match tool.name() {
+                        "device_connect" => 0,
+                        "device_disconnect" => 1,
+                        "device_status" => 2,
+                        _ => 999,
+                    }
+                });
+            }
+            _ => {
+                // Default: sort alphabetically
+                tools.sort_by_key(|tool| tool.name().to_string());
+            }
+        }
+
+        tools
     }
 
     /// Get tool count in this category

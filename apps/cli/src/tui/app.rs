@@ -97,51 +97,80 @@ impl App {
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
 
+        // Install panic hook to restore terminal on panic
+        let original_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |panic_info| {
+            // Restore terminal
+            let _ = disable_raw_mode();
+            let _ = execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
+            // Call original hook
+            original_hook(panic_info);
+        }));
+
         // Create event handler
         let mut events = EventHandler::new(250); // 250ms tick rate
 
-        // Main loop
-        loop {
-            // Render UI
-            terminal.draw(|f| ui::render(f, &self.state, &self.registry))?;
+        // Main loop with error recovery
+        let result = (|| -> Result<()> {
+            loop {
+                // Render UI (catch and log any render errors)
+                if let Err(e) = terminal.draw(|f| ui::render(f, &self.state, &self.registry)) {
+                    tracing::error!("Render error: {}", e);
+                    // Continue anyway - might be transient
+                }
 
-            // Check for tool execution results
-            if let AppState::Executing { tool_name, result_rx } = &mut self.state {
-                if let Some(rx) = result_rx {
-                    if let Ok(result) = rx.try_recv() {
-                        // Move out of executing state
-                        let tool_name = tool_name.clone();
-                        match result {
-                            ExecutionResult::Success(output) => {
-                                self.state = AppState::Results {
-                                    tool_name,
-                                    output,
-                                    success: true,
-                                };
+                // Check for tool execution results
+                if let AppState::Executing { tool_name, result_rx } = &mut self.state {
+                    if let Some(rx) = result_rx {
+                        match rx.try_recv() {
+                            Ok(result) => {
+                                // Move out of executing state
+                                let tool_name = tool_name.clone();
+                                match result {
+                                    ExecutionResult::Success(output) => {
+                                        self.state = AppState::Results {
+                                            tool_name,
+                                            output,
+                                            success: true,
+                                        };
+                                    }
+                                    ExecutionResult::Error(error) => {
+                                        self.state = AppState::Results {
+                                            tool_name,
+                                            output: serde_json::json!({ "error": error }),
+                                            success: false,
+                                        };
+                                    }
+                                }
                             }
-                            ExecutionResult::Error(error) => {
-                                self.state = AppState::Results {
-                                    tool_name,
-                                    output: serde_json::json!({ "error": error }),
-                                    success: false,
-                                };
+                            Err(_) => {
+                                // Channel still empty or closed, continue
                             }
                         }
                     }
                 }
-            }
 
-            // Handle events
-            if let Some(event) = events.next()? {
-                self.handle_event(event)?;
-            }
+                // Handle events
+                if let Some(event) = events.next()? {
+                    if let Err(e) = self.handle_event(event) {
+                        tracing::error!("Event handling error: {}", e);
+                        // Show error to user
+                        self.state = AppState::Results {
+                            tool_name: "Error".to_string(),
+                            output: serde_json::json!({ "error": format!("{}", e) }),
+                            success: false,
+                        };
+                    }
+                }
 
-            if self.should_quit {
-                break;
+                if self.should_quit {
+                    break;
+                }
             }
-        }
+            Ok(())
+        })();
 
-        // Restore terminal
+        // Restore terminal (always runs, even on error)
         disable_raw_mode()?;
         execute!(
             terminal.backend_mut(),
@@ -150,7 +179,7 @@ impl App {
         )?;
         terminal.show_cursor()?;
 
-        Ok(())
+        result
     }
 
     /// Handle an input event
