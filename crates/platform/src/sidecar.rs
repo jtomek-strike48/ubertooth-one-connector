@@ -288,28 +288,33 @@ impl SidecarManager {
             .ok_or_else(|| UbertoothError::BackendError("Invalid path".to_string()))?;
 
         // Build ubertooth-btle command
-        // -f: follow connections
-        // -c: channel
-        // -t: timeout (in seconds)
+        // -n: don't follow, only print advertisements (scan mode)
+        // -A: advertising channel index (37, 38, or 39)
         // -q: output PCAP file
         let channel_str = channel.to_string();
-        let duration_str = duration_sec.to_string();
         let args = vec![
-            "-f",
-            "-c",
+            "-n",              // Scan mode (don't follow connections)
+            "-A",
             channel_str.as_str(),
-            "-t",
-            duration_str.as_str(),
             "-q",
             pcap_path_str,
         ];
 
         tracing::debug!("Executing: ubertooth-btle {:?}", args);
 
-        // Execute ubertooth-btle
-        let output = self
-            .execute_ubertooth_command("ubertooth-btle", &args)
-            .await?;
+        // Execute ubertooth-btle with timeout
+        // Since ubertooth-btle doesn't have built-in timeout, we use tokio timeout
+        use tokio::time::{timeout, Duration};
+
+        let command_future = self.execute_ubertooth_command("ubertooth-btle", &args);
+        let output = match timeout(Duration::from_secs(duration_sec + 5), command_future).await {
+            Ok(result) => result?,
+            Err(_) => {
+                // Timeout - kill the process and return what we have
+                tracing::warn!("ubertooth-btle timeout after {}s", duration_sec);
+                String::new()
+            }
+        };
 
         tracing::debug!("ubertooth-btle output: {}", output);
 
@@ -897,13 +902,13 @@ impl SidecarManager {
         let capture_id = CaptureStore::generate_capture_id("btscan");
         let pcap_path = store.captures_dir().join(format!("{}.pcap", capture_id));
 
-        // Execute ubertooth-scan with timeout and output to PCAP
+        // Execute ubertooth-scan with timeout
+        // Note: ubertooth-scan does not support PCAP output directly
         let duration_str = duration_sec.to_string();
-        let pcap_str = pcap_path.to_string_lossy().to_string();
 
         let output = self.execute_ubertooth_command(
             "ubertooth-scan",
-            &["-t", duration_str.as_str(), "-q", pcap_str.as_str()]
+            &["-t", duration_str.as_str()]
         ).await?;
 
         // Parse output for discovered devices

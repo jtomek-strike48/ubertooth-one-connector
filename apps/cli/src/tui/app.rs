@@ -273,10 +273,35 @@ impl App {
                     // Create form for this tool
                     match ToolForm::new(tool.clone()) {
                         Ok(form) => {
-                            self.state = AppState::ToolForm {
-                                form: Box::new(form),
-                                error: None,
-                            };
+                            // If tool has no parameters, execute immediately
+                            if form.fields().is_empty() {
+                                let tool_name = form.tool_name().to_string();
+                                let tool_clone = form.get_tool();
+
+                                // Create channel for results
+                                let (tx, rx) = mpsc::channel(1);
+
+                                // Spawn async task to execute tool
+                                tokio::spawn(async move {
+                                    let result = match tool_clone.execute(serde_json::json!({})).await {
+                                        Ok(output) => ExecutionResult::Success(output),
+                                        Err(e) => ExecutionResult::Error(format!("{}", e)),
+                                    };
+                                    let _ = tx.send(result).await;
+                                });
+
+                                // Transition directly to executing state
+                                self.state = AppState::Executing {
+                                    tool_name,
+                                    result_rx: Some(rx),
+                                };
+                            } else {
+                                // Show form for tools with parameters
+                                self.state = AppState::ToolForm {
+                                    form: Box::new(form),
+                                    error: None,
+                                };
+                            }
                         }
                         Err(e) => {
                             // Show error in form state
