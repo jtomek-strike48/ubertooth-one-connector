@@ -173,8 +173,8 @@ impl App {
                         }
                         return Ok(());
                     }
-                    KeyCode::Enter if modifiers.contains(KeyModifiers::CONTROL) => {
-                        // Ctrl+Enter to submit form
+                    KeyCode::Enter => {
+                        // Enter to submit form
                         self.execute_tool()?;
                         return Ok(());
                     }

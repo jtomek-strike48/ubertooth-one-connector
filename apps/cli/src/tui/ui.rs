@@ -67,13 +67,13 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
 /// Render main menu with 7 categories
 fn render_main_menu(f: &mut Frame, area: Rect, selected_index: usize) {
     let categories = vec![
-        ("1. 🔌 Device Management (3 tools)", "Connect, status, disconnect"),
-        ("2. 🔍 Reconnaissance (7 tools)", "BLE scan, spectrum analysis, follow connections"),
-        ("3. 📊 Analysis (5 tools)", "Packet analysis, fingerprinting, comparison"),
-        ("4. 📁 Capture Management (5 tools)", "List, view, export, tag captures"),
-        ("5. ⚙️  Configuration (8 tools)", "Channel, power, modulation, presets"),
-        ("6. 🎯 Attack Operations (5 tools) ⚠️", "Injection, jamming, MITM (requires authorization)"),
-        ("7. 🔧 Advanced (2 tools)", "Raw USB commands, session context"),
+        ("1. Device Management (3 tools)", "Connect, status, disconnect"),
+        ("2. Reconnaissance (7 tools)", "BLE scan, spectrum analysis, follow connections"),
+        ("3. Analysis (5 tools)", "Packet analysis, fingerprinting, comparison"),
+        ("4. Capture Management (5 tools)", "List, view, export, tag captures"),
+        ("5. Configuration (8 tools)", "Channel, power, modulation, presets"),
+        ("6. Attack Operations (5 tools)", "Injection, jamming, MITM (requires authorization)"),
+        ("7. Advanced (2 tools)", "Raw USB commands, session context"),
     ];
 
     let items: Vec<ListItem> = categories
@@ -223,13 +223,13 @@ fn render_tool_form(f: &mut Frame, area: Rect, form: &crate::tui::views::ToolFor
 
     // Footer with instructions or error
     if let Some(err) = error {
-        let error_text = format!("❌ Error: {}\n\n[Tab] Next field  [Ctrl+Enter] Execute  [Esc] Back", err);
+        let error_text = format!("Error: {}\n\n[Tab] Next field  [Enter] Execute  [Esc] Back", err);
         let footer = Paragraph::new(error_text)
             .style(Style::default().fg(Color::Red))
             .block(Block::default().borders(Borders::ALL));
         f.render_widget(footer, chunks[2]);
     } else {
-        let footer_text = "[Tab] Next field  [Shift+Tab] Previous  [Ctrl+Enter] Execute  [Esc] Back";
+        let footer_text = "[Tab] Next field  [Shift+Tab] Previous  [Enter] Execute  [Esc] Back";
         let footer = Paragraph::new(footer_text)
             .style(Style::default().fg(Color::Gray))
             .alignment(Alignment::Center)
@@ -244,13 +244,13 @@ fn render_executing(f: &mut Frame, area: Rect, tool_name: &str) {
         "Executing tool: {}\n\n\
         Please wait...\n\n\
         This may take a few seconds depending on the tool.\n\n\
-        ⏳ Working...",
+        Working...",
         tool_name
     );
     let paragraph = Paragraph::new(text)
         .style(Style::default().fg(Color::Yellow))
         .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL).title("⏳ Executing"));
+        .block(Block::default().borders(Borders::ALL).title("Executing"));
 
     f.render_widget(paragraph, area);
 }
@@ -267,7 +267,7 @@ fn render_results(f: &mut Frame, area: Rect, tool_name: &str, output: &serde_jso
         .split(area);
 
     // Header with status
-    let status_symbol = if success { "✅" } else { "❌" };
+    let status_symbol = if success { "[OK]" } else { "[FAILED]" };
     let status_text = if success { "Success" } else { "Failed" };
     let status_color = if success { Color::Green } else { Color::Red };
 
@@ -371,7 +371,7 @@ fn render_settings(f: &mut Frame, area: Rect) {
         ]),
         Line::from(""),
         Line::from(""),
-        Line::from(Span::styled("💡 Tip:", Style::default().fg(Color::Blue))),
+        Line::from(Span::styled("Tip:", Style::default().fg(Color::Blue))),
         Line::from(Span::raw("  Settings are loaded from ~/.ubertooth/config.toml")),
         Line::from(Span::raw("  You can edit this file directly or use the CLI tool.")),
         Line::from(""),
@@ -382,7 +382,7 @@ fn render_settings(f: &mut Frame, area: Rect) {
     let paragraph = Paragraph::new(text)
         .block(Block::default()
             .borders(Borders::ALL)
-            .title("⚙️  Settings")
+            .title("Settings")
             .title_style(Style::default().fg(Color::Cyan)));
 
     f.render_widget(paragraph, area);
@@ -392,19 +392,19 @@ fn render_settings(f: &mut Frame, area: Rect) {
 fn render_footer(f: &mut Frame, area: Rect, state: &AppState) {
     let shortcuts = match state {
         AppState::MainMenu { .. } | AppState::ToolCategory { .. } => {
-            "[↑↓] Navigate  [Enter] Select  [Esc] Back  [q] Quit"
+            "[Up/Down] Navigate  [Enter] Select  [Esc] Back  [q] Quit  [s] Settings"
         }
         AppState::ToolForm { .. } => {
-            "[Tab] Next  [Ctrl+Enter] Execute  [Esc] Cancel"
+            "[Tab] Next  [Enter] Execute  [Esc] Cancel"
         }
         AppState::Executing { .. } => {
-            "[Ctrl+C] Cancel"
+            "Executing... please wait"
         }
         AppState::Results { .. } => {
             "[Esc] Back to Menu"
         }
         AppState::Settings { .. } => {
-            "[Tab] Next  [Enter] Save  [Esc] Cancel"
+            "[Esc] Back to Menu"
         }
     };
 
