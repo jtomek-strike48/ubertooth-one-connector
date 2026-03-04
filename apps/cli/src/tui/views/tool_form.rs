@@ -174,7 +174,64 @@ impl ToolForm {
             return Some(vec!["true".to_string(), "false".to_string()]);
         }
 
+        // Capture ID field → populate with available captures
+        if name == "capture_id" {
+            if let Some(captures) = Self::get_available_captures() {
+                if !captures.is_empty() {
+                    let mut options = captures;
+                    options.push("Other (manual)".to_string());
+                    return Some(options);
+                }
+            }
+        }
+
         None
+    }
+
+    /// Get list of available capture IDs from ~/.ubertooth/captures/
+    fn get_available_captures() -> Option<Vec<String>> {
+        use std::fs;
+        use std::path::PathBuf;
+
+        // Get captures directory
+        let mut captures_dir = PathBuf::from(std::env::var("HOME").ok()?);
+        captures_dir.push(".ubertooth");
+        captures_dir.push("captures");
+
+        if !captures_dir.exists() {
+            return None;
+        }
+
+        // Read all .json metadata files
+        let mut captures = Vec::new();
+        if let Ok(entries) = fs::read_dir(&captures_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) == Some("json") {
+                    // Read metadata to get capture_id
+                    if let Ok(content) = fs::read_to_string(&path) {
+                        if let Ok(metadata) = serde_json::from_str::<serde_json::Value>(&content) {
+                            if let Some(id) = metadata.get("capture_id").and_then(|v| v.as_str()) {
+                                captures.push(id.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sort by most recent (reverse alphabetical by ID which includes timestamp)
+        captures.sort();
+        captures.reverse();
+
+        // Limit to most recent 20 to keep dropdown manageable
+        captures.truncate(20);
+
+        if captures.is_empty() {
+            None
+        } else {
+            Some(captures)
+        }
     }
 
     /// Parse JSON schema into form fields
