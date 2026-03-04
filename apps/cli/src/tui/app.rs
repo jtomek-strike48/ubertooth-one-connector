@@ -115,6 +115,9 @@ pub struct App {
     /// Favorited/bookmarked tools
     favorites: Vec<String>,
 
+    /// Recently seen MAC addresses (for filtering)
+    recent_macs: Vec<String>,
+
     /// Should quit?
     should_quit: bool,
 }
@@ -137,6 +140,7 @@ impl App {
             frame_count: 0,
             tool_history: Vec::new(),
             favorites: Vec::new(),
+            recent_macs: Vec::new(),
             should_quit: false,
         })
     }
@@ -195,6 +199,13 @@ impl App {
                                         } else if tool_name == "device_disconnect" {
                                             self.device_status.connected = false;
                                             self.device_status.firmware = None;
+                                        }
+
+                                        // Extract MAC addresses from analysis/scan results
+                                        if tool_name.starts_with("bt_analyze") ||
+                                           tool_name.starts_with("btle_scan") ||
+                                           tool_name == "capture_list" {
+                                            self.extract_macs_from_output(&output);
                                         }
 
                                         if show_notification {
@@ -679,8 +690,8 @@ impl App {
                 *selected_index = new_index;
             }
             AppState::Settings { selected_index } => {
-                // 5 settings options
-                let new_index = (*selected_index as i32 + delta).max(0).min(4) as usize;
+                // 6 settings options
+                let new_index = (*selected_index as i32 + delta).max(0).min(5) as usize;
                 *selected_index = new_index;
             }
             _ => {}
@@ -756,6 +767,21 @@ impl App {
                 };
             }
             2 => {
+                // View Recent MAC Addresses
+                let mac_data = serde_json::json!({
+                    "recent_macs": self.recent_macs.clone(),
+                    "count": self.recent_macs.len(),
+                    "description": "Recent MAC addresses from scans and analysis"
+                });
+                self.state = AppState::Results {
+                    tool_name: "Recent MAC Addresses".to_string(),
+                    output: mac_data,
+                    success: true,
+                    selected_capture: None,
+                    tool: None,
+                };
+            }
+            3 => {
                 // Backend Info
                 let backend_data = serde_json::json!({
                     "backend": "Rust (native USB) with Python fallback",
@@ -770,7 +796,7 @@ impl App {
                     tool: None,
                 };
             }
-            3 => {
+            4 => {
                 // Strike48 Connection
                 let strike48_data = serde_json::json!({
                     "server_url": "wss://jt-demo-01.strike48.engineering",
@@ -785,7 +811,7 @@ impl App {
                     tool: None,
                 };
             }
-            4 => {
+            5 => {
                 // About
                 let about_data = serde_json::json!({
                     "version": env!("CARGO_PKG_VERSION"),
@@ -1224,5 +1250,41 @@ impl App {
     /// Check if tool is favorited
     pub fn is_favorite(&self, tool_name: &str) -> bool {
         self.favorites.contains(&tool_name.to_string())
+    }
+
+    /// Extract MAC addresses from analysis output and add to recent list
+    fn extract_macs_from_output(&mut self, output: &serde_json::Value) {
+        // Extract from devices array
+        if let Some(devices) = output.get("devices").and_then(|d| d.as_array()) {
+            for device in devices {
+                if let Some(mac) = device.get("mac_address").and_then(|m| m.as_str()) {
+                    self.add_recent_mac(mac.to_string());
+                } else if let Some(mac) = device.get("address").and_then(|m| m.as_str()) {
+                    self.add_recent_mac(mac.to_string());
+                }
+            }
+        }
+
+        // Extract from summary
+        if let Some(mac) = output.get("target_mac").and_then(|m| m.as_str()) {
+            self.add_recent_mac(mac.to_string());
+        }
+    }
+
+    /// Add MAC to recent list (keeps last 20 unique MACs)
+    fn add_recent_mac(&mut self, mac: String) {
+        // Remove if already exists
+        self.recent_macs.retain(|m| m != &mac);
+
+        // Add to front
+        self.recent_macs.insert(0, mac);
+
+        // Keep only last 20
+        self.recent_macs.truncate(20);
+    }
+
+    /// Get recent MAC addresses for filtering
+    pub fn get_recent_macs(&self) -> Vec<String> {
+        self.recent_macs.clone()
     }
 }

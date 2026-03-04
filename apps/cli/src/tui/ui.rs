@@ -928,6 +928,7 @@ fn render_settings(f: &mut Frame, area: Rect, selected_index: usize) {
     let settings_items = vec![
         ("View Tool History", "Show recently used tools"),
         ("View Favorites", "Show bookmarked tools"),
+        ("View Recent MAC Addresses", "MAC filter helper for analysis"),
         ("Backend Info", "View backend configuration"),
         ("Strike48 Connection", "Configure cloud connection"),
         ("About", "Version and system information"),
