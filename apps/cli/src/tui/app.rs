@@ -63,7 +63,7 @@ pub enum AppState {
     },
 
     /// Settings page
-    Settings {},
+    Settings { selected_index: usize },
 
     /// Confirmation dialog
     Confirmation {
@@ -109,6 +109,12 @@ pub struct App {
     /// Frame counter for animations
     frame_count: u64,
 
+    /// Tool execution history (last 10)
+    tool_history: Vec<String>,
+
+    /// Favorited/bookmarked tools
+    favorites: Vec<String>,
+
     /// Should quit?
     should_quit: bool,
 }
@@ -129,6 +135,8 @@ impl App {
             },
             notification: None,
             frame_count: 0,
+            tool_history: Vec::new(),
+            favorites: Vec::new(),
             should_quit: false,
         })
     }
@@ -618,7 +626,7 @@ impl App {
                 }
                 KeyCode::Char('s') => {
                     // Open settings
-                    self.state = AppState::Settings {};
+                    self.state = AppState::Settings { selected_index: 0 };
                 }
                 KeyCode::Up => {
                     self.move_selection(-1);
@@ -670,6 +678,11 @@ impl App {
                 let new_index = (*selected_index as i32 + delta).max(0).min(tool_count as i32 - 1) as usize;
                 *selected_index = new_index;
             }
+            AppState::Settings { selected_index } => {
+                // 5 settings options
+                let new_index = (*selected_index as i32 + delta).max(0).min(4) as usize;
+                *selected_index = new_index;
+            }
             _ => {}
         }
     }
@@ -711,9 +724,93 @@ impl App {
         Ok(())
     }
 
+    /// Handle Settings selection
+    fn handle_settings_selection(&mut self, selected_index: usize) -> Result<()> {
+        match selected_index {
+            0 => {
+                // View Tool History
+                let history_data = serde_json::json!({
+                    "history": self.tool_history.clone(),
+                    "count": self.tool_history.len()
+                });
+                self.state = AppState::Results {
+                    tool_name: "Tool History".to_string(),
+                    output: history_data,
+                    success: true,
+                    selected_capture: None,
+                    tool: None,
+                };
+            }
+            1 => {
+                // View Favorites
+                let favorites_data = serde_json::json!({
+                    "favorites": self.favorites.clone(),
+                    "count": self.favorites.len()
+                });
+                self.state = AppState::Results {
+                    tool_name: "Favorited Tools".to_string(),
+                    output: favorites_data,
+                    success: true,
+                    selected_capture: None,
+                    tool: None,
+                };
+            }
+            2 => {
+                // Backend Info
+                let backend_data = serde_json::json!({
+                    "backend": "Rust (native USB) with Python fallback",
+                    "device_detection": "Auto-detect first Ubertooth",
+                    "usb_library": "libusb via FFI"
+                });
+                self.state = AppState::Results {
+                    tool_name: "Backend Configuration".to_string(),
+                    output: backend_data,
+                    success: true,
+                    selected_capture: None,
+                    tool: None,
+                };
+            }
+            3 => {
+                // Strike48 Connection
+                let strike48_data = serde_json::json!({
+                    "server_url": "wss://jt-demo-01.strike48.engineering",
+                    "tenant_id": "non-prod",
+                    "status": "Not configured"
+                });
+                self.state = AppState::Results {
+                    tool_name: "Strike48 Connection".to_string(),
+                    output: strike48_data,
+                    success: true,
+                    selected_capture: None,
+                    tool: None,
+                };
+            }
+            4 => {
+                // About
+                let about_data = serde_json::json!({
+                    "version": env!("CARGO_PKG_VERSION"),
+                    "build": "release",
+                    "tools_count": self.registry.tools().len()
+                });
+                self.state = AppState::Results {
+                    tool_name: "About Ubertooth TUI".to_string(),
+                    output: about_data,
+                    success: true,
+                    selected_capture: None,
+                    tool: None,
+                };
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     /// Handle Enter key on current selection
     fn handle_selection(&mut self) -> Result<()> {
         match &self.state {
+            AppState::Settings { selected_index } => {
+                return self.handle_settings_selection(*selected_index);
+            }
             AppState::MainMenu { selected_index } => {
                 // Index 0 is the device connection toggle
                 if *selected_index == 0 {
@@ -873,7 +970,7 @@ impl App {
 
     /// Execute the tool with current form parameters
     fn execute_tool(&mut self) -> Result<()> {
-        if let AppState::ToolForm { form, error, .. } = &mut self.state {
+        let (tool_name, rx) = if let AppState::ToolForm { form, error, .. } = &mut self.state {
             // Validate form
             if let Err(e) = form.validate() {
                 *error = Some(e);
@@ -891,21 +988,30 @@ impl App {
             let tool = form.get_tool();
 
             // Spawn async task to execute tool
+            let params_for_spawn = params.clone();
+            let tool_for_spawn = tool.clone();
             tokio::spawn(async move {
-                let result = match tool.execute(params).await {
+                let result = match tool_for_spawn.execute(params_for_spawn).await {
                     Ok(output) => ExecutionResult::Success(output),
                     Err(e) => ExecutionResult::Error(format!("{}", e)),
                 };
                 let _ = tx.send(result).await;
             });
 
-            // Transition to executing state
-            self.state = AppState::Executing {
-                tool_name,
-                result_rx: Some(rx),
-                show_as_notification: false,
-            };
-        }
+            (tool_name, rx)
+        } else {
+            return Ok(());
+        };
+
+        // Add to history (after releasing the borrow)
+        self.add_to_history(tool_name.clone());
+
+        // Transition to executing state
+        self.state = AppState::Executing {
+            tool_name,
+            result_rx: Some(rx),
+            show_as_notification: false,
+        };
 
         Ok(())
     }
@@ -1092,5 +1198,31 @@ impl App {
         }
 
         Ok(())
+    }
+
+    /// Add tool to execution history (keeps last 10)
+    fn add_to_history(&mut self, tool_name: String) {
+        // Remove if already in history
+        self.tool_history.retain(|t| t != &tool_name);
+
+        // Add to front
+        self.tool_history.insert(0, tool_name);
+
+        // Keep only last 10
+        self.tool_history.truncate(10);
+    }
+
+    /// Toggle tool in favorites
+    pub fn toggle_favorite(&mut self, tool_name: String) {
+        if self.favorites.contains(&tool_name) {
+            self.favorites.retain(|t| t != &tool_name);
+        } else {
+            self.favorites.push(tool_name);
+        }
+    }
+
+    /// Check if tool is favorited
+    pub fn is_favorite(&self, tool_name: &str) -> bool {
+        self.favorites.contains(&tool_name.to_string())
     }
 }

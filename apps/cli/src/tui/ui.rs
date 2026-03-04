@@ -83,8 +83,8 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
         AppState::Results { tool_name, output, success, selected_capture, .. } => {
             render_results(f, area, tool_name, output, *success, *selected_capture);
         }
-        AppState::Settings {} => {
-            render_settings(f, area);
+        AppState::Settings { selected_index } => {
+            render_settings(f, area, *selected_index);
         }
         AppState::Confirmation { message, .. } => {
             render_confirmation(f, area, message);
@@ -924,50 +924,42 @@ fn render_results(f: &mut Frame, area: Rect, tool_name: &str, output: &serde_jso
 }
 
 /// Render settings page
-fn render_settings(f: &mut Frame, area: Rect) {
-    let text = vec![
-        Line::from(Span::styled("Strike48 / Prospector Studio Connection", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("Server URL: ", Style::default().fg(Color::Yellow)),
-            Span::raw("wss://jt-demo-01.strike48.engineering"),
-        ]),
-        Line::from(vec![
-            Span::styled("Tenant ID:  ", Style::default().fg(Color::Yellow)),
-            Span::raw("non-prod"),
-        ]),
-        Line::from(vec![
-            Span::styled("Auth Token: ", Style::default().fg(Color::Yellow)),
-            Span::styled("(not configured)", Style::default().fg(Color::Gray)),
-        ]),
-        Line::from(""),
-        Line::from(Span::styled("Backend Configuration", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("Backend:    ", Style::default().fg(Color::Yellow)),
-            Span::raw("Rust (native USB) with Python fallback"),
-        ]),
-        Line::from(vec![
-            Span::styled("Device:     ", Style::default().fg(Color::Yellow)),
-            Span::raw("Auto-detect first Ubertooth"),
-        ]),
-        Line::from(""),
-        Line::from(""),
-        Line::from(Span::styled("Tip:", Style::default().fg(Color::Blue))),
-        Line::from(Span::raw("  Settings are loaded from ~/.ubertooth/config.toml")),
-        Line::from(Span::raw("  You can edit this file directly or use the CLI tool.")),
-        Line::from(""),
-        Line::from(Span::styled("  For Strike48 agent mode:", Style::default().fg(Color::Gray))),
-        Line::from(Span::raw("  Use 'ubertooth-agent' instead of 'ubertooth-cli --tui'")),
+fn render_settings(f: &mut Frame, area: Rect, selected_index: usize) {
+    let settings_items = vec![
+        ("View Tool History", "Show recently used tools"),
+        ("View Favorites", "Show bookmarked tools"),
+        ("Backend Info", "View backend configuration"),
+        ("Strike48 Connection", "Configure cloud connection"),
+        ("About", "Version and system information"),
     ];
 
-    let paragraph = Paragraph::new(text)
+    let items: Vec<ListItem> = settings_items
+        .iter()
+        .enumerate()
+        .map(|(i, (title, desc))| {
+            let style = if i == selected_index {
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default()
+            };
+
+            let content = vec![
+                Line::from(Span::styled(format!("{}. {}", i + 1, title), style)),
+                Line::from(Span::styled(format!("   {}", desc), Style::default().fg(Color::Gray))),
+                Line::from(""),
+            ];
+
+            ListItem::new(Text::from(content))
+        })
+        .collect();
+
+    let settings_list = List::new(items)
         .block(Block::default()
             .borders(Borders::ALL)
             .title("Settings")
             .title_style(Style::default().fg(Color::Cyan)));
 
-    f.render_widget(paragraph, area);
+    f.render_widget(settings_list, area);
 }
 
 /// Render footer with keyboard shortcuts
