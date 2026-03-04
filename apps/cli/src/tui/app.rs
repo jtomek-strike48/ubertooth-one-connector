@@ -586,6 +586,10 @@ impl App {
                 KeyCode::Esc => {
                     self.go_back();
                 }
+                KeyCode::Char(ch) if ch.is_ascii_digit() => {
+                    // Number key shortcuts for quick selection
+                    self.handle_number_shortcut(ch)?;
+                }
                 _ => {}
             }
         }
@@ -613,6 +617,43 @@ impl App {
             }
             _ => {}
         }
+    }
+
+    /// Handle number key shortcuts for quick selection
+    fn handle_number_shortcut(&mut self, ch: char) -> Result<()> {
+        let digit = ch.to_digit(10).unwrap() as usize;
+
+        match &mut self.state {
+            AppState::MainMenu { selected_index } => {
+                // Main menu: 0 = connection toggle, 1-6 = categories
+                if digit <= 6 {
+                    *selected_index = digit;
+                    // Auto-select on number press
+                    self.handle_selection()?;
+                }
+            }
+            AppState::ToolCategory { selected_index, category } => {
+                // Tool category: 1-9 = tools (1-indexed in UI)
+                if digit >= 1 && digit <= 9 {
+                    let device_connected = if matches!(category, Category::DeviceManagement) {
+                        Some(self.device_status.connected)
+                    } else {
+                        None
+                    };
+                    let tool_count = category.tool_count_filtered(&self.registry, device_connected);
+                    let target_index = digit - 1; // Convert to 0-indexed
+
+                    if target_index < tool_count {
+                        *selected_index = target_index;
+                        // Auto-select on number press
+                        self.handle_selection()?;
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        Ok(())
     }
 
     /// Handle Enter key on current selection

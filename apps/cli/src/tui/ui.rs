@@ -951,13 +951,13 @@ fn render_settings(f: &mut Frame, area: Rect) {
 fn render_footer(f: &mut Frame, area: Rect, state: &AppState) {
     let shortcuts = match state {
         AppState::MainMenu { .. } => {
-            "[Up/Down] Navigate  [Enter] Select  [Esc] Back  [q] Quit  [s] Settings"
+            "[0-6] Quick Select  [↑/↓] Navigate  [Enter] Select  [Esc] Back  [q] Quit"
         }
         AppState::ToolCategory { category, .. } => {
             if matches!(category, Category::DeviceManagement) {
-                "[Up/Down] Navigate  [→] Device Status  [Enter] Select  [Esc] Back"
+                "[1-9] Quick Select  [→] Device Status  [Enter] Select  [Esc] Back"
             } else {
-                "[Up/Down] Navigate  [Enter] Select  [Esc] Back  [q] Quit  [s] Settings"
+                "[1-9] Quick Select  [↑/↓] Navigate  [Enter] Select  [Esc] Back"
             }
         }
         AppState::ToolForm { hotkey_mode, .. } => {
