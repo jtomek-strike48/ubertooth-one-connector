@@ -36,13 +36,7 @@ impl PentestTool for DeviceConnectTool {
     fn input_schema(&self) -> Value {
         json!({
             "type": "object",
-            "properties": {
-                "device_index": {
-                    "type": "integer",
-                    "description": "Device index if multiple Ubertooth devices connected",
-                    "default": 0
-                }
-            }
+            "properties": {}
         })
     }
 

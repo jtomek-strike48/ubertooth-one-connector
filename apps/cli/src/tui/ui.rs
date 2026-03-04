@@ -290,6 +290,123 @@ fn render_tool_form(f: &mut Frame, area: Rect, form: &crate::tui::views::ToolFor
     }
 }
 
+/// Render capture list as a formatted table
+fn render_capture_list_table(f: &mut Frame, area: Rect, captures: &[serde_json::Value]) {
+    let mut lines = Vec::new();
+
+    // Header line
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        format!("  Found {} capture(s)", captures.len()),
+        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+    )));
+    lines.push(Line::from(""));
+
+    // If no captures, show message
+    if captures.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "  No captures found. Run a scan to create captures.",
+            Style::default().fg(Color::Gray),
+        )));
+    } else {
+        // Table header
+        lines.push(Line::from(vec![
+            Span::styled("  ID               ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("Type        ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("Pkts  ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("Duration  ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("Timestamp          ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("Description", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        ]));
+        lines.push(Line::from(Span::raw(format!("  {}", "-".repeat(100)))));
+
+        // Table rows
+        for capture in captures {
+            let id = capture.get("capture_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("?")
+                .split('-')
+                .nth(2)
+                .unwrap_or("?")
+                .chars()
+                .take(16)
+                .collect::<String>();
+
+            let cap_type = capture.get("type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("?");
+
+            let packet_count = capture.get("packet_count")
+                .and_then(|v| v.as_u64())
+                .unwrap_or(0);
+
+            let duration = capture.get("duration_sec")
+                .and_then(|v| v.as_u64())
+                .map(|d| format!("{}s", d))
+                .unwrap_or_else(|| "N/A".to_string());
+
+            let timestamp = capture.get("timestamp")
+                .and_then(|v| v.as_str())
+                .unwrap_or("?")
+                .chars()
+                .take(19)
+                .collect::<String>();
+
+            let description = capture.get("description")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .chars()
+                .take(40)
+                .collect::<String>();
+
+            let tags = capture.get("tags")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|t| t.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
+                .unwrap_or_default();
+
+            // Main row
+            lines.push(Line::from(vec![
+                Span::styled(format!("  {:<16} ", id), Style::default().fg(Color::Cyan)),
+                Span::styled(format!("{:<12}", cap_type), Style::default().fg(Color::White)),
+                Span::styled(format!("{:<6}", packet_count), Style::default().fg(Color::Green)),
+                Span::styled(format!("{:<10}", duration), Style::default().fg(Color::Blue)),
+                Span::styled(format!("{:<19}", timestamp), Style::default().fg(Color::Gray)),
+                Span::styled(description, Style::default().fg(Color::White)),
+            ]));
+
+            // Tags row if present
+            if !tags.is_empty() {
+                lines.push(Line::from(vec![
+                    Span::raw("    "),
+                    Span::styled("Tags: ", Style::default().fg(Color::DarkGray)),
+                    Span::styled(tags, Style::default().fg(Color::DarkGray)),
+                ]));
+            }
+
+            lines.push(Line::from(""));
+        }
+    }
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "  [Esc] Back to menu",
+        Style::default().fg(Color::DarkGray),
+    )));
+
+    let content = Paragraph::new(Text::from(lines))
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title("Capture List")
+            .title_style(Style::default().fg(Color::Cyan)));
+
+    f.render_widget(content, area);
+}
+
 /// Render tool execution progress
 fn render_executing(f: &mut Frame, area: Rect, tool_name: &str) {
     let text = format!(
@@ -332,6 +449,14 @@ fn render_results(f: &mut Frame, area: Rect, tool_name: &str, output: &serde_jso
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL).title("Execution Result"));
     f.render_widget(header, chunks[0]);
+
+    // Special formatting for capture_list - show as table
+    if tool_name == "capture_list" && success {
+        if let Some(captures_array) = output.get("captures").and_then(|v| v.as_array()) {
+            render_capture_list_table(f, chunks[1], captures_array);
+            return;
+        }
+    }
 
     // Content - format JSON nicely
     let result_json = serde_json::to_string_pretty(output)

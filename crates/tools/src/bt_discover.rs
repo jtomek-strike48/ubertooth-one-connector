@@ -56,7 +56,7 @@ impl PentestTool for BtDiscoverTool {
                 "save_pcap": {
                     "type": "boolean",
                     "description": "Save capture to PCAP file",
-                    "default": true
+                    "default": false
                 }
             }
         })
