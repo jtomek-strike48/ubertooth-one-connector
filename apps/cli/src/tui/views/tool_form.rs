@@ -308,6 +308,11 @@ impl ToolForm {
         &self.fields
     }
 
+    /// Check if all fields are optional (have defaults or not required)
+    pub fn all_fields_optional(&self) -> bool {
+        self.fields.iter().all(|f| !f.required || f.default.is_some())
+    }
+
     /// Get all text inputs
     pub fn inputs(&self) -> &[TextArea<'static>] {
         &self.inputs

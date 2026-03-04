@@ -471,17 +471,20 @@ impl App {
                     // Create form for this tool
                     match ToolForm::new(tool.clone()) {
                         Ok(form) => {
-                            // If tool has no parameters, execute immediately
-                            if form.fields().is_empty() {
+                            // Auto-execute if no params or all params are optional
+                            if form.fields().is_empty() || form.all_fields_optional() {
                                 let tool_name = form.tool_name().to_string();
                                 let tool_clone = form.get_tool();
+
+                                // Use default params
+                                let params = form.build_params();
 
                                 // Create channel for results
                                 let (tx, rx) = mpsc::channel(1);
 
                                 // Spawn async task to execute tool
                                 tokio::spawn(async move {
-                                    let result = match tool_clone.execute(serde_json::json!({})).await {
+                                    let result = match tool_clone.execute(params).await {
                                         Ok(output) => ExecutionResult::Success(output),
                                         Err(e) => ExecutionResult::Error(format!("{}", e)),
                                     };
@@ -494,7 +497,7 @@ impl App {
                                     result_rx: Some(rx),
                                 };
                             } else {
-                                // Show form for tools with parameters
+                                // Show form for tools with required parameters
                                 self.state = AppState::ToolForm {
                                     form: Box::new(form),
                                     error: None,
