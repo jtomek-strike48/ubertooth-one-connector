@@ -22,9 +22,9 @@ impl Category {
             0 => Category::DeviceManagement,
             1 => Category::Reconnaissance,
             2 => Category::Analysis,
-            3 => Category::CaptureManagement,
-            4 => Category::Configuration,
-            5 => Category::AttackOperations,
+            3 => Category::AttackOperations,
+            4 => Category::CaptureManagement,
+            5 => Category::Configuration,
             6 => Category::Advanced,
             _ => Category::DeviceManagement,
         }

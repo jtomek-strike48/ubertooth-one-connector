@@ -86,9 +86,9 @@ fn render_main_menu(f: &mut Frame, area: Rect, selected_index: usize) {
         ("1. Device Management (3 tools)", "Connect, status, disconnect"),
         ("2. Reconnaissance (7 tools)", "BLE scan, spectrum analysis, follow connections"),
         ("3. Analysis (5 tools)", "Packet analysis, fingerprinting, comparison"),
-        ("4. Capture Management (5 tools)", "List, view, export, tag captures"),
-        ("5. Configuration (8 tools)", "Channel, power, modulation, presets"),
-        ("6. Attack Operations (5 tools)", "Injection, jamming, MITM (requires authorization)"),
+        ("4. Attack Operations (5 tools)", "Injection, jamming, MITM (requires authorization)"),
+        ("5. Capture Management (5 tools)", "List, view, export, tag captures"),
+        ("6. Configuration (8 tools)", "Channel, power, modulation, presets"),
         ("7. Advanced (2 tools)", "Raw USB commands, session context"),
     ];
 
