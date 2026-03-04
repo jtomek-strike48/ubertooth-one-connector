@@ -11,7 +11,7 @@ use serde_json::Value;
 use std::io;
 use std::sync::Arc;
 use tokio::sync::mpsc;
-use ubertooth_core::ToolRegistry;
+use ubertooth_core::{PentestTool, ToolRegistry};
 use ubertooth_platform::SidecarManager;
 use ubertooth_tools::create_tool_registry;
 
@@ -27,7 +27,6 @@ pub enum ExecutionResult {
 }
 
 /// Application state machine
-#[derive(Debug)]
 pub enum AppState {
     /// Main menu - select tool category
     MainMenu { selected_index: usize },
@@ -58,6 +57,7 @@ pub enum AppState {
         output: serde_json::Value,
         success: bool,
         selected_capture: Option<usize>,
+        tool: Option<Arc<dyn PentestTool>>,
     },
 
     /// Settings page
@@ -170,6 +170,7 @@ impl App {
                                             output,
                                             success: true,
                                             selected_capture,
+                                            tool: None, // TODO: Store tool for re-parameterization
                                         };
                                     }
                                     ExecutionResult::Error(error) => {
@@ -178,6 +179,7 @@ impl App {
                                             output: serde_json::json!({ "error": error }),
                                             success: false,
                                             selected_capture: None,
+                                            tool: None,
                                         };
                                     }
                                 }
@@ -199,6 +201,7 @@ impl App {
                             output: serde_json::json!({ "error": format!("{}", e) }),
                             success: false,
                             selected_capture: None,
+                            tool: None,
                         };
                     }
                 }
@@ -229,7 +232,61 @@ impl App {
         // Handle form input specially
         if let AppState::ToolForm { form, error, hotkey_mode } = &mut self.state {
             if let Event::Key(KeyEvent { code, modifiers, .. }) = event {
-                // Check if current field is a dropdown
+                // Hotkey mode - direct parameter selection
+                if *hotkey_mode {
+                    match code {
+                        KeyCode::Esc => {
+                            self.go_back();
+                            return Ok(());
+                        }
+                        KeyCode::Enter => {
+                            // Execute with current parameters
+                            self.execute_tool()?;
+                            return Ok(());
+                        }
+                        KeyCode::Char(ch) => {
+                            // Handle hotkey parameter changes
+                            let ch_upper = ch.to_uppercase().next().unwrap();
+
+                            // Map hotkeys to field names
+                            let field_name: Option<String> = match ch_upper {
+                                'D' => Some("duration_sec".to_string()),
+                                'C' => Some("channel".to_string()),
+                                'S' => Some("save_pcap".to_string()),
+                                'A' => Some("analysis_type".to_string()),
+                                _ => {
+                                    // Try to find field starting with this letter
+                                    form.fields()
+                                        .iter()
+                                        .find(|f| f.name.chars().next().unwrap_or('?').to_uppercase().next().unwrap() == ch_upper)
+                                        .map(|f| f.name.clone())
+                                }
+                            };
+
+                            if let Some(field) = field_name {
+                                // Cycle through values for this field
+                                form.cycle_field(&field);
+                                *error = None;
+                            }
+                            return Ok(());
+                        }
+                        KeyCode::Char(digit) if digit.is_ascii_digit() && digit >= '1' && digit <= '9' => {
+                            // Number keys for duration_sec quick select
+                            let durations = vec!["5", "10", "30", "60", "120"];
+                            let idx = digit.to_digit(10).unwrap() as usize - 1;
+                            if idx < durations.len() {
+                                form.set_field_value("duration_sec", durations[idx].to_string());
+                                *error = None;
+                            }
+                            return Ok(());
+                        }
+                        _ => {
+                            return Ok(());
+                        }
+                    }
+                }
+
+                // Traditional form mode
                 let is_dropdown = matches!(
                     form.input_modes().get(form.focused_index()),
                     Some(super::views::FieldInputMode::Dropdown { .. })
@@ -249,28 +306,23 @@ impl App {
                         return Ok(());
                     }
                     KeyCode::Up if is_dropdown => {
-                        // Navigate dropdown up
                         form.dropdown_prev();
                         return Ok(());
                     }
                     KeyCode::Down if is_dropdown => {
-                        // Navigate dropdown down
                         form.dropdown_next();
                         return Ok(());
                     }
                     KeyCode::Enter => {
-                        // Enter to submit form
                         self.execute_tool()?;
                         return Ok(());
                     }
                     _ => {
-                        // Pass event to focused input (text fields only)
                         if !is_dropdown {
                             if let Some(input) = form.focused_input_mut() {
                                 input.input(event);
                             }
                         }
-                        // Clear error on input
                         *error = None;
                         return Ok(());
                     }
@@ -280,7 +332,7 @@ impl App {
         }
 
         // Handle capture_list navigation
-        let capture_to_analyze = if let AppState::Results { tool_name, output, success, selected_capture } = &mut self.state {
+        let capture_to_analyze = if let AppState::Results { tool_name, output, success, selected_capture, .. } = &mut self.state {
             if *tool_name == "capture_list" && *success {
                 if let Event::Key(KeyEvent { code, .. }) = event {
                     match code {
@@ -563,6 +615,7 @@ impl App {
                 output: serde_json::json!({ "error": "bt_analyze tool not found" }),
                 success: false,
                 selected_capture: None,
+                tool: None,
             };
         }
 

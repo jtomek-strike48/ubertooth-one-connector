@@ -475,4 +475,100 @@ impl ToolForm {
     pub fn get_tool(&self) -> Arc<dyn PentestTool> {
         self.tool.clone()
     }
+
+    /// Get current value for a field by name
+    pub fn get_field_value(&self, field_name: &str) -> Option<String> {
+        let idx = self.fields.iter().position(|f| f.name == field_name)?;
+
+        match &self.input_modes[idx] {
+            FieldInputMode::Dropdown { selected_index } => {
+                if let Some(options) = &self.fields[idx].dropdown_options {
+                    options.get(*selected_index).cloned()
+                } else {
+                    None
+                }
+            }
+            FieldInputMode::Text => {
+                Some(self.inputs[idx].lines().join(""))
+            }
+        }
+    }
+
+    /// Set field value by name (for hotkey changes)
+    pub fn set_field_value(&mut self, field_name: &str, value: String) -> bool {
+        if let Some(idx) = self.fields.iter().position(|f| f.name == field_name) {
+            match &mut self.input_modes[idx] {
+                FieldInputMode::Dropdown { selected_index } => {
+                    // Find the index of this value in dropdown options
+                    if let Some(options) = &self.fields[idx].dropdown_options {
+                        if let Some(new_idx) = options.iter().position(|o| o == &value) {
+                            *selected_index = new_idx;
+                            return true;
+                        }
+                    }
+                    false
+                }
+                FieldInputMode::Text => {
+                    // Clear and set new text
+                    let input = &mut self.inputs[idx];
+                    input.select_all();
+                    input.cut();
+                    input.insert_str(&value);
+                    true
+                }
+            }
+        } else {
+            false
+        }
+    }
+
+    /// Cycle dropdown to next value (for hotkey navigation)
+    pub fn cycle_field(&mut self, field_name: &str) -> bool {
+        if let Some(idx) = self.fields.iter().position(|f| f.name == field_name) {
+            if let FieldInputMode::Dropdown { selected_index } = &mut self.input_modes[idx] {
+                if let Some(options) = &self.fields[idx].dropdown_options {
+                    *selected_index = (*selected_index + 1) % options.len();
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Get hotkey mapping for parameters
+    pub fn get_hotkey_mapping(&self) -> Vec<(char, String, Vec<String>)> {
+        let mut mappings = Vec::new();
+
+        for field in &self.fields {
+            // Determine hotkey and options for this field
+            let (hotkey, options): (char, Vec<String>) = if field.name == "duration_sec" {
+                ('D', vec!["5".to_string(), "10".to_string(), "30".to_string(), "60".to_string(), "120".to_string()])
+            } else if field.name == "channel" {
+                ('C', vec!["37".to_string(), "38".to_string(), "39".to_string()])
+            } else if field.name == "save_pcap" {
+                ('S', vec!["true".to_string(), "false".to_string()])
+            } else if field.name == "analysis_type" {
+                ('A', vec!["auto".to_string(), "protocol".to_string(), "timing".to_string(), "security".to_string()])
+            } else {
+                // Default: first letter of field name
+                let first_char = field.name.chars().next().unwrap_or('?').to_uppercase().next().unwrap();
+
+                // Get options from dropdown or generate defaults
+                let opts = if let Some(dropdown_opts) = &field.dropdown_options {
+                    dropdown_opts.clone()
+                } else {
+                    vec!["<text input>".to_string()]
+                };
+                (first_char, opts)
+            };
+
+            mappings.push((
+                hotkey,
+                field.name.clone(),
+                options.into_iter().map(|s| s.to_string()).collect(),
+            ));
+        }
+
+        mappings
+    }
 }

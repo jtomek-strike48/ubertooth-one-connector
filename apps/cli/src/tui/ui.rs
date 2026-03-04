@@ -75,7 +75,7 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
         AppState::Executing { tool_name, .. } => {
             render_executing(f, area, tool_name);
         }
-        AppState::Results { tool_name, output, success, selected_capture } => {
+        AppState::Results { tool_name, output, success, selected_capture, .. } => {
             render_results(f, area, tool_name, output, *success, *selected_capture);
         }
         AppState::Settings {} => {
@@ -195,10 +195,9 @@ fn render_tool_hotkeys(f: &mut Frame, area: Rect, form: &crate::tui::views::Tool
     )));
     content_lines.push(Line::from(""));
 
-    // TODO: Show current parameter values here
+    // Show current parameter values
     for field in form.fields() {
-        // Get current value from form
-        let value_str = "default".to_string(); // TODO: extract actual value
+        let value_str = form.get_field_value(&field.name).unwrap_or_else(|| "<empty>".to_string());
         content_lines.push(Line::from(vec![
             Span::styled(format!("    {}: ", field.name), Style::default().fg(Color::Gray)),
             Span::styled(value_str, Style::default().fg(Color::White)),
@@ -211,23 +210,44 @@ fn render_tool_hotkeys(f: &mut Frame, area: Rect, form: &crate::tui::views::Tool
 
     // Hotkey parameter bar at bottom
     let mut hotkey_lines = Vec::new();
+    hotkey_lines.push(Line::from(""));
 
-    // Build hotkey hints for each parameter
-    let mut hotkey_hints = Vec::new();
-    for field in form.fields() {
-        let hint = format!("[{}] {}",
-            field.name.chars().next().unwrap_or('?').to_uppercase(),
-            field.name
-        );
-        hotkey_hints.push(hint);
+    // Build hotkey hints from mapping
+    let hotkey_mapping = form.get_hotkey_mapping();
+    let mut row1 = Vec::new();
+    let mut row2 = Vec::new();
+
+    for (idx, (hotkey, field_name, options)) in hotkey_mapping.iter().enumerate() {
+        // Format options for display
+        let opts_display = if options.len() > 4 {
+            format!("{} options", options.len())
+        } else if options.len() == 1 && options[0] == "<text input>" {
+            "text".to_string()
+        } else {
+            options.join("/")
+        };
+
+        let hint = format!("[{}] {}: {}  ", hotkey, field_name, opts_display);
+
+        // Split into two rows if more than 3 params
+        if idx < 3 || hotkey_mapping.len() <= 3 {
+            row1.push(hint);
+        } else {
+            row2.push(hint);
+        }
     }
 
-    hotkey_lines.push(Line::from(""));
     hotkey_lines.push(Line::from(Span::styled(
-        format!("  {}", hotkey_hints.join("  ")),
+        format!("  {}", row1.join("")),
         Style::default().fg(Color::Cyan),
     )));
-    hotkey_lines.push(Line::from(""));
+
+    if !row2.is_empty() {
+        hotkey_lines.push(Line::from(Span::styled(
+            format!("  {}", row2.join("")),
+            Style::default().fg(Color::Cyan),
+        )));
+    }
 
     if let Some(err) = error {
         hotkey_lines.push(Line::from(Span::styled(
