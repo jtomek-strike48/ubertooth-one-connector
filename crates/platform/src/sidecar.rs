@@ -25,6 +25,16 @@ struct PcapAnalysis {
     packets_per_sec: f64,
     avg_packet_size: f64,
     devices: Vec<BleDevice>,
+    timing: TimingAnalysis,
+}
+
+/// Timing analysis results.
+#[derive(Debug)]
+struct TimingAnalysis {
+    avg_interval_ms: f64,
+    min_interval_ms: f64,
+    max_interval_ms: f64,
+    intervals_count: usize,
 }
 
 /// BLE device information extracted from packets.
@@ -937,7 +947,7 @@ impl SidecarManager {
             _ => "Unknown",
         };
 
-        // Phase 2 Pieces 1 & 2: Basic PCAP parsing + device extraction
+        // Phase 2 Pieces 1-3: PCAP parsing + device extraction + timing analysis
         let pcap_analysis = Self::parse_pcap(&metadata.pcap_path)?;
 
         // Build device list for JSON output
@@ -969,18 +979,19 @@ impl SidecarManager {
                 "timing_analysis": {
                     "duration_sec": pcap_analysis.duration_sec,
                     "packets_per_sec": pcap_analysis.packets_per_sec,
-                    "avg_interval_ms": 0.0,  // TODO Piece 3: Calculate intervals
-                    "min_interval_ms": 0.0,
-                    "max_interval_ms": 0.0
+                    "avg_interval_ms": pcap_analysis.timing.avg_interval_ms,
+                    "min_interval_ms": pcap_analysis.timing.min_interval_ms,
+                    "max_interval_ms": pcap_analysis.timing.max_interval_ms,
+                    "intervals_calculated": pcap_analysis.timing.intervals_count
                 },
                 "security_observations": [],  // TODO Piece 4: Security analysis
                 "anomalies": [],
-                "note": "Phase 2 Pieces 1-2: Basic PCAP parsing and device extraction complete. Timing analysis and security observations in progress."
+                "note": "Phase 2 Pieces 1-3: PCAP parsing, device extraction, and timing analysis complete. Security observations in progress."
             }
         }))
     }
 
-    /// Parse PCAP file and extract basic statistics plus device information.
+    /// Parse PCAP file and extract basic statistics, device information, and timing analysis.
     fn parse_pcap(pcap_path: &str) -> Result<PcapAnalysis> {
         let file = File::open(pcap_path)
             .map_err(|e| UbertoothError::BackendError(format!("Failed to open PCAP file: {}", e)))?;
@@ -992,7 +1003,11 @@ impl SidecarManager {
         let mut total_bytes = 0;
         let mut first_timestamp: Option<f64> = None;
         let mut last_timestamp: Option<f64> = None;
+        let mut prev_timestamp: Option<f64> = None;
         let mut devices: std::collections::HashMap<String, BleDevice> = std::collections::HashMap::new();
+
+        // Timing analysis tracking
+        let mut intervals: Vec<f64> = Vec::new();
 
         while let Some(pkt) = pcap_reader.next_packet() {
             match pkt {
@@ -1002,10 +1017,22 @@ impl SidecarManager {
 
                     // Track timestamps for duration calculation
                     let timestamp = packet.timestamp.as_secs() as f64 + (packet.timestamp.subsec_micros() as f64 / 1_000_000.0);
+
                     if first_timestamp.is_none() {
                         first_timestamp = Some(timestamp);
                     }
                     last_timestamp = Some(timestamp);
+
+                    // Calculate inter-packet interval
+                    if let Some(prev) = prev_timestamp {
+                        let interval_sec = timestamp - prev;
+                        let interval_ms = interval_sec * 1000.0;
+                        // Only track positive intervals (ignore out-of-order packets)
+                        if interval_ms > 0.0 && interval_ms < 10_000.0 {  // Cap at 10 seconds to filter outliers
+                            intervals.push(interval_ms);
+                        }
+                    }
+                    prev_timestamp = Some(timestamp);
 
                     // Extract device information from BLE packets
                     if let Some(device_info) = Self::extract_ble_device(&packet.data, timestamp) {
@@ -1053,6 +1080,28 @@ impl SidecarManager {
             0.0
         };
 
+        // Calculate timing statistics
+        let timing = if !intervals.is_empty() {
+            let min_interval = intervals.iter().copied().fold(f64::INFINITY, f64::min);
+            let max_interval = intervals.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+            let sum: f64 = intervals.iter().sum();
+            let avg_interval = sum / intervals.len() as f64;
+
+            TimingAnalysis {
+                avg_interval_ms: avg_interval,
+                min_interval_ms: min_interval,
+                max_interval_ms: max_interval,
+                intervals_count: intervals.len(),
+            }
+        } else {
+            TimingAnalysis {
+                avg_interval_ms: 0.0,
+                min_interval_ms: 0.0,
+                max_interval_ms: 0.0,
+                intervals_count: 0,
+            }
+        };
+
         // Convert HashMap to Vec for output
         let mut device_list: Vec<BleDevice> = devices.into_values().collect();
         // Sort by first seen timestamp
@@ -1065,6 +1114,7 @@ impl SidecarManager {
             packets_per_sec,
             avg_packet_size,
             devices: device_list,
+            timing,
         })
     }
 
