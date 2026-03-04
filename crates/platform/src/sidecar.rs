@@ -2,7 +2,9 @@
 
 use async_trait::async_trait;
 use chrono::Utc;
+use pcap_file::{pcap::PcapReader, PcapError};
 use serde_json::{json, Value};
+use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
@@ -13,6 +15,16 @@ use ubertooth_core::error::{Result, UbertoothError};
 use crate::backend::UbertoothBackendProvider;
 use crate::capture_store::{CaptureMetadata, CaptureStore};
 use crate::config_store::{ConfigMetadata, ConfigSettings, ConfigStore};
+
+/// PCAP analysis results structure.
+#[derive(Debug)]
+struct PcapAnalysis {
+    packet_count: usize,
+    total_bytes: usize,
+    duration_sec: f64,
+    packets_per_sec: f64,
+    avg_packet_size: f64,
+}
 
 /// Python sidecar process manager.
 ///
@@ -905,8 +917,6 @@ impl SidecarManager {
         let store = CaptureStore::new()?;
         let metadata = store.load_metadata(capture_id)?;
 
-        // Phase 1: Basic analysis from metadata
-        // Phase 2: Will parse PCAP with libbtbb or Rust parser
         let protocol_type = match metadata.capture_type.as_str() {
             "btle_sniff" => "BLE",
             "specan" => "Spectrum",
@@ -914,25 +924,97 @@ impl SidecarManager {
             _ => "Unknown",
         };
 
+        // Phase 2 Piece 1: Basic PCAP parsing
+        let pcap_analysis = Self::parse_pcap(&metadata.pcap_path)?;
+
         Ok(json!({
             "success": true,
             "capture_id": capture_id,
             "analysis": {
                 "protocol_summary": {
                     "type": protocol_type,
-                    "pdu_types": {}  // TODO Phase 2: Parse PCAP
+                    "packet_count": pcap_analysis.packet_count,
+                    "total_bytes": pcap_analysis.total_bytes,
+                    "avg_packet_size": pcap_analysis.avg_packet_size,
+                    "pdu_types": {}  // TODO Piece 2: Extract PDU types
                 },
-                "devices": [],  // TODO Phase 2: Extract device info
+                "devices": [],  // TODO Piece 2: Extract device info
                 "timing_analysis": {
-                    "avg_interval_ms": 0.0,
+                    "duration_sec": pcap_analysis.duration_sec,
+                    "packets_per_sec": pcap_analysis.packets_per_sec,
+                    "avg_interval_ms": 0.0,  // TODO Piece 3: Calculate intervals
                     "min_interval_ms": 0.0,
                     "max_interval_ms": 0.0
                 },
-                "security_observations": [],
+                "security_observations": [],  // TODO Piece 4: Security analysis
                 "anomalies": [],
-                "note": "Phase 1: Metadata-only analysis. Full PCAP parsing in Phase 2."
+                "note": "Phase 2 Piece 1: Basic PCAP parsing complete. Device extraction, timing, and security analysis in progress."
             }
         }))
+    }
+
+    /// Parse PCAP file and extract basic statistics.
+    fn parse_pcap(pcap_path: &str) -> Result<PcapAnalysis> {
+        let file = File::open(pcap_path)
+            .map_err(|e| UbertoothError::BackendError(format!("Failed to open PCAP file: {}", e)))?;
+
+        let mut pcap_reader = PcapReader::new(file)
+            .map_err(|e| UbertoothError::BackendError(format!("Failed to parse PCAP: {}", e)))?;
+
+        let mut packet_count = 0;
+        let mut total_bytes = 0;
+        let mut first_timestamp: Option<f64> = None;
+        let mut last_timestamp: Option<f64> = None;
+
+        while let Some(pkt) = pcap_reader.next_packet() {
+            match pkt {
+                Ok(packet) => {
+                    packet_count += 1;
+                    total_bytes += packet.data.len();
+
+                    // Track timestamps for duration calculation
+                    let timestamp = packet.timestamp.as_secs() as f64 + (packet.timestamp.subsec_micros() as f64 / 1_000_000.0);
+                    if first_timestamp.is_none() {
+                        first_timestamp = Some(timestamp);
+                    }
+                    last_timestamp = Some(timestamp);
+                }
+                Err(PcapError::IncompleteBuffer) => {
+                    // End of file
+                    break;
+                }
+                Err(e) => {
+                    tracing::warn!("Error reading packet: {}", e);
+                    // Continue to next packet
+                }
+            }
+        }
+
+        let duration_sec = if let (Some(first), Some(last)) = (first_timestamp, last_timestamp) {
+            last - first
+        } else {
+            0.0
+        };
+
+        let packets_per_sec = if duration_sec > 0.0 {
+            packet_count as f64 / duration_sec
+        } else {
+            0.0
+        };
+
+        let avg_packet_size = if packet_count > 0 {
+            total_bytes as f64 / packet_count as f64
+        } else {
+            0.0
+        };
+
+        Ok(PcapAnalysis {
+            packet_count,
+            total_bytes,
+            duration_sec,
+            packets_per_sec,
+            avg_packet_size,
+        })
     }
 
     /// Session context implementation - comprehensive AI orientation.

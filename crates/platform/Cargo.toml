@@ -40,6 +40,9 @@ uuid = { workspace = true }
 # Home directory
 dirs = { workspace = true }
 
+# PCAP parsing
+pcap-file = { workspace = true }
+
 [dev-dependencies]
 tracing-subscriber = { workspace = true }
 
