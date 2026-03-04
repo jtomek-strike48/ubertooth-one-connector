@@ -64,6 +64,18 @@ pub enum AppState {
 
     /// Settings page
     Settings {},
+
+    /// Confirmation dialog
+    Confirmation {
+        message: String,
+        on_confirm: ConfirmAction,
+    },
+}
+
+/// Action to take on confirmation
+#[derive(Debug)]
+pub enum ConfirmAction {
+    DeleteCapture(String),
 }
 
 /// Device connection status
@@ -176,6 +188,8 @@ impl App {
                                                 "Successfully connected to Ubertooth".to_string()
                                             } else if tool_name == "device_disconnect" {
                                                 "Successfully disconnected from Ubertooth".to_string()
+                                            } else if tool_name == "capture_delete" {
+                                                "Capture deleted successfully".to_string()
                                             } else {
                                                 format!("{} completed successfully", tool_name)
                                             };
@@ -279,6 +293,40 @@ impl App {
         // Clear notification on any key press
         if matches!(event, Event::Key(_)) {
             self.notification = None;
+        }
+
+        // Handle confirmation dialog
+        if let AppState::Confirmation { on_confirm, .. } = &self.state {
+            if let Event::Key(KeyEvent { code, .. }) = event {
+                match code {
+                    KeyCode::Char('y') | KeyCode::Char('Y') => {
+                        // Execute the confirmation action
+                        let action = match on_confirm {
+                            ConfirmAction::DeleteCapture(id) => ConfirmAction::DeleteCapture(id.clone()),
+                        };
+
+                        // Return to main menu first
+                        self.state = AppState::MainMenu { selected_index: 0 };
+
+                        // Execute the action
+                        match action {
+                            ConfirmAction::DeleteCapture(id) => {
+                                self.execute_delete_capture(id)?;
+                            }
+                        }
+                        return Ok(());
+                    }
+                    KeyCode::Char('n') | KeyCode::Char('N') | KeyCode::Esc => {
+                        // Cancel - return to main menu
+                        self.state = AppState::MainMenu { selected_index: 0 };
+                        return Ok(());
+                    }
+                    _ => {
+                        return Ok(());
+                    }
+                }
+            }
+            return Ok(());
         }
 
         // Handle form input specially
@@ -933,7 +981,17 @@ impl App {
 
     /// Launch capture_delete with confirmation
     fn launch_capture_delete(&mut self, capture_id: String) -> Result<()> {
-        // TODO: Add confirmation dialog
+        // Show confirmation dialog
+        self.state = AppState::Confirmation {
+            message: format!("Delete capture {}? This cannot be undone.", capture_id),
+            on_confirm: ConfirmAction::DeleteCapture(capture_id),
+        };
+
+        Ok(())
+    }
+
+    /// Execute confirmed delete action
+    fn execute_delete_capture(&mut self, capture_id: String) -> Result<()> {
         let tool = self.registry.tools()
             .iter()
             .find(|t| t.name() == "capture_delete")
@@ -941,7 +999,7 @@ impl App {
 
         if let Some(tool) = tool {
             let (tx, rx) = mpsc::channel(1);
-            let params = serde_json::json!({ "capture_id": capture_id });
+            let params = serde_json::json!({ "capture_id": capture_id.clone() });
 
             tokio::spawn(async move {
                 let result = match tool.execute(params).await {
@@ -951,10 +1009,11 @@ impl App {
                 let _ = tx.send(result).await;
             });
 
+            // Use notification for delete results
             self.state = AppState::Executing {
                 tool_name: "capture_delete".to_string(),
                 result_rx: Some(rx),
-                show_as_notification: false,
+                show_as_notification: true,
             };
         }
 

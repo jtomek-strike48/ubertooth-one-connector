@@ -86,6 +86,9 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
         AppState::Settings {} => {
             render_settings(f, area);
         }
+        AppState::Confirmation { message, .. } => {
+            render_confirmation(f, area, message);
+        }
     }
 }
 
@@ -976,6 +979,9 @@ fn render_footer(f: &mut Frame, area: Rect, state: &AppState) {
         AppState::Settings { .. } => {
             "[Esc] Back to Menu"
         }
+        AppState::Confirmation { .. } => {
+            "[Y] Confirm  [N] Cancel"
+        }
     };
 
     let footer = Paragraph::new(shortcuts)
@@ -1016,4 +1022,45 @@ fn render_notification(f: &mut Frame, area: Rect, notification: &Notification) {
         .block(Block::default().borders(Borders::ALL));
 
     f.render_widget(notif_widget, notif_area);
+}
+
+/// Render confirmation dialog
+fn render_confirmation(f: &mut Frame, area: Rect, message: &str) {
+    // Create centered dialog
+    let dialog_width = message.len().max(40).min(80) as u16 + 4;
+    let dialog_height = 7;
+
+    let dialog_x = area.width.saturating_sub(dialog_width) / 2;
+    let dialog_y = area.height.saturating_sub(dialog_height) / 2;
+
+    let dialog_area = Rect {
+        x: area.x + dialog_x,
+        y: area.y + dialog_y,
+        width: dialog_width,
+        height: dialog_height,
+    };
+
+    // Clear the background
+    let clear_widget = Block::default()
+        .style(Style::default().bg(Color::Black));
+    f.render_widget(clear_widget, area);
+
+    // Build dialog content
+    let text = vec![
+        Line::from(""),
+        Line::from(Span::styled(message, Style::default().fg(Color::Yellow))),
+        Line::from(""),
+        Line::from(Span::styled("Press [Y] to confirm or [N] to cancel", Style::default().fg(Color::Gray))),
+        Line::from(""),
+    ];
+
+    let dialog = Paragraph::new(text)
+        .alignment(Alignment::Center)
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .border_style(Style::default().fg(Color::Red))
+            .title("Confirmation")
+            .title_style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)));
+
+    f.render_widget(dialog, dialog_area);
 }
