@@ -124,7 +124,14 @@ fn render_main_menu(f: &mut Frame, area: Rect, selected_index: usize, device_sta
                 content.push(Line::from("")); // Blank line at top
             }
 
-            content.push(Line::from(Span::styled(*title, style)));
+            // Add leading space before connection toggle
+            let title_text = if i == 0 {
+                format!(" {}", title)
+            } else {
+                title.to_string()
+            };
+
+            content.push(Line::from(Span::styled(title_text, style)));
             content.push(Line::from(Span::styled(format!("   {}", desc), Style::default().fg(Color::Gray))));
             content.push(Line::from("")); // Standard spacing after each item
 
