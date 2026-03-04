@@ -332,7 +332,16 @@ impl App {
         }
 
         // Handle capture_list navigation
-        let capture_to_analyze = if let AppState::Results { tool_name, output, success, selected_capture, .. } = &mut self.state {
+        #[derive(Debug)]
+        enum CaptureAction {
+            Analyze(String),
+            Delete(String),
+            View(String),
+            Export(String),
+            Tag(String),
+        }
+
+        let capture_action = if let AppState::Results { tool_name, output, success, selected_capture, .. } = &mut self.state {
             if *tool_name == "capture_list" && *success {
                 if let Event::Key(KeyEvent { code, .. }) = event {
                     match code {
@@ -367,12 +376,92 @@ impl App {
                             return Ok(());
                         }
                         KeyCode::Enter => {
-                            // Extract capture_id to analyze
+                            // Analyze
                             if let Some(idx) = selected_capture {
                                 if let Some(captures) = output.get("captures").and_then(|c| c.as_array()) {
                                     if let Some(capture) = captures.get(*idx) {
                                         if let Some(capture_id) = capture.get("capture_id").and_then(|v| v.as_str()) {
-                                            Some(capture_id.to_string())
+                                            Some(CaptureAction::Analyze(capture_id.to_string()))
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        }
+                        KeyCode::Char('d') | KeyCode::Char('D') => {
+                            // Delete
+                            if let Some(idx) = selected_capture {
+                                if let Some(captures) = output.get("captures").and_then(|c| c.as_array()) {
+                                    if let Some(capture) = captures.get(*idx) {
+                                        if let Some(capture_id) = capture.get("capture_id").and_then(|v| v.as_str()) {
+                                            Some(CaptureAction::Delete(capture_id.to_string()))
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        }
+                        KeyCode::Char('v') | KeyCode::Char('V') => {
+                            // View details
+                            if let Some(idx) = selected_capture {
+                                if let Some(captures) = output.get("captures").and_then(|c| c.as_array()) {
+                                    if let Some(capture) = captures.get(*idx) {
+                                        if let Some(capture_id) = capture.get("capture_id").and_then(|v| v.as_str()) {
+                                            Some(CaptureAction::View(capture_id.to_string()))
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        }
+                        KeyCode::Char('e') | KeyCode::Char('E') => {
+                            // Export
+                            if let Some(idx) = selected_capture {
+                                if let Some(captures) = output.get("captures").and_then(|c| c.as_array()) {
+                                    if let Some(capture) = captures.get(*idx) {
+                                        if let Some(capture_id) = capture.get("capture_id").and_then(|v| v.as_str()) {
+                                            Some(CaptureAction::Export(capture_id.to_string()))
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        }
+                        KeyCode::Char('t') | KeyCode::Char('T') => {
+                            // Tag
+                            if let Some(idx) = selected_capture {
+                                if let Some(captures) = output.get("captures").and_then(|c| c.as_array()) {
+                                    if let Some(capture) = captures.get(*idx) {
+                                        if let Some(capture_id) = capture.get("capture_id").and_then(|v| v.as_str()) {
+                                            Some(CaptureAction::Tag(capture_id.to_string()))
                                         } else {
                                             None
                                         }
@@ -402,9 +491,15 @@ impl App {
             None
         };
 
-        // Launch analysis if capture was selected
-        if let Some(capture_id) = capture_to_analyze {
-            self.launch_analysis(capture_id)?;
+        // Execute capture action
+        if let Some(action) = capture_action {
+            match action {
+                CaptureAction::Analyze(id) => self.launch_analysis(id)?,
+                CaptureAction::Delete(id) => self.launch_capture_delete(id)?,
+                CaptureAction::View(id) => self.launch_capture_get(id)?,
+                CaptureAction::Export(id) => self.launch_capture_export(id)?,
+                CaptureAction::Tag(id) => self.launch_capture_tag(id)?,
+            }
             return Ok(());
         }
 
@@ -619,6 +714,128 @@ impl App {
                 success: false,
                 selected_capture: None,
                 tool: None,
+            };
+        }
+
+        Ok(())
+    }
+
+    /// Launch capture_get to view details
+    fn launch_capture_get(&mut self, capture_id: String) -> Result<()> {
+        let tool = self.registry.tools()
+            .iter()
+            .find(|t| t.name() == "capture_get")
+            .cloned();
+
+        if let Some(tool) = tool {
+            let (tx, rx) = mpsc::channel(1);
+            let params = serde_json::json!({ "capture_id": capture_id });
+
+            tokio::spawn(async move {
+                let result = match tool.execute(params).await {
+                    Ok(output) => ExecutionResult::Success(output),
+                    Err(e) => ExecutionResult::Error(format!("{}", e)),
+                };
+                let _ = tx.send(result).await;
+            });
+
+            self.state = AppState::Executing {
+                tool_name: "capture_get".to_string(),
+                result_rx: Some(rx),
+            };
+        }
+
+        Ok(())
+    }
+
+    /// Launch capture_delete with confirmation
+    fn launch_capture_delete(&mut self, capture_id: String) -> Result<()> {
+        // TODO: Add confirmation dialog
+        let tool = self.registry.tools()
+            .iter()
+            .find(|t| t.name() == "capture_delete")
+            .cloned();
+
+        if let Some(tool) = tool {
+            let (tx, rx) = mpsc::channel(1);
+            let params = serde_json::json!({ "capture_id": capture_id });
+
+            tokio::spawn(async move {
+                let result = match tool.execute(params).await {
+                    Ok(output) => ExecutionResult::Success(output),
+                    Err(e) => ExecutionResult::Error(format!("{}", e)),
+                };
+                let _ = tx.send(result).await;
+            });
+
+            self.state = AppState::Executing {
+                tool_name: "capture_delete".to_string(),
+                result_rx: Some(rx),
+            };
+        }
+
+        Ok(())
+    }
+
+    /// Launch capture_export
+    fn launch_capture_export(&mut self, capture_id: String) -> Result<()> {
+        let tool = self.registry.tools()
+            .iter()
+            .find(|t| t.name() == "capture_export")
+            .cloned();
+
+        if let Some(tool) = tool {
+            let (tx, rx) = mpsc::channel(1);
+            // Use defaults: json format, default path
+            let params = serde_json::json!({
+                "capture_id": capture_id,
+                "format": "json"
+            });
+
+            tokio::spawn(async move {
+                let result = match tool.execute(params).await {
+                    Ok(output) => ExecutionResult::Success(output),
+                    Err(e) => ExecutionResult::Error(format!("{}", e)),
+                };
+                let _ = tx.send(result).await;
+            });
+
+            self.state = AppState::Executing {
+                tool_name: "capture_export".to_string(),
+                result_rx: Some(rx),
+            };
+        }
+
+        Ok(())
+    }
+
+    /// Launch capture_tag
+    fn launch_capture_tag(&mut self, capture_id: String) -> Result<()> {
+        // TODO: Add tag input dialog
+        let tool = self.registry.tools()
+            .iter()
+            .find(|t| t.name() == "capture_tag")
+            .cloned();
+
+        if let Some(tool) = tool {
+            let (tx, rx) = mpsc::channel(1);
+            // For now, use empty tags (will need tag input UI)
+            let params = serde_json::json!({
+                "capture_id": capture_id,
+                "tags": ["manual-tag"]
+            });
+
+            tokio::spawn(async move {
+                let result = match tool.execute(params).await {
+                    Ok(output) => ExecutionResult::Success(output),
+                    Err(e) => ExecutionResult::Error(format!("{}", e)),
+                };
+                let _ = tx.send(result).await;
+            });
+
+            self.state = AppState::Executing {
+                tool_name: "capture_tag".to_string(),
+                result_rx: Some(rx),
             };
         }
 

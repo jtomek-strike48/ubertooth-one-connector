@@ -88,7 +88,7 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
 fn render_main_menu(f: &mut Frame, area: Rect, selected_index: usize) {
     let categories = vec![
         ("1. Device Management (3 tools)", "Connect, status, disconnect"),
-        ("2. Captures (5 tools)", "List, view, export, tag, delete captures"),
+        ("2. Captures", "Manage all captures with hotkeys"),
         ("3. Reconnaissance (7 tools)", "BLE scan, spectrum analysis, follow connections"),
         ("4. Analysis (5 tools)", "Packet analysis, fingerprinting, comparison"),
         ("5. Attack Operations (5 tools)", "Injection, jamming, MITM (requires authorization)"),
@@ -607,7 +607,7 @@ fn render_capture_list_table(f: &mut Frame, area: Rect, captures: &[serde_json::
     // Show navigation hint if captures available
     if !captures.is_empty() {
         lines.push(Line::from(Span::styled(
-            "  [Up/Down] Select  [Enter] Analyze  [Esc] Back",
+            "  [↑/↓] Navigate  [Enter] Analyze  [V] View  [D] Delete  [E] Export  [T] Tag  [Esc] Back",
             Style::default().fg(Color::DarkGray),
         )));
     }

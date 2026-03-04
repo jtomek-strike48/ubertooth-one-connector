@@ -56,7 +56,7 @@ impl Category {
                             || name.starts_with("bt_compare")
                             || name.starts_with("pcap_merge")
                     }
-                    "capture_" => name.starts_with("capture_"),
+                    "capture_" => name == "capture_list",  // Only show capture_list (other ops are hotkeys)
                     "config" => {
                         name.starts_with("configure_")
                             || name.starts_with("bt_save_config")
