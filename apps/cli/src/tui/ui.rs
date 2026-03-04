@@ -193,8 +193,11 @@ fn render_tool_category(
                 Style::default()
             };
 
+            // Add numbering to tool names
+            let numbered_name = format!("{}. {}", i + 1, tool.name());
+
             let content = vec![
-                Line::from(Span::styled(tool.name(), style)),
+                Line::from(Span::styled(numbered_name, style)),
                 Line::from(Span::styled(format!("   {}", tool.description()), Style::default().fg(Color::Gray))),
                 Line::from(""),
             ];
