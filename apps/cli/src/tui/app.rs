@@ -519,6 +519,15 @@ impl App {
                 KeyCode::Down => {
                     self.move_selection(1);
                 }
+                KeyCode::Right => {
+                    // Right arrow: jump to Device Status when on connect/disconnect toggle
+                    if let AppState::ToolCategory { category, selected_index } = &mut self.state {
+                        if matches!(category, Category::DeviceManagement) && *selected_index == 0 {
+                            // Jump to Device Status (index 1 after filtering)
+                            *selected_index = 1;
+                        }
+                    }
+                }
                 KeyCode::Enter => {
                     self.handle_selection()?;
                 }
@@ -540,7 +549,13 @@ impl App {
                 *selected_index = new_index;
             }
             AppState::ToolCategory { selected_index, category } => {
-                let tool_count = category.tool_count(&self.registry);
+                // Use filtered tool count for DeviceManagement
+                let device_connected = if matches!(category, Category::DeviceManagement) {
+                    Some(self.device_status.connected)
+                } else {
+                    None
+                };
+                let tool_count = category.tool_count_filtered(&self.registry, device_connected);
                 let new_index = (*selected_index as i32 + delta).max(0).min(tool_count as i32 - 1) as usize;
                 *selected_index = new_index;
             }
@@ -554,14 +569,50 @@ impl App {
             AppState::MainMenu { selected_index } => {
                 // Navigate to tool category
                 let category = Category::from_index(*selected_index);
+
+                // Auto-execute capture_list when entering Captures category
+                if matches!(category, Category::CaptureManagement) {
+                    // Find capture_list tool
+                    if let Some(tool) = self.registry.get("capture_list") {
+                        if let Ok(form) = ToolForm::new(tool.clone()) {
+                            let tool_name = "capture_list".to_string();
+                            let params = form.build_params();
+
+                            // Create channel for results
+                            let (tx, rx) = mpsc::channel(1);
+
+                            // Spawn async task to execute tool
+                            tokio::spawn(async move {
+                                let result = match tool.execute(params).await {
+                                    Ok(output) => ExecutionResult::Success(output),
+                                    Err(e) => ExecutionResult::Error(format!("{}", e)),
+                                };
+                                let _ = tx.send(result).await;
+                            });
+
+                            // Transition directly to executing state
+                            self.state = AppState::Executing {
+                                tool_name,
+                                result_rx: Some(rx),
+                            };
+                            return Ok(());
+                        }
+                    }
+                }
+
                 self.state = AppState::ToolCategory {
                     category,
                     selected_index: 0,
                 };
             }
             AppState::ToolCategory { category, selected_index } => {
-                // Get selected tool
-                let tools = category.get_tools(&self.registry);
+                // Get selected tool (use filtered list for DeviceManagement)
+                let device_connected = if matches!(category, Category::DeviceManagement) {
+                    Some(self.device_status.connected)
+                } else {
+                    None
+                };
+                let tools = category.get_tools_filtered(&self.registry, device_connected);
                 if let Some(tool) = tools.get(*selected_index) {
                     // Create form for this tool
                     match ToolForm::new(tool.clone()) {

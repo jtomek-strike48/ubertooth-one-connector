@@ -26,7 +26,7 @@ pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>, dev
         .split(f.size());
 
     render_header(f, chunks[0], device_status);
-    render_content(f, chunks[1], state, registry);
+    render_content(f, chunks[1], state, registry, device_status);
     render_footer(f, chunks[2], state);
 }
 
@@ -57,13 +57,13 @@ fn render_header(f: &mut Frame, area: Rect, device_status: &DeviceStatus) {
 }
 
 /// Render main content based on state
-fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<ToolRegistry>) {
+fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<ToolRegistry>, device_status: &DeviceStatus) {
     match state {
         AppState::MainMenu { selected_index } => {
             render_main_menu(f, area, *selected_index);
         }
         AppState::ToolCategory { category, selected_index } => {
-            render_tool_category(f, area, category, *selected_index, registry);
+            render_tool_category(f, area, category, *selected_index, registry, device_status);
         }
         AppState::ToolForm { form, error, hotkey_mode } => {
             if *hotkey_mode {
@@ -87,7 +87,7 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
 /// Render main menu with 7 categories
 fn render_main_menu(f: &mut Frame, area: Rect, selected_index: usize) {
     let categories = vec![
-        ("1. Device Management (3 tools)", "Connect, status, disconnect"),
+        ("1. Device Management", "[Connect/Disconnect] toggle • [→] Device Status"),
         ("2. Captures", "Manage all captures with hotkeys"),
         ("3. Reconnaissance (7 tools)", "BLE scan, spectrum analysis, follow connections"),
         ("4. Analysis (5 tools)", "Packet analysis, fingerprinting, comparison"),
@@ -131,8 +131,15 @@ fn render_tool_category(
     category: &Category,
     selected_index: usize,
     registry: &Arc<ToolRegistry>,
+    device_status: &DeviceStatus,
 ) {
-    let tools = category.get_tools(registry);
+    // Use filtered tools for DeviceManagement
+    let device_connected = if matches!(category, Category::DeviceManagement) {
+        Some(device_status.connected)
+    } else {
+        None
+    };
+    let tools = category.get_tools_filtered(registry, device_connected);
 
     let items: Vec<ListItem> = tools
         .iter()
@@ -898,8 +905,15 @@ fn render_settings(f: &mut Frame, area: Rect) {
 /// Render footer with keyboard shortcuts
 fn render_footer(f: &mut Frame, area: Rect, state: &AppState) {
     let shortcuts = match state {
-        AppState::MainMenu { .. } | AppState::ToolCategory { .. } => {
+        AppState::MainMenu { .. } => {
             "[Up/Down] Navigate  [Enter] Select  [Esc] Back  [q] Quit  [s] Settings"
+        }
+        AppState::ToolCategory { category, .. } => {
+            if matches!(category, Category::DeviceManagement) {
+                "[Up/Down] Navigate  [→] Device Status  [Enter] Select  [Esc] Back"
+            } else {
+                "[Up/Down] Navigate  [Enter] Select  [Esc] Back  [q] Quit  [s] Settings"
+            }
         }
         AppState::ToolForm { hotkey_mode, .. } => {
             if *hotkey_mode {

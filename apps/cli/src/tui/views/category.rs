@@ -30,8 +30,8 @@ impl Category {
         }
     }
 
-    /// Get tools in this category
-    pub fn get_tools(&self, registry: &Arc<ToolRegistry>) -> Vec<Arc<dyn PentestTool>> {
+    /// Get tools in this category, optionally filtered by device connection state
+    pub fn get_tools_filtered(&self, registry: &Arc<ToolRegistry>, device_connected: Option<bool>) -> Vec<Arc<dyn PentestTool>> {
         let category_prefix = self.category_prefix();
         let mut tools: Vec<Arc<dyn PentestTool>> = registry
             .tools()
@@ -83,12 +83,25 @@ impl Category {
         // Custom ordering for specific categories
         match self {
             Category::DeviceManagement => {
-                // Order: device_connect, device_disconnect, device_status
+                // Filter based on connection state: show either connect OR disconnect, plus status
+                if let Some(connected) = device_connected {
+                    tools.retain(|tool| {
+                        let name = tool.name();
+                        if connected {
+                            // Show disconnect and status when connected
+                            name == "device_disconnect" || name == "device_status"
+                        } else {
+                            // Show connect and status when disconnected
+                            name == "device_connect" || name == "device_status"
+                        }
+                    });
+                }
+                // Order: connect/disconnect first, then status
                 tools.sort_by_key(|tool| {
                     match tool.name() {
                         "device_connect" => 0,
-                        "device_disconnect" => 1,
-                        "device_status" => 2,
+                        "device_disconnect" => 0,  // Same priority as connect
+                        "device_status" => 1,
                         _ => 999,
                     }
                 });
@@ -115,9 +128,19 @@ impl Category {
         tools
     }
 
+    /// Get tools in this category (convenience method without filtering)
+    pub fn get_tools(&self, registry: &Arc<ToolRegistry>) -> Vec<Arc<dyn PentestTool>> {
+        self.get_tools_filtered(registry, None)
+    }
+
     /// Get tool count in this category
     pub fn tool_count(&self, registry: &Arc<ToolRegistry>) -> usize {
         self.get_tools(registry).len()
+    }
+
+    /// Get tool count with optional device connection filter
+    pub fn tool_count_filtered(&self, registry: &Arc<ToolRegistry>, device_connected: Option<bool>) -> usize {
+        self.get_tools_filtered(registry, device_connected).len()
     }
 
     /// Get tool at specific index in this category
