@@ -567,8 +567,41 @@ impl App {
     fn handle_selection(&mut self) -> Result<()> {
         match &self.state {
             AppState::MainMenu { selected_index } => {
-                // Navigate to tool category
-                let category = Category::from_index(*selected_index);
+                // Index 0 is the device connection toggle
+                if *selected_index == 0 {
+                    // Execute device_connect or device_disconnect based on state
+                    let tool_name = if self.device_status.connected {
+                        "device_disconnect"
+                    } else {
+                        "device_connect"
+                    };
+
+                    if let Some(tool) = self.registry.get(tool_name) {
+                        if let Ok(form) = ToolForm::new(tool.clone()) {
+                            let params = form.build_params();
+                            let (tx, rx) = mpsc::channel(1);
+
+                            // Spawn async task to execute tool
+                            tokio::spawn(async move {
+                                let result = match tool.execute(params).await {
+                                    Ok(output) => ExecutionResult::Success(output),
+                                    Err(e) => ExecutionResult::Error(format!("{}", e)),
+                                };
+                                let _ = tx.send(result).await;
+                            });
+
+                            // Transition to executing state
+                            self.state = AppState::Executing {
+                                tool_name: tool_name.to_string(),
+                                result_rx: Some(rx),
+                            };
+                        }
+                    }
+                    return Ok(());
+                }
+
+                // Remaining indices are categories (adjust by -1)
+                let category = Category::from_index(*selected_index - 1);
 
                 // Auto-execute capture_list when entering Captures category
                 if matches!(category, Category::CaptureManagement) {

@@ -60,7 +60,7 @@ fn render_header(f: &mut Frame, area: Rect, device_status: &DeviceStatus) {
 fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<ToolRegistry>, device_status: &DeviceStatus) {
     match state {
         AppState::MainMenu { selected_index } => {
-            render_main_menu(f, area, *selected_index);
+            render_main_menu(f, area, *selected_index, device_status);
         }
         AppState::ToolCategory { category, selected_index } => {
             render_tool_category(f, area, category, *selected_index, registry, device_status);
@@ -85,15 +85,22 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
 }
 
 /// Render main menu with 7 categories
-fn render_main_menu(f: &mut Frame, area: Rect, selected_index: usize) {
+fn render_main_menu(f: &mut Frame, area: Rect, selected_index: usize, device_status: &DeviceStatus) {
+    // First item is the dynamic connection toggle
+    let connection_label = if device_status.connected {
+        "[Disconnect from Ubertooth]"
+    } else {
+        "[Connect to Ubertooth]"
+    };
+
     let categories = vec![
-        ("1. Device Management", "[Connect/Disconnect] toggle • [→] Device Status"),
-        ("2. Captures", "Manage all captures with hotkeys"),
-        ("3. Reconnaissance (7 tools)", "BLE scan, spectrum analysis, follow connections"),
-        ("4. Analysis (5 tools)", "Packet analysis, fingerprinting, comparison"),
-        ("5. Attack Operations (5 tools)", "Injection, jamming, MITM (requires authorization)"),
-        ("6. Configuration (8 tools)", "Channel, power, modulation, presets"),
-        ("7. Advanced (2 tools)", "Raw USB commands, session context"),
+        (connection_label, "Toggle device connection"),
+        ("1. Captures", "Manage all captures with hotkeys"),
+        ("2. Reconnaissance (7 tools)", "BLE scan, spectrum analysis, follow connections"),
+        ("3. Analysis (5 tools)", "Packet analysis, fingerprinting, comparison"),
+        ("4. Attack Operations (5 tools)", "Injection, jamming, MITM (requires authorization)"),
+        ("5. Configuration (8 tools)", "Channel, power, modulation, presets"),
+        ("6. Advanced (2 tools)", "Raw USB commands, session context"),
     ];
 
     let items: Vec<ListItem> = categories

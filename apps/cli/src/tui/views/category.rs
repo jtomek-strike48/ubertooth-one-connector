@@ -16,17 +16,17 @@ pub enum Category {
 }
 
 impl Category {
-    /// Create category from menu index (0-6)
+    /// Create category from menu index (0-5)
+    /// Note: Index 0 in main menu is device toggle, categories start at index 1
     pub fn from_index(index: usize) -> Self {
         match index {
-            0 => Category::DeviceManagement,
-            1 => Category::CaptureManagement,
-            2 => Category::Reconnaissance,
-            3 => Category::Analysis,
-            4 => Category::AttackOperations,
-            5 => Category::Configuration,
-            6 => Category::Advanced,
-            _ => Category::DeviceManagement,
+            0 => Category::CaptureManagement,
+            1 => Category::Reconnaissance,
+            2 => Category::Analysis,
+            3 => Category::AttackOperations,
+            4 => Category::Configuration,
+            5 => Category::Advanced,
+            _ => Category::CaptureManagement,
         }
     }
 
