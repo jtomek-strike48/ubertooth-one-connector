@@ -20,10 +20,10 @@ impl Category {
     pub fn from_index(index: usize) -> Self {
         match index {
             0 => Category::DeviceManagement,
-            1 => Category::Reconnaissance,
-            2 => Category::Analysis,
-            3 => Category::AttackOperations,
-            4 => Category::CaptureManagement,
+            1 => Category::CaptureManagement,
+            2 => Category::Reconnaissance,
+            3 => Category::Analysis,
+            4 => Category::AttackOperations,
             5 => Category::Configuration,
             6 => Category::Advanced,
             _ => Category::DeviceManagement,
@@ -89,6 +89,19 @@ impl Category {
                         "device_connect" => 0,
                         "device_disconnect" => 1,
                         "device_status" => 2,
+                        _ => 999,
+                    }
+                });
+            }
+            Category::CaptureManagement => {
+                // Order: capture_list, capture_tag, capture_get, capture_export, capture_delete
+                tools.sort_by_key(|tool| {
+                    match tool.name() {
+                        "capture_list" => 0,
+                        "capture_tag" => 1,
+                        "capture_get" => 2,
+                        "capture_export" => 3,
+                        "capture_delete" => 4,
                         _ => 999,
                     }
                 });

@@ -56,6 +56,7 @@ pub enum AppState {
         tool_name: String,
         output: serde_json::Value,
         success: bool,
+        selected_capture: Option<usize>,
     },
 
     /// Settings page
@@ -153,10 +154,21 @@ impl App {
                                             self.device_status.firmware = None;
                                         }
 
+                                        // Check if this is capture_list with results
+                                        let selected_capture = if tool_name == "capture_list" {
+                                            output.get("captures")
+                                                .and_then(|c| c.as_array())
+                                                .filter(|arr| !arr.is_empty())
+                                                .map(|_| 0) // Select first capture
+                                        } else {
+                                            None
+                                        };
+
                                         self.state = AppState::Results {
                                             tool_name,
                                             output,
                                             success: true,
+                                            selected_capture,
                                         };
                                     }
                                     ExecutionResult::Error(error) => {
@@ -164,6 +176,7 @@ impl App {
                                             tool_name,
                                             output: serde_json::json!({ "error": error }),
                                             success: false,
+                                            selected_capture: None,
                                         };
                                     }
                                 }
@@ -184,6 +197,7 @@ impl App {
                             tool_name: "Error".to_string(),
                             output: serde_json::json!({ "error": format!("{}", e) }),
                             success: false,
+                            selected_capture: None,
                         };
                     }
                 }
@@ -261,6 +275,83 @@ impl App {
                     }
                 }
             }
+            return Ok(());
+        }
+
+        // Handle capture_list navigation
+        let capture_to_analyze = if let AppState::Results { tool_name, output, success, selected_capture } = &mut self.state {
+            if *tool_name == "capture_list" && *success {
+                if let Event::Key(KeyEvent { code, .. }) = event {
+                    match code {
+                        KeyCode::Up => {
+                            // Move selection up
+                            if let Some(captures) = output.get("captures").and_then(|c| c.as_array()) {
+                                if !captures.is_empty() {
+                                    if let Some(idx) = selected_capture {
+                                        if *idx > 0 {
+                                            *idx -= 1;
+                                        }
+                                    } else {
+                                        *selected_capture = Some(0);
+                                    }
+                                }
+                            }
+                            return Ok(());
+                        }
+                        KeyCode::Down => {
+                            // Move selection down
+                            if let Some(captures) = output.get("captures").and_then(|c| c.as_array()) {
+                                if !captures.is_empty() {
+                                    if let Some(idx) = selected_capture {
+                                        if *idx < captures.len() - 1 {
+                                            *idx += 1;
+                                        }
+                                    } else {
+                                        *selected_capture = Some(0);
+                                    }
+                                }
+                            }
+                            return Ok(());
+                        }
+                        KeyCode::Enter => {
+                            // Extract capture_id to analyze
+                            if let Some(idx) = selected_capture {
+                                if let Some(captures) = output.get("captures").and_then(|c| c.as_array()) {
+                                    if let Some(capture) = captures.get(*idx) {
+                                        if let Some(capture_id) = capture.get("capture_id").and_then(|v| v.as_str()) {
+                                            Some(capture_id.to_string())
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                }
+                            } else {
+                                None
+                            }
+                        }
+                        KeyCode::Esc => {
+                            self.go_back();
+                            return Ok(());
+                        }
+                        _ => None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        // Launch analysis if capture was selected
+        if let Some(capture_id) = capture_to_analyze {
+            self.launch_analysis(capture_id)?;
             return Ok(());
         }
 
@@ -424,6 +515,51 @@ impl App {
             self.state = AppState::Executing {
                 tool_name,
                 result_rx: Some(rx),
+            };
+        }
+
+        Ok(())
+    }
+
+    /// Launch analysis tool for a specific capture
+    fn launch_analysis(&mut self, capture_id: String) -> Result<()> {
+        // Find bt_analyze tool
+        let tool = self.registry.tools()
+            .iter()
+            .find(|t| t.name() == "bt_analyze")
+            .cloned();
+
+        if let Some(tool) = tool {
+            // Create channel for results
+            let (tx, rx) = mpsc::channel(1);
+
+            // Build parameters with the capture_id
+            let params = serde_json::json!({
+                "capture_id": capture_id,
+                "analysis_type": "auto"
+            });
+
+            // Spawn async task to execute analysis
+            tokio::spawn(async move {
+                let result = match tool.execute(params).await {
+                    Ok(output) => ExecutionResult::Success(output),
+                    Err(e) => ExecutionResult::Error(format!("{}", e)),
+                };
+                let _ = tx.send(result).await;
+            });
+
+            // Transition to executing state
+            self.state = AppState::Executing {
+                tool_name: "bt_analyze".to_string(),
+                result_rx: Some(rx),
+            };
+        } else {
+            // bt_analyze not found
+            self.state = AppState::Results {
+                tool_name: "Error".to_string(),
+                output: serde_json::json!({ "error": "bt_analyze tool not found" }),
+                success: false,
+                selected_capture: None,
             };
         }
 

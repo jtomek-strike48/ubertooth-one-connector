@@ -71,8 +71,8 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
         AppState::Executing { tool_name, .. } => {
             render_executing(f, area, tool_name);
         }
-        AppState::Results { tool_name, output, success } => {
-            render_results(f, area, tool_name, output, *success);
+        AppState::Results { tool_name, output, success, selected_capture } => {
+            render_results(f, area, tool_name, output, *success, *selected_capture);
         }
         AppState::Settings {} => {
             render_settings(f, area);
@@ -84,10 +84,10 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
 fn render_main_menu(f: &mut Frame, area: Rect, selected_index: usize) {
     let categories = vec![
         ("1. Device Management (3 tools)", "Connect, status, disconnect"),
-        ("2. Reconnaissance (7 tools)", "BLE scan, spectrum analysis, follow connections"),
-        ("3. Analysis (5 tools)", "Packet analysis, fingerprinting, comparison"),
-        ("4. Attack Operations (5 tools)", "Injection, jamming, MITM (requires authorization)"),
-        ("5. Capture Management (5 tools)", "List, view, export, tag captures"),
+        ("2. Captures (5 tools)", "List, view, export, tag, delete captures"),
+        ("3. Reconnaissance (7 tools)", "BLE scan, spectrum analysis, follow connections"),
+        ("4. Analysis (5 tools)", "Packet analysis, fingerprinting, comparison"),
+        ("5. Attack Operations (5 tools)", "Injection, jamming, MITM (requires authorization)"),
         ("6. Configuration (8 tools)", "Channel, power, modulation, presets"),
         ("7. Advanced (2 tools)", "Raw USB commands, session context"),
     ];
@@ -291,7 +291,7 @@ fn render_tool_form(f: &mut Frame, area: Rect, form: &crate::tui::views::ToolFor
 }
 
 /// Render capture list as a formatted table
-fn render_capture_list_table(f: &mut Frame, area: Rect, captures: &[serde_json::Value]) {
+fn render_capture_list_table(f: &mut Frame, area: Rect, captures: &[serde_json::Value], selected_index: Option<usize>) {
     let mut lines = Vec::new();
 
     // Header line
@@ -300,6 +300,14 @@ fn render_capture_list_table(f: &mut Frame, area: Rect, captures: &[serde_json::
         format!("  Found {} capture(s)", captures.len()),
         Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
     )));
+
+    // Show navigation hint if captures available
+    if !captures.is_empty() {
+        lines.push(Line::from(Span::styled(
+            "  [Up/Down] Select  [Enter] Analyze  [Esc] Back",
+            Style::default().fg(Color::DarkGray),
+        )));
+    }
     lines.push(Line::from(""));
 
     // If no captures, show message
@@ -321,7 +329,8 @@ fn render_capture_list_table(f: &mut Frame, area: Rect, captures: &[serde_json::
         lines.push(Line::from(Span::raw(format!("  {}", "-".repeat(100)))));
 
         // Table rows
-        for capture in captures {
+        for (idx, capture) in captures.iter().enumerate() {
+            let is_selected = selected_index == Some(idx);
             let id = capture.get("capture_id")
                 .and_then(|v| v.as_str())
                 .unwrap_or("?")
@@ -369,14 +378,22 @@ fn render_capture_list_table(f: &mut Frame, area: Rect, captures: &[serde_json::
                 })
                 .unwrap_or_default();
 
-            // Main row
+            // Main row - highlight if selected
+            let row_style = if is_selected {
+                Style::default().bg(Color::DarkGray)
+            } else {
+                Style::default()
+            };
+
+            let prefix = if is_selected { "> " } else { "  " };
+
             lines.push(Line::from(vec![
-                Span::styled(format!("  {:<16} ", id), Style::default().fg(Color::Cyan)),
-                Span::styled(format!("{:<12}", cap_type), Style::default().fg(Color::White)),
-                Span::styled(format!("{:<6}", packet_count), Style::default().fg(Color::Green)),
-                Span::styled(format!("{:<10}", duration), Style::default().fg(Color::Blue)),
-                Span::styled(format!("{:<19}", timestamp), Style::default().fg(Color::Gray)),
-                Span::styled(description, Style::default().fg(Color::White)),
+                Span::styled(format!("{}{:<16} ", prefix, id), row_style.fg(Color::Cyan)),
+                Span::styled(format!("{:<12}", cap_type), row_style.fg(Color::White)),
+                Span::styled(format!("{:<6}", packet_count), row_style.fg(Color::Green)),
+                Span::styled(format!("{:<10}", duration), row_style.fg(Color::Blue)),
+                Span::styled(format!("{:<19}", timestamp), row_style.fg(Color::Gray)),
+                Span::styled(description, row_style.fg(Color::White)),
             ]));
 
             // Tags row if present
@@ -425,7 +442,7 @@ fn render_executing(f: &mut Frame, area: Rect, tool_name: &str) {
 }
 
 /// Render tool results
-fn render_results(f: &mut Frame, area: Rect, tool_name: &str, output: &serde_json::Value, success: bool) {
+fn render_results(f: &mut Frame, area: Rect, tool_name: &str, output: &serde_json::Value, success: bool, selected_capture: Option<usize>) {
     // Split into header and content
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -453,7 +470,7 @@ fn render_results(f: &mut Frame, area: Rect, tool_name: &str, output: &serde_jso
     // Special formatting for capture_list - show as table
     if tool_name == "capture_list" && success {
         if let Some(captures_array) = output.get("captures").and_then(|v| v.as_array()) {
-            render_capture_list_table(f, chunks[1], captures_array);
+            render_capture_list_table(f, chunks[1], captures_array, selected_capture);
             return;
         }
     }
