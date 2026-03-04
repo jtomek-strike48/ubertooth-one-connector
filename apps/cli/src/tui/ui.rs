@@ -118,11 +118,19 @@ fn render_main_menu(f: &mut Frame, area: Rect, selected_index: usize, device_sta
                 Style::default()
             };
 
-            let content = vec![
-                Line::from(Span::styled(*title, style)),
-                Line::from(Span::styled(format!("   {}", desc), Style::default().fg(Color::Gray))),
-                Line::from(""),
-            ];
+            // Add extra spacing around connection toggle (index 0)
+            let mut content = vec![];
+            if i == 0 {
+                content.push(Line::from("")); // Space above
+            }
+
+            content.push(Line::from(Span::styled(*title, style)));
+            content.push(Line::from(Span::styled(format!("   {}", desc), Style::default().fg(Color::Gray))));
+            content.push(Line::from(""));
+
+            if i == 0 {
+                content.push(Line::from("")); // Extra space after
+            }
 
             ListItem::new(Text::from(content))
         })
