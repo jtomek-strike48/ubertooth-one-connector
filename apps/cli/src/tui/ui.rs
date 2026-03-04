@@ -319,14 +319,14 @@ fn render_capture_list_table(f: &mut Frame, area: Rect, captures: &[serde_json::
     } else {
         // Table header
         lines.push(Line::from(vec![
-            Span::styled("  ID               ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-            Span::styled("Type        ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-            Span::styled("Pkts  ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-            Span::styled("Duration  ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-            Span::styled("Timestamp          ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("  ID                  ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("Type           ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("Pkts    ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("Duration    ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled("Timestamp              ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
             Span::styled("Description", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
         ]));
-        lines.push(Line::from(Span::raw(format!("  {}", "-".repeat(100)))));
+        lines.push(Line::from(Span::raw(format!("  {}", "-".repeat(120)))));
 
         // Table rows
         for (idx, capture) in captures.iter().enumerate() {
@@ -364,9 +364,7 @@ fn render_capture_list_table(f: &mut Frame, area: Rect, captures: &[serde_json::
             let description = capture.get("description")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
-                .chars()
-                .take(40)
-                .collect::<String>();
+                .to_string();
 
             let tags = capture.get("tags")
                 .and_then(|v| v.as_array())
@@ -388,11 +386,11 @@ fn render_capture_list_table(f: &mut Frame, area: Rect, captures: &[serde_json::
             let prefix = if is_selected { "> " } else { "  " };
 
             lines.push(Line::from(vec![
-                Span::styled(format!("{}{:<16} ", prefix, id), row_style.fg(Color::Cyan)),
-                Span::styled(format!("{:<12}", cap_type), row_style.fg(Color::White)),
-                Span::styled(format!("{:<6}", packet_count), row_style.fg(Color::Green)),
-                Span::styled(format!("{:<10}", duration), row_style.fg(Color::Blue)),
-                Span::styled(format!("{:<19}", timestamp), row_style.fg(Color::Gray)),
+                Span::styled(format!("{}{:<18}  ", prefix, id), row_style.fg(Color::Cyan)),
+                Span::styled(format!("{:<13}  ", cap_type), row_style.fg(Color::White)),
+                Span::styled(format!("{:<6}  ", packet_count), row_style.fg(Color::Green)),
+                Span::styled(format!("{:<10}  ", duration), row_style.fg(Color::Blue)),
+                Span::styled(format!("{:<21}  ", timestamp), row_style.fg(Color::Gray)),
                 Span::styled(description, row_style.fg(Color::White)),
             ]));
 
