@@ -855,6 +855,14 @@ fn render_results(f: &mut Frame, area: Rect, tool_name: &str, output: &serde_jso
         return;
     }
 
+    // Special formatting for errors - show clean error message
+    if !success {
+        if let Some(error_msg) = output.get("error").and_then(|v| v.as_str()) {
+            render_error_message(f, chunks[1], tool_name, error_msg);
+            return;
+        }
+    }
+
     // Content - format JSON nicely
     let result_json = serde_json::to_string_pretty(output)
         .unwrap_or_else(|_| "{}".to_string());
@@ -1075,4 +1083,104 @@ fn render_confirmation(f: &mut Frame, area: Rect, message: &str) {
             .title_style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)));
 
     f.render_widget(dialog, dialog_area);
+}
+
+/// Render error message with helpful formatting
+fn render_error_message(f: &mut Frame, area: Rect, tool_name: &str, error_msg: &str) {
+    // Parse common error patterns and provide helpful context
+    let (category, message, suggestion) = categorize_error(error_msg);
+
+    let mut lines = vec![
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Error Category: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(category, Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(""),
+        Line::from(Span::styled("Details:", Style::default().fg(Color::Yellow))),
+        Line::from(""),
+    ];
+
+    // Word-wrap the error message
+    for chunk in message.chars().collect::<Vec<_>>().chunks(60) {
+        let chunk_str: String = chunk.iter().collect();
+        lines.push(Line::from(Span::styled(
+            format!("  {}", chunk_str),
+            Style::default().fg(Color::White),
+        )));
+    }
+
+    lines.push(Line::from(""));
+
+    if let Some(suggestion_text) = suggestion {
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            "Suggestion:",
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        )));
+        lines.push(Line::from(""));
+        lines.push(Line::from(Span::styled(
+            format!("  {}", suggestion_text),
+            Style::default().fg(Color::Green),
+        )));
+    }
+
+    lines.push(Line::from(""));
+    lines.push(Line::from(""));
+    lines.push(Line::from(Span::styled(
+        "[Esc] Back to menu",
+        Style::default().fg(Color::DarkGray),
+    )));
+
+    let paragraph = Paragraph::new(Text::from(lines))
+        .alignment(Alignment::Left)
+        .block(Block::default()
+            .borders(Borders::ALL)
+            .title(format!("Error: {}", tool_name))
+            .title_style(Style::default().fg(Color::Red)));
+
+    f.render_widget(paragraph, area);
+}
+
+/// Categorize error and provide helpful suggestions
+fn categorize_error(error_msg: &str) -> (&'static str, &str, Option<&'static str>) {
+    let lower = error_msg.to_lowercase();
+
+    if lower.contains("device") && (lower.contains("not found") || lower.contains("connect")) {
+        (
+            "Device Connection",
+            error_msg,
+            Some("Make sure Ubertooth One is plugged in and recognized by the system"),
+        )
+    } else if lower.contains("permission") || lower.contains("access denied") {
+        (
+            "Permission Error",
+            error_msg,
+            Some("Try running with sudo or check USB device permissions"),
+        )
+    } else if lower.contains("timeout") {
+            (
+            "Timeout",
+            error_msg,
+            Some("The operation took too long. Try increasing the duration or checking device connection"),
+        )
+    } else if lower.contains("not found") && !lower.contains("device") {
+        (
+            "Resource Not Found",
+            error_msg,
+            Some("Check that the specified resource (capture, file, etc.) exists"),
+        )
+    } else if lower.contains("invalid") || lower.contains("parse") {
+        (
+            "Invalid Input",
+            error_msg,
+            Some("Check the parameter values and format"),
+        )
+    } else {
+        (
+            "General Error",
+            error_msg,
+            None,
+        )
+    }
 }
