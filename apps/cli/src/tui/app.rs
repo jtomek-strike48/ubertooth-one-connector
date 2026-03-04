@@ -49,6 +49,8 @@ pub enum AppState {
         tool_name: String,
         // Receiver for execution results
         result_rx: Option<mpsc::Receiver<ExecutionResult>>,
+        // Show as notification instead of full results page
+        show_as_notification: bool,
     },
 
     /// Display results
@@ -71,6 +73,13 @@ pub struct DeviceStatus {
     pub firmware: Option<String>,
 }
 
+/// Temporary notification message
+#[derive(Debug, Clone)]
+pub struct Notification {
+    pub message: String,
+    pub success: bool,
+}
+
 /// Main TUI application
 pub struct App {
     /// Current application state
@@ -81,6 +90,9 @@ pub struct App {
 
     /// Device connection status
     device_status: DeviceStatus,
+
+    /// Temporary notification (cleared on next input)
+    notification: Option<Notification>,
 
     /// Should quit?
     should_quit: bool,
@@ -100,6 +112,7 @@ impl App {
                 connected: false,
                 firmware: None,
             },
+            notification: None,
             should_quit: false,
         })
     }
@@ -130,18 +143,20 @@ impl App {
         let result = (|| -> Result<()> {
             loop {
                 // Render UI (catch and log any render errors)
-                if let Err(e) = terminal.draw(|f| ui::render(f, &self.state, &self.registry, &self.device_status)) {
+                if let Err(e) = terminal.draw(|f| ui::render(f, &self.state, &self.registry, &self.device_status, &self.notification)) {
                     tracing::error!("Render error: {}", e);
                     // Continue anyway - might be transient
                 }
 
                 // Check for tool execution results
-                if let AppState::Executing { tool_name, result_rx } = &mut self.state {
+                if let AppState::Executing { tool_name, result_rx, show_as_notification } = &mut self.state {
                     if let Some(rx) = result_rx {
                         match rx.try_recv() {
                             Ok(result) => {
                                 // Move out of executing state
                                 let tool_name = tool_name.clone();
+                                let show_notification = *show_as_notification;
+
                                 match result {
                                     ExecutionResult::Success(output) => {
                                         // Update device status if this was a device_connect command
@@ -155,32 +170,64 @@ impl App {
                                             self.device_status.firmware = None;
                                         }
 
-                                        // Check if this is capture_list with results
-                                        let selected_capture = if tool_name == "capture_list" {
-                                            output.get("captures")
-                                                .and_then(|c| c.as_array())
-                                                .filter(|arr| !arr.is_empty())
-                                                .map(|_| 0) // Select first capture
+                                        if show_notification {
+                                            // Show as notification and return to main menu
+                                            let message = if tool_name == "device_connect" {
+                                                "Successfully connected to Ubertooth".to_string()
+                                            } else if tool_name == "device_disconnect" {
+                                                "Successfully disconnected from Ubertooth".to_string()
+                                            } else {
+                                                format!("{} completed successfully", tool_name)
+                                            };
+                                            self.notification = Some(Notification {
+                                                message,
+                                                success: true,
+                                            });
+                                            self.state = AppState::MainMenu { selected_index: 0 };
                                         } else {
-                                            None
-                                        };
+                                            // Check if this is capture_list with results
+                                            let selected_capture = if tool_name == "capture_list" {
+                                                output.get("captures")
+                                                    .and_then(|c| c.as_array())
+                                                    .filter(|arr| !arr.is_empty())
+                                                    .map(|_| 0) // Select first capture
+                                            } else {
+                                                None
+                                            };
 
-                                        self.state = AppState::Results {
-                                            tool_name,
-                                            output,
-                                            success: true,
-                                            selected_capture,
-                                            tool: None, // TODO: Store tool for re-parameterization
-                                        };
+                                            self.state = AppState::Results {
+                                                tool_name,
+                                                output,
+                                                success: true,
+                                                selected_capture,
+                                                tool: None, // TODO: Store tool for re-parameterization
+                                            };
+                                        }
                                     }
                                     ExecutionResult::Error(error) => {
-                                        self.state = AppState::Results {
-                                            tool_name,
-                                            output: serde_json::json!({ "error": error }),
-                                            success: false,
-                                            selected_capture: None,
-                                            tool: None,
-                                        };
+                                        if show_notification {
+                                            // Show as notification and return to main menu
+                                            let message = if tool_name == "device_connect" {
+                                                format!("Failed to connect: {}", error)
+                                            } else if tool_name == "device_disconnect" {
+                                                format!("Failed to disconnect: {}", error)
+                                            } else {
+                                                format!("{} failed: {}", tool_name, error)
+                                            };
+                                            self.notification = Some(Notification {
+                                                message,
+                                                success: false,
+                                            });
+                                            self.state = AppState::MainMenu { selected_index: 0 };
+                                        } else {
+                                            self.state = AppState::Results {
+                                                tool_name,
+                                                output: serde_json::json!({ "error": error }),
+                                                success: false,
+                                                selected_capture: None,
+                                                tool: None,
+                                            };
+                                        }
                                     }
                                 }
                             }
@@ -228,6 +275,11 @@ impl App {
     /// Handle an input event
     fn handle_event(&mut self, event: crossterm::event::Event) -> Result<()> {
         use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+
+        // Clear notification on any key press
+        if matches!(event, Event::Key(_)) {
+            self.notification = None;
+        }
 
         // Handle form input specially
         if let AppState::ToolForm { form, error, hotkey_mode } = &mut self.state {
@@ -590,10 +642,11 @@ impl App {
                                 let _ = tx.send(result).await;
                             });
 
-                            // Transition to executing state
+                            // Transition to executing state (show as notification)
                             self.state = AppState::Executing {
                                 tool_name: tool_name.to_string(),
                                 result_rx: Some(rx),
+                                show_as_notification: true,
                             };
                         }
                     }
@@ -627,6 +680,7 @@ impl App {
                             self.state = AppState::Executing {
                                 tool_name,
                                 result_rx: Some(rx),
+                                show_as_notification: false,
                             };
                             return Ok(());
                         }
@@ -674,6 +728,7 @@ impl App {
                                 self.state = AppState::Executing {
                                     tool_name,
                                     result_rx: Some(rx),
+                                    show_as_notification: false,
                                 };
                             } else {
                                 // Show form for tools with required parameters
@@ -752,6 +807,7 @@ impl App {
             self.state = AppState::Executing {
                 tool_name,
                 result_rx: Some(rx),
+                show_as_notification: false,
             };
         }
 
@@ -789,6 +845,7 @@ impl App {
             self.state = AppState::Executing {
                 tool_name: "bt_analyze".to_string(),
                 result_rx: Some(rx),
+                show_as_notification: false,
             };
         } else {
             // bt_analyze not found
@@ -826,6 +883,7 @@ impl App {
             self.state = AppState::Executing {
                 tool_name: "capture_get".to_string(),
                 result_rx: Some(rx),
+                show_as_notification: false,
             };
         }
 
@@ -855,6 +913,7 @@ impl App {
             self.state = AppState::Executing {
                 tool_name: "capture_delete".to_string(),
                 result_rx: Some(rx),
+                show_as_notification: false,
             };
         }
 
@@ -887,6 +946,7 @@ impl App {
             self.state = AppState::Executing {
                 tool_name: "capture_export".to_string(),
                 result_rx: Some(rx),
+                show_as_notification: false,
             };
         }
 
@@ -920,6 +980,7 @@ impl App {
             self.state = AppState::Executing {
                 tool_name: "capture_tag".to_string(),
                 result_rx: Some(rx),
+                show_as_notification: false,
             };
         }
 

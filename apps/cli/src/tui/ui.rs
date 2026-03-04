@@ -10,11 +10,11 @@ use ratatui::{
 use std::sync::Arc;
 use ubertooth_core::ToolRegistry;
 
-use super::app::{AppState, DeviceStatus};
+use super::app::{AppState, DeviceStatus, Notification};
 use super::views::{Category, FieldInputMode, FieldType};
 
 /// Render the entire UI
-pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>, device_status: &DeviceStatus) {
+pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>, device_status: &DeviceStatus, notification: &Option<Notification>) {
     // Main layout: header + content + footer
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -28,6 +28,11 @@ pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>, dev
     render_header(f, chunks[0], device_status);
     render_content(f, chunks[1], state, registry, device_status);
     render_footer(f, chunks[2], state);
+
+    // Render notification on top if present
+    if let Some(notif) = notification {
+        render_notification(f, f.size(), notif);
+    }
 }
 
 /// Render header with device status
@@ -946,4 +951,36 @@ fn render_footer(f: &mut Frame, area: Rect, state: &AppState) {
         .block(Block::default().borders(Borders::ALL));
 
     f.render_widget(footer, area);
+}
+
+/// Render notification as a centered popup at the bottom of the screen
+fn render_notification(f: &mut Frame, area: Rect, notification: &Notification) {
+    // Calculate notification size and position
+    let notif_width = notification.message.len().min(60) as u16 + 4;
+    let notif_height = 3;
+
+    // Position at bottom center
+    let notif_x = area.width.saturating_sub(notif_width) / 2;
+    let notif_y = area.height.saturating_sub(notif_height + 4); // Above footer
+
+    let notif_area = Rect {
+        x: area.x + notif_x,
+        y: area.y + notif_y,
+        width: notif_width,
+        height: notif_height,
+    };
+
+    // Choose color based on success/failure
+    let (bg_color, fg_color) = if notification.success {
+        (Color::Green, Color::Black)
+    } else {
+        (Color::Red, Color::White)
+    };
+
+    let notif_widget = Paragraph::new(notification.message.as_str())
+        .style(Style::default().fg(fg_color).bg(bg_color))
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::ALL));
+
+    f.render_widget(notif_widget, notif_area);
 }
