@@ -14,7 +14,7 @@ use super::app::{AppState, DeviceStatus, Notification};
 use super::views::{Category, FieldInputMode, FieldType};
 
 /// Render the entire UI
-pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>, device_status: &DeviceStatus, notification: &Option<Notification>) {
+pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>, device_status: &DeviceStatus, notification: &Option<Notification>, frame_count: u64) {
     // Main layout: header + content + footer
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -26,7 +26,7 @@ pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>, dev
         .split(f.size());
 
     render_header(f, chunks[0], device_status);
-    render_content(f, chunks[1], state, registry, device_status);
+    render_content(f, chunks[1], state, registry, device_status, frame_count);
     render_footer(f, chunks[2], state);
 
     // Render notification on top if present
@@ -62,7 +62,7 @@ fn render_header(f: &mut Frame, area: Rect, device_status: &DeviceStatus) {
 }
 
 /// Render main content based on state
-fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<ToolRegistry>, device_status: &DeviceStatus) {
+fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<ToolRegistry>, device_status: &DeviceStatus, frame_count: u64) {
     match state {
         AppState::MainMenu { selected_index } => {
             render_main_menu(f, area, *selected_index, device_status);
@@ -78,7 +78,7 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
             }
         }
         AppState::Executing { tool_name, .. } => {
-            render_executing(f, area, tool_name);
+            render_executing(f, area, tool_name, frame_count);
         }
         AppState::Results { tool_name, output, success, selected_capture, .. } => {
             render_results(f, area, tool_name, output, *success, *selected_capture);
@@ -781,16 +781,28 @@ fn render_capture_list_table(f: &mut Frame, area: Rect, captures: &[serde_json::
 }
 
 /// Render tool execution progress
-fn render_executing(f: &mut Frame, area: Rect, tool_name: &str) {
-    let text = format!(
-        "Executing tool: {}\n\n\
-        Please wait...\n\n\
-        This may take a few seconds depending on the tool.\n\n\
-        Working...",
-        tool_name
-    );
+fn render_executing(f: &mut Frame, area: Rect, tool_name: &str, frame_count: u64) {
+    // Animated spinner frames
+    let spinner_frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+    let spinner = spinner_frames[(frame_count / 2) as usize % spinner_frames.len()];
+
+    let text = vec![
+        Line::from(""),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(spinner, Style::default().fg(Color::Cyan)),
+            Span::raw(" "),
+            Span::styled("Executing: ", Style::default().fg(Color::Yellow)),
+            Span::styled(tool_name, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(""),
+        Line::from(Span::styled("Please wait...", Style::default().fg(Color::Gray))),
+        Line::from(""),
+        Line::from(Span::styled("This may take a few seconds depending on the tool.", Style::default().fg(Color::DarkGray))),
+    ];
+
     let paragraph = Paragraph::new(text)
-        .style(Style::default().fg(Color::Yellow))
+        .alignment(Alignment::Center)
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL).title("Executing"));
 

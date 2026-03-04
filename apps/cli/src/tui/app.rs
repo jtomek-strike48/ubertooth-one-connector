@@ -106,6 +106,9 @@ pub struct App {
     /// Temporary notification (cleared on next input)
     notification: Option<Notification>,
 
+    /// Frame counter for animations
+    frame_count: u64,
+
     /// Should quit?
     should_quit: bool,
 }
@@ -125,6 +128,7 @@ impl App {
                 firmware: None,
             },
             notification: None,
+            frame_count: 0,
             should_quit: false,
         })
     }
@@ -154,8 +158,11 @@ impl App {
         // Main loop with error recovery
         let result = (|| -> Result<()> {
             loop {
+                // Increment frame counter for animations
+                self.frame_count = self.frame_count.wrapping_add(1);
+
                 // Render UI (catch and log any render errors)
-                if let Err(e) = terminal.draw(|f| ui::render(f, &self.state, &self.registry, &self.device_status, &self.notification)) {
+                if let Err(e) = terminal.draw(|f| ui::render(f, &self.state, &self.registry, &self.device_status, &self.notification, self.frame_count)) {
                     tracing::error!("Render error: {}", e);
                     // Continue anyway - might be transient
                 }
