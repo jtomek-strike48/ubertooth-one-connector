@@ -112,26 +112,45 @@ fn render_main_menu(f: &mut Frame, area: Rect, selected_index: usize, device_sta
         .iter()
         .enumerate()
         .map(|(i, (title, desc))| {
-            let style = if i == selected_index {
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default()
-            };
-
             // Add blank line at top before connection toggle (index 0)
             let mut content = vec![];
             if i == 0 {
                 content.push(Line::from("")); // Blank line at top
             }
 
-            // Add leading space before connection toggle
-            let title_text = if i == 0 {
-                format!(" {}", title)
-            } else {
-                title.to_string()
-            };
+            // Special styling for connection toggle (index 0)
+            if i == 0 {
+                let (dot, dot_color, text_color, text_modifier) = if device_status.connected {
+                    ("●", Color::Green, Color::Green, Modifier::BOLD)
+                } else {
+                    ("○", Color::Gray, Color::Gray, Modifier::empty())
+                };
 
-            content.push(Line::from(Span::styled(title_text, style)));
+                // Override with yellow if selected
+                let (final_dot_color, final_text_color, final_modifier) = if i == selected_index {
+                    (Color::Yellow, Color::Yellow, Modifier::BOLD)
+                } else {
+                    (dot_color, text_color, text_modifier)
+                };
+
+                let title_line = Line::from(vec![
+                    Span::raw(" "),
+                    Span::styled(dot, Style::default().fg(final_dot_color)),
+                    Span::raw(" "),
+                    Span::styled(*title, Style::default().fg(final_text_color).add_modifier(final_modifier)),
+                ]);
+
+                content.push(title_line);
+            } else {
+                // Regular category items
+                let style = if i == selected_index {
+                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default()
+                };
+                content.push(Line::from(Span::styled(*title, style)));
+            }
+
             content.push(Line::from(Span::styled(format!("   {}", desc), Style::default().fg(Color::Gray))));
             content.push(Line::from("")); // Standard spacing after each item
 
