@@ -65,8 +65,12 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
         AppState::ToolCategory { category, selected_index } => {
             render_tool_category(f, area, category, *selected_index, registry);
         }
-        AppState::ToolForm { form, error } => {
-            render_tool_form(f, area, form.as_ref(), error.as_deref());
+        AppState::ToolForm { form, error, hotkey_mode } => {
+            if *hotkey_mode {
+                render_tool_hotkeys(f, area, form.as_ref(), error.as_deref());
+            } else {
+                render_tool_form(f, area, form.as_ref(), error.as_deref());
+            }
         }
         AppState::Executing { tool_name, .. } => {
             render_executing(f, area, tool_name);
@@ -156,6 +160,85 @@ fn render_tool_category(
             .title(format!("{:?} - Select Tool", category)));
 
     f.render_widget(list, area);
+}
+
+/// Render tool with hotkey parameter configuration
+fn render_tool_hotkeys(f: &mut Frame, area: Rect, form: &crate::tui::views::ToolForm, error: Option<&str>) {
+    // Split into: header, content, hotkey bar
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(5),  // Header
+            Constraint::Min(0),      // Content/description
+            Constraint::Length(5),  // Hotkey parameter bar
+        ])
+        .split(area);
+
+    // Header with tool name
+    let header_text = format!(
+        "{}\n\n{}",
+        form.tool_name(),
+        form.tool_description()
+    );
+    let header = Paragraph::new(header_text)
+        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::ALL).title("Tool"));
+    f.render_widget(header, chunks[0]);
+
+    // Content area - show current parameter values
+    let mut content_lines = Vec::new();
+    content_lines.push(Line::from(""));
+    content_lines.push(Line::from(Span::styled(
+        "  Current Configuration:",
+        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+    )));
+    content_lines.push(Line::from(""));
+
+    // TODO: Show current parameter values here
+    for field in form.fields() {
+        // Get current value from form
+        let value_str = "default".to_string(); // TODO: extract actual value
+        content_lines.push(Line::from(vec![
+            Span::styled(format!("    {}: ", field.name), Style::default().fg(Color::Gray)),
+            Span::styled(value_str, Style::default().fg(Color::White)),
+        ]));
+    }
+
+    let content = Paragraph::new(Text::from(content_lines))
+        .block(Block::default().borders(Borders::ALL).title("Configuration"));
+    f.render_widget(content, chunks[1]);
+
+    // Hotkey parameter bar at bottom
+    let mut hotkey_lines = Vec::new();
+
+    // Build hotkey hints for each parameter
+    let mut hotkey_hints = Vec::new();
+    for field in form.fields() {
+        let hint = format!("[{}] {}",
+            field.name.chars().next().unwrap_or('?').to_uppercase(),
+            field.name
+        );
+        hotkey_hints.push(hint);
+    }
+
+    hotkey_lines.push(Line::from(""));
+    hotkey_lines.push(Line::from(Span::styled(
+        format!("  {}", hotkey_hints.join("  ")),
+        Style::default().fg(Color::Cyan),
+    )));
+    hotkey_lines.push(Line::from(""));
+
+    if let Some(err) = error {
+        hotkey_lines.push(Line::from(Span::styled(
+            format!("  Error: {}", err),
+            Style::default().fg(Color::Red),
+        )));
+    }
+
+    let hotkeys = Paragraph::new(Text::from(hotkey_lines))
+        .block(Block::default().borders(Borders::ALL).title("Parameters"));
+    f.render_widget(hotkeys, chunks[2]);
 }
 
 /// Render tool parameter form
@@ -586,8 +669,12 @@ fn render_footer(f: &mut Frame, area: Rect, state: &AppState) {
         AppState::MainMenu { .. } | AppState::ToolCategory { .. } => {
             "[Up/Down] Navigate  [Enter] Select  [Esc] Back  [q] Quit  [s] Settings"
         }
-        AppState::ToolForm { .. } => {
-            "[Tab] Next  [Enter] Execute  [Esc] Cancel"
+        AppState::ToolForm { hotkey_mode, .. } => {
+            if *hotkey_mode {
+                "[1-9] Set Value  [Enter] Execute  [Esc] Back"
+            } else {
+                "[Tab] Next  [Enter] Execute  [Esc] Cancel"
+            }
         }
         AppState::Executing { .. } => {
             "Executing... please wait"

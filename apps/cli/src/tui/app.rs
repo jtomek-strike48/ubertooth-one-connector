@@ -42,6 +42,7 @@ pub enum AppState {
     ToolForm {
         form: Box<ToolForm>,
         error: Option<String>,
+        hotkey_mode: bool,
     },
 
     /// Executing tool
@@ -226,7 +227,7 @@ impl App {
         use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
         // Handle form input specially
-        if let AppState::ToolForm { form, error } = &mut self.state {
+        if let AppState::ToolForm { form, error, hotkey_mode } = &mut self.state {
             if let Event::Key(KeyEvent { code, modifiers, .. }) = event {
                 // Check if current field is a dropdown
                 let is_dropdown = matches!(
@@ -445,6 +446,7 @@ impl App {
                                 self.state = AppState::ToolForm {
                                     form: Box::new(form),
                                     error: None,
+                                    hotkey_mode: true,
                                 };
                             }
                         }
@@ -453,6 +455,7 @@ impl App {
                             self.state = AppState::ToolForm {
                                 form: Box::new(ToolForm::new(tool.clone()).unwrap()),
                                 error: Some(format!("Failed to create form: {}", e)),
+                                hotkey_mode: true,
                             };
                         }
                     }
@@ -485,7 +488,7 @@ impl App {
 
     /// Execute the tool with current form parameters
     fn execute_tool(&mut self) -> Result<()> {
-        if let AppState::ToolForm { form, error } = &mut self.state {
+        if let AppState::ToolForm { form, error, .. } = &mut self.state {
             // Validate form
             if let Err(e) = form.validate() {
                 *error = Some(e);
