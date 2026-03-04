@@ -24,6 +24,19 @@ struct PcapAnalysis {
     duration_sec: f64,
     packets_per_sec: f64,
     avg_packet_size: f64,
+    devices: Vec<BleDevice>,
+}
+
+/// BLE device information extracted from packets.
+#[derive(Debug, Clone)]
+struct BleDevice {
+    mac_address: String,
+    name: Option<String>,
+    rssi: i8,
+    pdu_type: String,
+    first_seen: f64,
+    last_seen: f64,
+    packet_count: usize,
 }
 
 /// Python sidecar process manager.
@@ -924,8 +937,21 @@ impl SidecarManager {
             _ => "Unknown",
         };
 
-        // Phase 2 Piece 1: Basic PCAP parsing
+        // Phase 2 Pieces 1 & 2: Basic PCAP parsing + device extraction
         let pcap_analysis = Self::parse_pcap(&metadata.pcap_path)?;
+
+        // Build device list for JSON output
+        let devices: Vec<Value> = pcap_analysis.devices.iter().map(|dev| {
+            json!({
+                "mac_address": dev.mac_address,
+                "name": dev.name,
+                "rssi": dev.rssi,
+                "pdu_type": dev.pdu_type,
+                "first_seen": dev.first_seen,
+                "last_seen": dev.last_seen,
+                "packet_count": dev.packet_count
+            })
+        }).collect();
 
         Ok(json!({
             "success": true,
@@ -936,9 +962,10 @@ impl SidecarManager {
                     "packet_count": pcap_analysis.packet_count,
                     "total_bytes": pcap_analysis.total_bytes,
                     "avg_packet_size": pcap_analysis.avg_packet_size,
-                    "pdu_types": {}  // TODO Piece 2: Extract PDU types
+                    "unique_devices": pcap_analysis.devices.len(),
+                    "pdu_types": {}  // TODO Piece 2b: Count PDU type distribution
                 },
-                "devices": [],  // TODO Piece 2: Extract device info
+                "devices": devices,
                 "timing_analysis": {
                     "duration_sec": pcap_analysis.duration_sec,
                     "packets_per_sec": pcap_analysis.packets_per_sec,
@@ -948,12 +975,12 @@ impl SidecarManager {
                 },
                 "security_observations": [],  // TODO Piece 4: Security analysis
                 "anomalies": [],
-                "note": "Phase 2 Piece 1: Basic PCAP parsing complete. Device extraction, timing, and security analysis in progress."
+                "note": "Phase 2 Pieces 1-2: Basic PCAP parsing and device extraction complete. Timing analysis and security observations in progress."
             }
         }))
     }
 
-    /// Parse PCAP file and extract basic statistics.
+    /// Parse PCAP file and extract basic statistics plus device information.
     fn parse_pcap(pcap_path: &str) -> Result<PcapAnalysis> {
         let file = File::open(pcap_path)
             .map_err(|e| UbertoothError::BackendError(format!("Failed to open PCAP file: {}", e)))?;
@@ -965,6 +992,7 @@ impl SidecarManager {
         let mut total_bytes = 0;
         let mut first_timestamp: Option<f64> = None;
         let mut last_timestamp: Option<f64> = None;
+        let mut devices: std::collections::HashMap<String, BleDevice> = std::collections::HashMap::new();
 
         while let Some(pkt) = pcap_reader.next_packet() {
             match pkt {
@@ -978,6 +1006,23 @@ impl SidecarManager {
                         first_timestamp = Some(timestamp);
                     }
                     last_timestamp = Some(timestamp);
+
+                    // Extract device information from BLE packets
+                    if let Some(device_info) = Self::extract_ble_device(&packet.data, timestamp) {
+                        let mac = device_info.mac_address.clone();
+                        devices.entry(mac.clone())
+                            .and_modify(|d| {
+                                d.last_seen = timestamp;
+                                d.packet_count += 1;
+                                // Update name if we found one and didn't have one before
+                                if device_info.name.is_some() && d.name.is_none() {
+                                    d.name = device_info.name.clone();
+                                }
+                                // Update RSSI to latest value
+                                d.rssi = device_info.rssi;
+                            })
+                            .or_insert(device_info);
+                    }
                 }
                 Err(PcapError::IncompleteBuffer) => {
                     // End of file
@@ -1008,13 +1053,124 @@ impl SidecarManager {
             0.0
         };
 
+        // Convert HashMap to Vec for output
+        let mut device_list: Vec<BleDevice> = devices.into_values().collect();
+        // Sort by first seen timestamp
+        device_list.sort_by(|a, b| a.first_seen.partial_cmp(&b.first_seen).unwrap());
+
         Ok(PcapAnalysis {
             packet_count,
             total_bytes,
             duration_sec,
             packets_per_sec,
             avg_packet_size,
+            devices: device_list,
         })
+    }
+
+    /// Extract BLE device information from a PCAP packet.
+    fn extract_ble_device(packet_data: &[u8], timestamp: f64) -> Option<BleDevice> {
+        // Ubertooth USB packets are 64 bytes: 14-byte header + up to 50 bytes payload
+        if packet_data.len() < 14 {
+            return None;
+        }
+
+        // Parse USB packet header
+        let pkt_type = packet_data[0];
+        let channel = packet_data[2];
+        let rssi_avg = packet_data[10] as i8;
+
+        // Check if this is a BLE packet (PKT_TYPE_LE_PACKET = 1)
+        if pkt_type != 1 {
+            return None;
+        }
+
+        let usb_payload = &packet_data[14..];
+        if usb_payload.len() < 10 {
+            return None;
+        }
+
+        // Parse BLE packet structure
+        // let _access_address = u32::from_le_bytes([usb_payload[0], usb_payload[1], usb_payload[2], usb_payload[3]]);
+        let pdu_header = usb_payload[4];
+        let length = usb_payload[5] as usize;
+
+        // Extract PDU type (lower 4 bits of header)
+        let pdu_type = pdu_header & 0x0F;
+        let pdu_type_name = match pdu_type {
+            0x00 => "ADV_IND",
+            0x01 => "ADV_DIRECT_IND",
+            0x02 => "ADV_NONCONN_IND",
+            0x03 => "SCAN_REQ",
+            0x04 => "SCAN_RSP",
+            0x05 => "CONNECT_REQ",
+            0x06 => "ADV_SCAN_IND",
+            _ => "UNKNOWN",
+        };
+
+        // Only process advertising packets (ADV_IND, ADV_NONCONN_IND, SCAN_RSP, ADV_SCAN_IND)
+        if !matches!(pdu_type, 0x00 | 0x02 | 0x04 | 0x06) {
+            return None;
+        }
+
+        let ble_payload = &usb_payload[6..];
+        if ble_payload.len() < 6 {
+            return None;
+        }
+
+        // Extract advertiser address (first 6 bytes of BLE payload)
+        let addr = &ble_payload[0..6];
+        let mac_address = format!(
+            "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+            addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]
+        );
+
+        // Parse advertising data structures to find device name
+        let name = Self::extract_device_name(&ble_payload[6..]);
+
+        Some(BleDevice {
+            mac_address,
+            name,
+            rssi: rssi_avg,
+            pdu_type: pdu_type_name.to_string(),
+            first_seen: timestamp,
+            last_seen: timestamp,
+            packet_count: 1,
+        })
+    }
+
+    /// Extract device name from BLE advertising data structures.
+    fn extract_device_name(ad_data: &[u8]) -> Option<String> {
+        let mut offset = 0;
+
+        while offset < ad_data.len() {
+            if offset + 1 >= ad_data.len() {
+                break;
+            }
+
+            let length = ad_data[offset] as usize;
+            if length == 0 {
+                break;
+            }
+
+            if offset + 1 + length > ad_data.len() {
+                break; // Incomplete structure
+            }
+
+            let ad_type = ad_data[offset + 1];
+            let data = &ad_data[offset + 2..offset + 1 + length];
+
+            // 0x08 = Shortened Local Name, 0x09 = Complete Local Name
+            if (ad_type == 0x08 || ad_type == 0x09) {
+                if let Ok(name) = String::from_utf8(data.to_vec()) {
+                    return Some(name);
+                }
+            }
+
+            offset += 1 + length;
+        }
+
+        None
     }
 
     /// Session context implementation - comprehensive AI orientation.
