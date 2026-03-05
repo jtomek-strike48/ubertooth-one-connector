@@ -1088,7 +1088,7 @@ impl SidecarManager {
 
                             // Extract device information based on linktype
                             let device_info = match linktype {
-                                Some(251) | Some(256) => Self::extract_ble_device_from_rf(packet.data, timestamp),
+                                Some(161) | Some(251) | Some(256) => Self::extract_ble_device_from_rf(packet.data, timestamp),
                                 _ => Self::extract_ble_device(packet.data, timestamp),
                             };
 
@@ -1167,8 +1167,14 @@ impl SidecarManager {
                             prev_timestamp = Some(timestamp);
 
                             // Extract device information based on linktype
+                            tracing::trace!(
+                                "Processing packet #{}: linktype={:?}, len={}",
+                                packet_count,
+                                linktype,
+                                epb.data.len()
+                            );
                             let device_info = match linktype {
-                                Some(251) | Some(256) => Self::extract_ble_device_from_rf(epb.data, timestamp),
+                                Some(161) | Some(251) | Some(256) => Self::extract_ble_device_from_rf(epb.data, timestamp),
                                 _ => Self::extract_ble_device(epb.data, timestamp),
                             };
 
@@ -1287,6 +1293,13 @@ impl SidecarManager {
         let mut device_list: Vec<BleDevice> = devices.into_values().collect();
         // Sort by first seen timestamp
         device_list.sort_by(|a, b| a.first_seen.partial_cmp(&b.first_seen).unwrap());
+
+        tracing::info!(
+            "PCAP parse complete: {} packets, {} devices found, linktype={:?}",
+            packet_count,
+            device_list.len(),
+            linktype
+        );
 
         // Generate security observations
         let mut observations = Vec::new();
@@ -1510,22 +1523,27 @@ impl SidecarManager {
     /// Extract BLE device information from a BLE RF format packet (linktype 251).
     /// Format: [channel][rssi][flags:2][access_addr:4][pdu_header][length][payload...][crc:3]
     fn extract_ble_device_from_rf(packet_data: &[u8], timestamp: f64) -> Option<BleDevice> {
-        // Minimum: channel(1) + rssi(1) + flags(2) + aa(4) + header(1) + len(1) + addr(6) + crc(3) = 19 bytes
-        if packet_data.len() < 19 {
+        // BLE RF format:
+        // Bytes 0-9: RF header (channel, rssi, noise, offenses, ref_aa, flags)
+        // Bytes 10-13: BLE Access Address (4 bytes)
+        // Bytes 14-15: PDU Header (type+flags, length)
+        // Bytes 16+: Payload (addresses, advertising data)
+
+        // Minimum: RF header(10) + AA(4) + PDU(2) + addr(6) = 22 bytes
+        if packet_data.len() < 22 {
+            tracing::trace!("Packet too short: {} bytes", packet_data.len());
             return None;
         }
 
-        // Parse RF header
+        // Parse RF header (bytes 0-9)
         let _channel = packet_data[0];
         let rssi = packet_data[1] as i8;
-        // let _flags = u16::from_le_bytes([packet_data[2], packet_data[3]]);
 
-        // Parse BLE packet
-        // let _access_address = u32::from_le_bytes([packet_data[4], packet_data[5], packet_data[6], packet_data[7]]);
-        let pdu_header = packet_data[8];
-        let length = packet_data[9] as usize;
+        // Parse BLE PDU header (bytes 14-15)
+        let pdu_header = packet_data[14];
+        let length = packet_data[15] as usize;
 
-        // Extract PDU type
+        // Extract PDU type (lower 4 bits of byte 14)
         let pdu_type = pdu_header & 0x0F;
         let pdu_type_name = match pdu_type {
             0x00 => "ADV_IND",
@@ -1538,26 +1556,56 @@ impl SidecarManager {
             _ => "UNKNOWN",
         };
 
-        // Only process advertising packets
-        if !matches!(pdu_type, 0x00 | 0x02 | 0x04 | 0x06) {
+        // Payload starts at byte 16
+        let payload = &packet_data[16..];
+        if payload.len() < 6 {
+            tracing::trace!("Payload too short: {} bytes", payload.len());
             return None;
         }
 
-        // BLE payload starts at offset 10
-        let ble_payload = &packet_data[10..];
-        if ble_payload.len() < 6 {
-            return None;
-        }
+        // Extract advertiser address based on packet type
+        // ADV_* packets (0x00, 0x02, 0x04, 0x06): advertising address at offset 0
+        // SCAN_REQ (0x03): scanning address at offset 0, advertising address at offset 6
+        // CONNECT_REQ (0x05): similar structure to SCAN_REQ
+        let addr_offset = match pdu_type {
+            0x03 | 0x05 => {
+                // SCAN_REQ/CONNECT_REQ: advertising address is second (bytes 6-11)
+                if payload.len() < 12 {
+                    tracing::trace!("SCAN_REQ/CONNECT_REQ payload too short: {} bytes", payload.len());
+                    return None;
+                }
+                6
+            }
+            0x00 | 0x02 | 0x04 | 0x06 => {
+                // ADV_* packets: advertising address is first (bytes 0-5)
+                0
+            }
+            _ => {
+                tracing::trace!("Unhandled PDU type: 0x{:02x}", pdu_type);
+                return None;
+            }
+        };
 
-        // Extract advertiser address (first 6 bytes of payload)
-        let addr = &ble_payload[0..6];
+        let addr = &payload[addr_offset..addr_offset + 6];
         let mac_address = format!(
             "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
             addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]
         );
 
-        // Parse advertising data to find name
-        let name = Self::extract_device_name(&ble_payload[6..]);
+        // Parse advertising data to find name (only for ADV_* and SCAN_RSP packets)
+        let name = if matches!(pdu_type, 0x00 | 0x02 | 0x04 | 0x06) {
+            Self::extract_device_name(&payload[6..])
+        } else {
+            None
+        };
+
+        tracing::debug!(
+            "Extracted device: {} ({}), RSSI: {}, PDU: {}",
+            mac_address,
+            name.as_deref().unwrap_or("Unknown"),
+            rssi,
+            pdu_type_name
+        );
 
         Some(BleDevice {
             mac_address,
@@ -2811,5 +2859,72 @@ impl SidecarManager {
             "response_length": response_length,
             "raw_output": output.trim()
         }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_pcap_ble_rf() {
+        // Initialize logging for test
+        let _ = tracing_subscriber::fmt()
+            .with_test_writer()
+            .with_max_level(tracing::Level::DEBUG)
+            .try_init();
+
+        let pcap_path = format!(
+            "{}/.ubertooth/captures/cap-btle-06b8b707-431f-4b7c-8eda-fb02b7e253d3.pcap",
+            std::env::var("HOME").unwrap()
+        );
+
+        if !std::path::Path::new(&pcap_path).exists() {
+            println!("PCAP file not found, skipping test: {}", pcap_path);
+            return;
+        }
+
+        println!("Parsing PCAP: {}", pcap_path);
+        let result = SidecarManager::parse_pcap(&pcap_path);
+
+        match result {
+            Ok(analysis) => {
+                println!("Packets: {}", analysis.packet_count);
+                println!("Devices found: {}", analysis.devices.len());
+                println!("Duration: {:.2}s", analysis.duration_sec);
+                println!("\nDevices:");
+                for device in &analysis.devices {
+                    println!(
+                        "  - {} ({}) RSSI: {}",
+                        device.mac_address,
+                        device.name.as_deref().unwrap_or("Unknown"),
+                        device.rssi
+                    );
+                }
+
+                // Verify we found devices
+                assert!(
+                    analysis.devices.len() > 0,
+                    "Expected to find devices in PCAP but found none"
+                );
+
+                // Verify specific device from tshark output
+                let expected_mac = "88:6B:0F:B2:2D:C2";
+                let found = analysis
+                    .devices
+                    .iter()
+                    .any(|d| d.mac_address == expected_mac);
+                assert!(
+                    found,
+                    "Expected to find device {} but didn't",
+                    expected_mac
+                );
+
+                println!("\n✅ Test passed: Found {} devices", analysis.devices.len());
+            }
+            Err(e) => {
+                panic!("Failed to parse PCAP: {:?}", e);
+            }
+        }
     }
 }
