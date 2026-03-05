@@ -975,7 +975,8 @@ impl SidecarManager {
         let devices: Vec<Value> = pcap_analysis.devices.iter().map(|dev| {
             json!({
                 "mac_address": dev.mac_address,
-                "name": dev.name,
+                "device_name": dev.name.as_deref().unwrap_or("Unknown"),
+                "name": dev.name,  // Keep for backwards compatibility
                 "rssi": dev.rssi,
                 "pdu_type": dev.pdu_type,
                 "first_seen": dev.first_seen,
