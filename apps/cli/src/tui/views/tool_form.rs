@@ -176,12 +176,18 @@ impl ToolForm {
 
         // Capture ID field → populate with available captures
         if name == "capture_id" {
+            tracing::debug!("Detected capture_id field, checking for available captures");
             if let Some(captures) = Self::get_available_captures() {
                 if !captures.is_empty() {
                     let mut options = captures;
                     options.push("Other (manual)".to_string());
+                    tracing::debug!("Created dropdown with {} options for capture_id", options.len());
                     return Some(options);
+                } else {
+                    tracing::debug!("Captures list was empty");
                 }
+            } else {
+                tracing::debug!("get_available_captures() returned None");
             }
         }
 
@@ -198,7 +204,10 @@ impl ToolForm {
         captures_dir.push(".ubertooth");
         captures_dir.push("captures");
 
+        tracing::debug!("Looking for captures in: {:?}", captures_dir);
+
         if !captures_dir.exists() {
+            tracing::debug!("Captures directory doesn't exist");
             return None;
         }
 
@@ -213,6 +222,7 @@ impl ToolForm {
                         if let Ok(metadata) = serde_json::from_str::<serde_json::Value>(&content) {
                             if let Some(id) = metadata.get("capture_id").and_then(|v| v.as_str()) {
                                 captures.push(id.to_string());
+                                tracing::debug!("Found capture: {}", id);
                             }
                         }
                     }
@@ -226,6 +236,8 @@ impl ToolForm {
 
         // Limit to most recent 20 to keep dropdown manageable
         captures.truncate(20);
+
+        tracing::debug!("Total captures found: {}", captures.len());
 
         if captures.is_empty() {
             None

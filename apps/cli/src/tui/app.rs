@@ -954,7 +954,7 @@ impl App {
                                 self.state = AppState::ToolForm {
                                     form: Box::new(form),
                                     error: None,
-                                    hotkey_mode: true,
+                                    hotkey_mode: false,  // Allow typing in form fields by default
                                 };
                             }
                         }
@@ -963,7 +963,7 @@ impl App {
                             self.state = AppState::ToolForm {
                                 form: Box::new(ToolForm::new(tool.clone()).unwrap()),
                                 error: Some(format!("Failed to create form: {}", e)),
-                                hotkey_mode: true,
+                                hotkey_mode: false,  // Allow typing in form fields by default
                             };
                         }
                     }
