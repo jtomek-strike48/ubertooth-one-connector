@@ -1042,6 +1042,7 @@ impl SidecarManager {
         let mut last_timestamp: Option<f64> = None;
         let mut prev_timestamp: Option<f64> = None;
         let mut devices: std::collections::HashMap<String, BleDevice> = std::collections::HashMap::new();
+        let mut linktype: Option<u32> = None;
 
         // Timing analysis tracking
         let mut intervals: Vec<f64> = Vec::new();
@@ -1057,6 +1058,11 @@ impl SidecarManager {
             match reader.next() {
                 Ok((offset, block)) => {
                     match block {
+                        PcapBlockOwned::NG(Block::InterfaceDescription(idb)) => {
+                            // Extract linktype from interface description
+                            linktype = Some(idb.linktype.0 as u32);
+                            tracing::debug!("Detected linktype: {}", idb.linktype.0);
+                        }
                         PcapBlockOwned::Legacy(packet) => {
                             // Legacy PCAP packet
                             packet_count += 1;
@@ -1080,8 +1086,13 @@ impl SidecarManager {
                             }
                             prev_timestamp = Some(timestamp);
 
-                            // Extract device information
-                            if let Some(device_info) = Self::extract_ble_device(packet.data, timestamp) {
+                            // Extract device information based on linktype
+                            let device_info = match linktype {
+                                Some(251) | Some(256) => Self::extract_ble_device_from_rf(packet.data, timestamp),
+                                _ => Self::extract_ble_device(packet.data, timestamp),
+                            };
+
+                            if let Some(device_info) = device_info {
                                 let mac = device_info.mac_address.clone();
                                 devices.entry(mac.clone())
                                     .and_modify(|d| {
@@ -1155,8 +1166,13 @@ impl SidecarManager {
                             }
                             prev_timestamp = Some(timestamp);
 
-                            // Extract device information
-                            if let Some(device_info) = Self::extract_ble_device(epb.data, timestamp) {
+                            // Extract device information based on linktype
+                            let device_info = match linktype {
+                                Some(251) | Some(256) => Self::extract_ble_device_from_rf(epb.data, timestamp),
+                                _ => Self::extract_ble_device(epb.data, timestamp),
+                            };
+
+                            if let Some(device_info) = device_info {
                                 let mac = device_info.mac_address.clone();
                                 devices.entry(mac.clone())
                                     .and_modify(|d| {
@@ -1489,6 +1505,69 @@ impl SidecarManager {
         }
 
         None
+    }
+
+    /// Extract BLE device information from a BLE RF format packet (linktype 251).
+    /// Format: [channel][rssi][flags:2][access_addr:4][pdu_header][length][payload...][crc:3]
+    fn extract_ble_device_from_rf(packet_data: &[u8], timestamp: f64) -> Option<BleDevice> {
+        // Minimum: channel(1) + rssi(1) + flags(2) + aa(4) + header(1) + len(1) + addr(6) + crc(3) = 19 bytes
+        if packet_data.len() < 19 {
+            return None;
+        }
+
+        // Parse RF header
+        let _channel = packet_data[0];
+        let rssi = packet_data[1] as i8;
+        // let _flags = u16::from_le_bytes([packet_data[2], packet_data[3]]);
+
+        // Parse BLE packet
+        // let _access_address = u32::from_le_bytes([packet_data[4], packet_data[5], packet_data[6], packet_data[7]]);
+        let pdu_header = packet_data[8];
+        let length = packet_data[9] as usize;
+
+        // Extract PDU type
+        let pdu_type = pdu_header & 0x0F;
+        let pdu_type_name = match pdu_type {
+            0x00 => "ADV_IND",
+            0x01 => "ADV_DIRECT_IND",
+            0x02 => "ADV_NONCONN_IND",
+            0x03 => "SCAN_REQ",
+            0x04 => "SCAN_RSP",
+            0x05 => "CONNECT_REQ",
+            0x06 => "ADV_SCAN_IND",
+            _ => "UNKNOWN",
+        };
+
+        // Only process advertising packets
+        if !matches!(pdu_type, 0x00 | 0x02 | 0x04 | 0x06) {
+            return None;
+        }
+
+        // BLE payload starts at offset 10
+        let ble_payload = &packet_data[10..];
+        if ble_payload.len() < 6 {
+            return None;
+        }
+
+        // Extract advertiser address (first 6 bytes of payload)
+        let addr = &ble_payload[0..6];
+        let mac_address = format!(
+            "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+            addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]
+        );
+
+        // Parse advertising data to find name
+        let name = Self::extract_device_name(&ble_payload[6..]);
+
+        Some(BleDevice {
+            mac_address,
+            name,
+            rssi,
+            pdu_type: pdu_type_name.to_string(),
+            first_seen: timestamp,
+            last_seen: timestamp,
+            packet_count: 1,
+        })
     }
 
     /// Session context implementation - comprehensive AI orientation.
