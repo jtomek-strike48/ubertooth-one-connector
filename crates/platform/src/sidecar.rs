@@ -2,7 +2,8 @@
 
 use async_trait::async_trait;
 use chrono::Utc;
-use pcap_file::{pcap::PcapReader, PcapError};
+use pcap_parser::*;
+use pcap_parser::traits::PcapReaderIterator;
 use serde_json::{json, Value};
 use std::fs::File;
 use std::io::Write;
@@ -1026,13 +1027,14 @@ impl SidecarManager {
         }))
     }
 
-    /// Parse PCAP file and extract basic statistics, device information, and timing analysis.
+    /// Parse PCAP/PCAPNG file and extract basic statistics, device information, and timing analysis.
     fn parse_pcap(pcap_path: &str) -> Result<PcapAnalysis> {
         let file = File::open(pcap_path)
             .map_err(|e| UbertoothError::BackendError(format!("Failed to open PCAP file: {}", e)))?;
 
-        let mut pcap_reader = PcapReader::new(file)
-            .map_err(|e| UbertoothError::BackendError(format!("Failed to parse PCAP: {}", e)))?;
+        // Create reader that auto-detects PCAP vs PCAPNG format
+        let mut reader = create_reader(65536, file)
+            .map_err(|e| UbertoothError::BackendError(format!("Failed to create PCAP reader: {}", e)))?;
 
         let mut packet_count = 0;
         let mut total_bytes = 0;
@@ -1051,96 +1053,176 @@ impl SidecarManager {
         let mut scan_requests = 0;
         let mut malformed_packets = 0;
 
-        while let Some(pkt) = pcap_reader.next_packet() {
-            match pkt {
-                Ok(packet) => {
-                    packet_count += 1;
-                    total_bytes += packet.data.len();
+        loop {
+            match reader.next() {
+                Ok((offset, block)) => {
+                    match block {
+                        PcapBlockOwned::Legacy(packet) => {
+                            // Legacy PCAP packet
+                            packet_count += 1;
+                            total_bytes += packet.data.len();
 
-                    // Track timestamps for duration calculation
-                    let timestamp = packet.timestamp.as_secs() as f64 + (packet.timestamp.subsec_micros() as f64 / 1_000_000.0);
+                            // Convert timestamp (seconds + microseconds)
+                            let timestamp = packet.ts_sec as f64 + (packet.ts_usec as f64 / 1_000_000.0);
 
-                    if first_timestamp.is_none() {
-                        first_timestamp = Some(timestamp);
-                    }
-                    last_timestamp = Some(timestamp);
+                            if first_timestamp.is_none() {
+                                first_timestamp = Some(timestamp);
+                            }
+                            last_timestamp = Some(timestamp);
 
-                    // Calculate inter-packet interval
-                    if let Some(prev) = prev_timestamp {
-                        let interval_sec = timestamp - prev;
-                        let interval_ms = interval_sec * 1000.0;
-                        // Only track positive intervals (ignore out-of-order packets)
-                        if interval_ms > 0.0 && interval_ms < 10_000.0 {  // Cap at 10 seconds to filter outliers
-                            intervals.push(interval_ms);
-                        }
-                    }
-                    prev_timestamp = Some(timestamp);
-
-                    // Extract device information from BLE packets and analyze security
-                    if let Some(device_info) = Self::extract_ble_device(&packet.data, timestamp) {
-                        let mac = device_info.mac_address.clone();
-                        devices.entry(mac.clone())
-                            .and_modify(|d| {
-                                d.last_seen = timestamp;
-                                d.packet_count += 1;
-                                // Update name if we found one and didn't have one before
-                                if device_info.name.is_some() && d.name.is_none() {
-                                    d.name = device_info.name.clone();
+                            // Calculate inter-packet interval
+                            if let Some(prev) = prev_timestamp {
+                                let interval_sec = timestamp - prev;
+                                let interval_ms = interval_sec * 1000.0;
+                                if interval_ms > 0.0 && interval_ms < 10_000.0 {
+                                    intervals.push(interval_ms);
                                 }
-                                // Update RSSI to latest value
-                                d.rssi = device_info.rssi;
-                            })
-                            .or_insert(device_info);
-                    }
+                            }
+                            prev_timestamp = Some(timestamp);
 
-                    // Security analysis: Track packet types and address types
-                    if packet.data.len() >= 14 {
-                        let pkt_type = packet.data[0];
-                        if pkt_type == 1 {  // BLE packet
-                            let usb_payload = &packet.data[14..];
-                            if usb_payload.len() >= 6 {
-                                let pdu_header = usb_payload[4];
-                                let pdu_type = pdu_header & 0x0F;
-                                let tx_add = (pdu_header >> 6) & 0x01;  // TxAdd bit indicates address type
+                            // Extract device information
+                            if let Some(device_info) = Self::extract_ble_device(packet.data, timestamp) {
+                                let mac = device_info.mac_address.clone();
+                                devices.entry(mac.clone())
+                                    .and_modify(|d| {
+                                        d.last_seen = timestamp;
+                                        d.packet_count += 1;
+                                        if device_info.name.is_some() && d.name.is_none() {
+                                            d.name = device_info.name.clone();
+                                        }
+                                        d.rssi = device_info.rssi;
+                                    })
+                                    .or_insert(device_info);
+                            }
 
-                                // Track PDU types
-                                match pdu_type {
-                                    0x05 => connection_requests += 1,  // CONNECT_REQ
-                                    0x03 => scan_requests += 1,        // SCAN_REQ
-                                    _ => {}
-                                }
+                            // Security analysis
+                            if packet.data.len() >= 14 {
+                                let pkt_type = packet.data[0];
+                                if pkt_type == 1 {
+                                    let usb_payload = &packet.data[14..];
+                                    if usb_payload.len() >= 6 {
+                                        let pdu_header = usb_payload[4];
+                                        let pdu_type = pdu_header & 0x0F;
+                                        let tx_add = (pdu_header >> 6) & 0x01;
 
-                                // Track address types for advertising packets
-                                if matches!(pdu_type, 0x00 | 0x02 | 0x04 | 0x06) && usb_payload.len() >= 12 {
-                                    let ble_payload = &usb_payload[6..];
-                                    if ble_payload.len() >= 6 {
-                                        let addr = &ble_payload[0..6];
-                                        let mac_address = format!(
-                                            "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
-                                            addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]
-                                        );
+                                        match pdu_type {
+                                            0x05 => connection_requests += 1,
+                                            0x03 => scan_requests += 1,
+                                            _ => {}
+                                        }
 
-                                        if tx_add == 1 {
-                                            // Random address (privacy enabled)
-                                            privacy_addresses.insert(mac_address);
-                                        } else {
-                                            // Public address
-                                            public_addresses.insert(mac_address);
+                                        if matches!(pdu_type, 0x00 | 0x02 | 0x04 | 0x06) && usb_payload.len() >= 12 {
+                                            let ble_payload = &usb_payload[6..];
+                                            if ble_payload.len() >= 6 {
+                                                let addr = &ble_payload[0..6];
+                                                let mac_address = format!(
+                                                    "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+                                                    addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]
+                                                );
+
+                                                if tx_add == 1 {
+                                                    privacy_addresses.insert(mac_address);
+                                                } else {
+                                                    public_addresses.insert(mac_address);
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
+                        PcapBlockOwned::NG(Block::EnhancedPacket(epb)) => {
+                            // PCAPNG Enhanced Packet Block
+                            packet_count += 1;
+                            total_bytes += epb.data.len();
+
+                            // Convert timestamp (high + low parts, resolution depends on interface)
+                            let timestamp_raw = ((epb.ts_high as u64) << 32) | (epb.ts_low as u64);
+                            // Assume microsecond resolution (most common)
+                            let timestamp = timestamp_raw as f64 / 1_000_000.0;
+
+                            if first_timestamp.is_none() {
+                                first_timestamp = Some(timestamp);
+                            }
+                            last_timestamp = Some(timestamp);
+
+                            if let Some(prev) = prev_timestamp {
+                                let interval_sec = timestamp - prev;
+                                let interval_ms = interval_sec * 1000.0;
+                                if interval_ms > 0.0 && interval_ms < 10_000.0 {
+                                    intervals.push(interval_ms);
+                                }
+                            }
+                            prev_timestamp = Some(timestamp);
+
+                            // Extract device information
+                            if let Some(device_info) = Self::extract_ble_device(epb.data, timestamp) {
+                                let mac = device_info.mac_address.clone();
+                                devices.entry(mac.clone())
+                                    .and_modify(|d| {
+                                        d.last_seen = timestamp;
+                                        d.packet_count += 1;
+                                        if device_info.name.is_some() && d.name.is_none() {
+                                            d.name = device_info.name.clone();
+                                        }
+                                        d.rssi = device_info.rssi;
+                                    })
+                                    .or_insert(device_info);
+                            }
+
+                            // Security analysis
+                            if epb.data.len() >= 14 {
+                                let pkt_type = epb.data[0];
+                                if pkt_type == 1 {
+                                    let usb_payload = &epb.data[14..];
+                                    if usb_payload.len() >= 6 {
+                                        let pdu_header = usb_payload[4];
+                                        let pdu_type = pdu_header & 0x0F;
+                                        let tx_add = (pdu_header >> 6) & 0x01;
+
+                                        match pdu_type {
+                                            0x05 => connection_requests += 1,
+                                            0x03 => scan_requests += 1,
+                                            _ => {}
+                                        }
+
+                                        if matches!(pdu_type, 0x00 | 0x02 | 0x04 | 0x06) && usb_payload.len() >= 12 {
+                                            let ble_payload = &usb_payload[6..];
+                                            if ble_payload.len() >= 6 {
+                                                let addr = &ble_payload[0..6];
+                                                let mac_address = format!(
+                                                    "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
+                                                    addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]
+                                                );
+
+                                                if tx_add == 1 {
+                                                    privacy_addresses.insert(mac_address);
+                                                } else {
+                                                    public_addresses.insert(mac_address);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        _ => {
+                            // Skip other block types (section headers, interface descriptions, etc.)
+                        }
                     }
+                    reader.consume(offset);
                 }
-                Err(PcapError::IncompleteBuffer) => {
-                    // End of file
-                    break;
+                Err(PcapError::Eof) => break,
+                Err(PcapError::Incomplete(_)) => {
+                    reader.refill().map_err(|e| {
+                        UbertoothError::BackendError(format!("Failed to refill buffer: {}", e))
+                    })?;
                 }
                 Err(e) => {
-                    tracing::warn!("Error reading packet: {}", e);
+                    tracing::warn!("Error parsing packet: {:?}", e);
                     malformed_packets += 1;
-                    // Continue to next packet
+                    // Try to continue
+                    break;
                 }
             }
         }

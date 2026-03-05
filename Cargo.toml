@@ -55,6 +55,7 @@ rusb = "0.9"
 
 # PCAP
 pcap-file = "2"
+pcap-parser = "0.17"
 
 # Strike48 Connector SDK
 strike48-connector = { path = "../sdk-rs/crates/connector" }

@@ -42,6 +42,7 @@ dirs = { workspace = true }
 
 # PCAP parsing
 pcap-file = { workspace = true }
+pcap-parser = { workspace = true }
 
 [dev-dependencies]
 tracing-subscriber = { workspace = true }
