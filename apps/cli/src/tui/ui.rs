@@ -1186,7 +1186,7 @@ fn categorize_error(error_msg: &str) -> (&'static str, &str, Option<&'static str
 /// Render decoded packet list for bt_decode
 fn render_decoded_packets(f: &mut Frame, area: Rect, output: &serde_json::Value, packet_list_state: Option<&crate::tui::app::PacketListState>) {
     use ratatui::{
-        layout::{Constraint, Layout},
+        layout::{Constraint, Direction, Layout},
         style::{Color, Modifier, Style},
         text::{Line, Span},
         widgets::{Block, Borders, Paragraph, Wrap},
@@ -1233,15 +1233,72 @@ fn render_decoded_packets(f: &mut Frame, area: Rect, output: &serde_json::Value,
     let default_state = crate::tui::app::PacketListState::new();
     let state = packet_list_state.unwrap_or(&default_state);
 
+    // Dispatch to appropriate view based on view_mode
+    match state.view_mode {
+        crate::tui::app::PacketViewMode::List => {
+            render_packet_list(f, area, packets, state);
+        }
+        crate::tui::app::PacketViewMode::Statistics => {
+            render_packet_statistics(f, area, packets, state);
+        }
+        crate::tui::app::PacketViewMode::Timeline => {
+            render_packet_timeline(f, area, packets, state);
+        }
+    }
+}
+
+/// Render packet list view (original table view)
+fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], state: &crate::tui::app::PacketListState) {
+    use ratatui::{
+        style::{Color, Modifier, Style},
+        text::{Line, Span},
+        widgets::{Block, Borders, Paragraph, Wrap},
+    };
+
+    let packet_count = packets.len();
+
+    // Apply follow stream filter if active
+    let filtered_packets: Vec<(usize, &serde_json::Value)> = if let Some(ref mac) = state.follow_mac {
+        packets.iter().enumerate()
+            .filter(|(_, pkt)| {
+                pkt.get("mac_address")
+                    .and_then(|m| m.as_str())
+                    .map(|m| m.contains(mac))
+                    .unwrap_or(false)
+            })
+            .collect()
+    } else {
+        packets.iter().enumerate().collect()
+    };
+
+    let displayed_count = filtered_packets.len();
+    if displayed_count == 0 {
+        let text = vec![
+            Line::from(""),
+            Line::from("No packets match the current filter"),
+            Line::from(""),
+            Line::from(Span::styled(
+                "Press 'f' to clear the follow stream filter",
+                Style::default().fg(Color::Gray),
+            )),
+        ];
+        let paragraph = Paragraph::new(text)
+            .block(Block::default().borders(Borders::ALL).title("Decoded Packets (Filtered)"))
+            .alignment(ratatui::layout::Alignment::Center);
+        f.render_widget(paragraph, area);
+        return;
+    }
+
     // Calculate visible area
-    let visible_height = area.height.saturating_sub(4) as usize; // Account for borders and header
-    let start_idx = state.scroll_offset;
-    let end_idx = (start_idx + visible_height).min(packet_count);
+    let visible_height = area.height.saturating_sub(6) as usize; // Account for borders, header, and footer
+    let start_idx = state.scroll_offset.min(displayed_count.saturating_sub(1));
+    let end_idx = (start_idx + visible_height).min(displayed_count);
 
     let mut lines = vec![];
 
-    // Header line
+    // Header line with indicators
     lines.push(Line::from(vec![
+        Span::styled("  ", Style::default()), // Space for bookmark/mark indicators
         Span::styled(" # ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
         Span::styled("Time          ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
         Span::styled("Ch ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
@@ -1258,10 +1315,12 @@ fn render_decoded_packets(f: &mut Frame, area: Rect, output: &serde_json::Value,
     )));
 
     // Render visible packets
-    for idx in start_idx..end_idx {
-        if let Some(packet) = packets.get(idx) {
-            let is_selected = idx == state.selected_index;
-            let is_expanded = state.is_expanded(idx);
+    for display_idx in start_idx..end_idx {
+        if let Some((original_idx, packet)) = filtered_packets.get(display_idx) {
+            let is_selected = display_idx == state.selected_index;
+            let is_expanded = state.is_expanded(*original_idx);
+            let is_bookmarked = state.is_bookmarked(*original_idx);
+            let is_marked = state.is_marked_for_comparison(*original_idx);
 
             // Extract packet fields
             let frame_num = packet.get("frame_number").and_then(|v| v.as_str()).unwrap_or("?");
@@ -1289,8 +1348,10 @@ fn render_decoded_packets(f: &mut Frame, area: Rect, output: &serde_json::Value,
                 _ => Color::White,
             };
 
-            // Selection indicator
-            let indicator = if is_selected {
+            // Indicators: bookmark, comparison mark, expand/collapse
+            let bookmark_indicator = if is_bookmarked { "★" } else { " " };
+            let mark_indicator = if is_marked { "●" } else { " " };
+            let expand_indicator = if is_selected {
                 if is_expanded { "▼" } else { "▶" }
             } else {
                 " "
@@ -1304,7 +1365,9 @@ fn render_decoded_packets(f: &mut Frame, area: Rect, output: &serde_json::Value,
 
             // Main packet row
             lines.push(Line::from(vec![
-                Span::styled(indicator, Style::default().fg(Color::Yellow).bg(bg_color)),
+                Span::styled(bookmark_indicator, Style::default().fg(Color::Yellow).bg(bg_color)),
+                Span::styled(mark_indicator, Style::default().fg(Color::Magenta).bg(bg_color)),
+                Span::styled(expand_indicator, Style::default().fg(Color::Cyan).bg(bg_color)),
                 Span::styled(format!("{:3} ", frame_num), Style::default().fg(Color::Gray).bg(bg_color)),
                 Span::styled(format!("{:12} ", time_display), Style::default().fg(Color::White).bg(bg_color)),
                 Span::styled(format!("{:2} ", channel), Style::default().fg(Color::Magenta).bg(bg_color)),
@@ -1362,19 +1425,58 @@ fn render_decoded_packets(f: &mut Frame, area: Rect, output: &serde_json::Value,
 
     // Footer with navigation hints and stats
     lines.push(Line::from(""));
+
+    // Navigation line
     lines.push(Line::from(vec![
-        Span::styled("Navigation: ", Style::default().fg(Color::Yellow)),
+        Span::styled("Nav: ", Style::default().fg(Color::Yellow)),
         Span::styled("↑↓", Style::default().fg(Color::Cyan)),
         Span::raw(" scroll  "),
-        Span::styled("PgUp/PgDn", Style::default().fg(Color::Cyan)),
-        Span::raw(" jump  "),
-        Span::styled("Home/End", Style::default().fg(Color::Cyan)),
-        Span::raw(" first/last  "),
         Span::styled("Enter", Style::default().fg(Color::Cyan)),
         Span::raw(" expand  "),
-        Span::raw(" │ "),
-        Span::styled(format!("Showing {}-{} of {} packets", start_idx + 1, end_idx, packet_count), Style::default().fg(Color::Gray)),
+        Span::styled("b", Style::default().fg(Color::Cyan)),
+        Span::raw(" bookmark  "),
+        Span::styled("m", Style::default().fg(Color::Cyan)),
+        Span::raw(" mark  "),
+        Span::styled("f", Style::default().fg(Color::Cyan)),
+        Span::raw(" follow  "),
     ]));
+
+    // View mode line
+    lines.push(Line::from(vec![
+        Span::styled("Views: ", Style::default().fg(Color::Yellow)),
+        Span::styled("l", Style::default().fg(Color::Cyan)),
+        Span::raw(" list  "),
+        Span::styled("s", Style::default().fg(Color::Cyan)),
+        Span::raw(" statistics  "),
+        Span::styled("t", Style::default().fg(Color::Cyan)),
+        Span::raw(" timeline  "),
+        Span::raw(" │ "),
+        Span::styled(format!("Showing {}-{} of {}", start_idx + 1, end_idx, displayed_count), Style::default().fg(Color::Gray)),
+        if displayed_count < packet_count {
+            Span::styled(format!(" (filtered from {})", packet_count), Style::default().fg(Color::Yellow))
+        } else {
+            Span::raw("")
+        },
+    ]));
+
+    // Follow stream indicator
+    if let Some(ref mac) = state.follow_mac {
+        lines.push(Line::from(vec![
+            Span::styled("Following: ", Style::default().fg(Color::Yellow)),
+            Span::styled(mac.clone(), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("  "),
+            Span::styled("(press 'f' to clear)", Style::default().fg(Color::Gray).add_modifier(Modifier::ITALIC)),
+        ]));
+    }
+
+    // Bookmark indicator
+    let bookmark_count = state.bookmarks.len();
+    if bookmark_count > 0 {
+        lines.push(Line::from(vec![
+            Span::styled("★ ", Style::default().fg(Color::Yellow)),
+            Span::styled(format!("{} bookmarked packet{}", bookmark_count, if bookmark_count == 1 { "" } else { "s" }), Style::default().fg(Color::White)),
+        ]));
+    }
 
     let title = format!(" Decoded Packets ({} total) ", packet_count);
     let paragraph = Paragraph::new(lines)
@@ -1382,4 +1484,417 @@ fn render_decoded_packets(f: &mut Frame, area: Rect, output: &serde_json::Value,
         .wrap(Wrap { trim: false });
 
     f.render_widget(paragraph, area);
+}
+/// Render packet statistics view
+fn render_packet_statistics(f: &mut Frame, area: Rect, packets: &[serde_json::Value], state: &crate::tui::app::PacketListState) {
+    use ratatui::{
+        layout::{Constraint, Direction, Layout},
+        style::{Color, Modifier, Style},
+        text::{Line, Span},
+        widgets::{Block, Borders, Paragraph, Wrap},
+    };
+    use std::collections::HashMap;
+
+    let packet_count = packets.len();
+
+    // Split area into sections
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(12), // Packet type distribution
+            Constraint::Length(8),  // Channel and RSSI stats
+            Constraint::Min(8),     // MAC addresses
+        ])
+        .split(area);
+
+    // 1. Packet Type Distribution
+    let mut type_counts: HashMap<String, usize> = HashMap::new();
+    let mut total_rssi: i32 = 0;
+    let mut rssi_count = 0;
+    let mut channel_counts: HashMap<String, usize> = HashMap::new();
+    let mut mac_addresses: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut min_rssi = 0i8;
+    let mut max_rssi = -128i8;
+
+    for packet in packets {
+        // Packet types
+        if let Some(ptype) = packet.get("packet_type").and_then(|v| v.as_str()) {
+            *type_counts.entry(ptype.to_string()).or_insert(0) += 1;
+        }
+
+        // RSSI stats
+        if let Some(rssi_str) = packet.get("rssi").and_then(|v| v.as_str()) {
+            if let Ok(rssi) = rssi_str.parse::<i8>() {
+                total_rssi += rssi as i32;
+                rssi_count += 1;
+                min_rssi = min_rssi.min(rssi);
+                max_rssi = max_rssi.max(rssi);
+            }
+        }
+
+        // Channel distribution
+        if let Some(ch) = packet.get("channel").and_then(|v| v.as_str()) {
+            *channel_counts.entry(ch.to_string()).or_insert(0) += 1;
+        }
+
+        // MAC addresses
+        if let Some(mac) = packet.get("mac_address").and_then(|v| v.as_str()) {
+            // Split combined MACs (e.g., "AA ← BB")
+            for part in mac.split(&['←', '→'][..]) {
+                let cleaned = part.trim();
+                if !cleaned.is_empty() && cleaned != "N/A" {
+                    mac_addresses.insert(cleaned.to_string());
+                }
+            }
+        }
+    }
+
+    let avg_rssi = if rssi_count > 0 {
+        total_rssi as f32 / rssi_count as f32
+    } else {
+        0.0
+    };
+
+    // Render packet type distribution
+    let mut type_lines = vec![
+        Line::from(Span::styled(
+            "Packet Type Distribution",
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+    ];
+
+    let mut sorted_types: Vec<_> = type_counts.iter().collect();
+    sorted_types.sort_by(|a, b| b.1.cmp(a.1));
+
+    for (ptype, count) in sorted_types.iter().take(8) {
+        let percentage = (**count as f32 / packet_count as f32) * 100.0;
+        let bar_width = (percentage / 3.0) as usize; // Scale for display
+        let bar = "█".repeat(bar_width.max(1));
+
+        let color = match ptype.as_str() {
+            "ADV_IND" | "ADV_NONCONN_IND" | "ADV_SCAN_IND" => Color::Green,
+            "SCAN_REQ" | "SCAN_RSP" => Color::Cyan,
+            "CONNECT_REQ" => Color::Yellow,
+            "DATA" => Color::Blue,
+            _ => Color::White,
+        };
+
+        type_lines.push(Line::from(vec![
+            Span::styled(format!("{:15}", ptype), Style::default().fg(Color::White)),
+            Span::styled(bar, Style::default().fg(color)),
+            Span::styled(format!(" {} ({:.1}%)", count, percentage), Style::default().fg(Color::Gray)),
+        ]));
+    }
+
+    let type_block = Paragraph::new(type_lines)
+        .block(Block::default().borders(Borders::ALL).title(" Packet Types "))
+        .wrap(Wrap { trim: false });
+    f.render_widget(type_block, chunks[0]);
+
+    // Render channel and RSSI stats
+    let mut stats_lines = vec![
+        Line::from(vec![
+            Span::styled("Total Packets: ", Style::default().fg(Color::Yellow)),
+            Span::styled(packet_count.to_string(), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(vec![
+            Span::styled("Unique MACs:   ", Style::default().fg(Color::Yellow)),
+            Span::styled(mac_addresses.len().to_string(), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("RSSI Stats:    ", Style::default().fg(Color::Yellow)),
+            Span::styled(format!("Avg: {:.1} dBm", avg_rssi), Style::default().fg(Color::White)),
+            Span::raw("  "),
+            Span::styled(format!("Min: {} dBm", min_rssi), Style::default().fg(Color::Red)),
+            Span::raw("  "),
+            Span::styled(format!("Max: {} dBm", max_rssi), Style::default().fg(Color::Green)),
+        ]),
+        Line::from(""),
+    ];
+
+    // Channel distribution
+    stats_lines.push(Line::from(Span::styled(
+        "Channel Distribution:",
+        Style::default().fg(Color::Yellow),
+    )));
+
+    let mut sorted_channels: Vec<_> = channel_counts.iter().collect();
+    sorted_channels.sort_by_key(|(ch, _)| ch.parse::<u8>().unwrap_or(255));
+
+    for (ch, count) in sorted_channels {
+        let percentage = (*count as f32 / packet_count as f32) * 100.0;
+        stats_lines.push(Line::from(vec![
+            Span::styled(format!("  Ch {:2}:", ch), Style::default().fg(Color::Magenta)),
+            Span::styled(format!(" {} packets ({:.1}%)", count, percentage), Style::default().fg(Color::White)),
+        ]));
+    }
+
+    let stats_block = Paragraph::new(stats_lines)
+        .block(Block::default().borders(Borders::ALL).title(" Statistics "))
+        .wrap(Wrap { trim: false });
+    f.render_widget(stats_block, chunks[1]);
+
+    // Render unique MAC addresses
+    let mut mac_lines = vec![
+        Line::from(Span::styled(
+            format!("Unique MAC Addresses ({})", mac_addresses.len()),
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+    ];
+
+    let mut sorted_macs: Vec<_> = mac_addresses.iter().collect();
+    sorted_macs.sort();
+
+    for (i, mac) in sorted_macs.iter().take(15).enumerate() {
+        mac_lines.push(Line::from(vec![
+            Span::styled(format!("{:2}. ", i + 1), Style::default().fg(Color::Gray)),
+            Span::styled(mac.to_string(), Style::default().fg(Color::Cyan)),
+        ]));
+    }
+
+    if sorted_macs.len() > 15 {
+        mac_lines.push(Line::from(Span::styled(
+            format!("... and {} more", sorted_macs.len() - 15),
+            Style::default().fg(Color::Gray).add_modifier(Modifier::ITALIC),
+        )));
+    }
+
+    mac_lines.push(Line::from(""));
+    mac_lines.push(Line::from(vec![
+        Span::styled("Press ", Style::default().fg(Color::Gray)),
+        Span::styled("l", Style::default().fg(Color::Cyan)),
+        Span::styled(" to return to packet list view", Style::default().fg(Color::Gray)),
+    ]));
+
+    let mac_block = Paragraph::new(mac_lines)
+        .block(Block::default().borders(Borders::ALL).title(" Devices "))
+        .wrap(Wrap { trim: false });
+    f.render_widget(mac_block, chunks[2]);
+}
+/// Render packet timeline view
+fn render_packet_timeline(f: &mut Frame, area: Rect, packets: &[serde_json::Value], state: &crate::tui::app::PacketListState) {
+    use ratatui::{
+        layout::{Constraint, Direction, Layout},
+        style::{Color, Modifier, Style},
+        text::{Line, Span},
+        widgets::{Block, Borders, Paragraph, Wrap},
+    };
+
+    let packet_count = packets.len();
+    if packet_count == 0 {
+        return;
+    }
+
+    // Split area
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(10),    // Timeline
+            Constraint::Length(8),  // Legend and stats
+        ])
+        .split(area);
+
+    // Parse timestamps and determine time range
+    let mut timestamps: Vec<(usize, f64)> = Vec::new();
+    for (idx, packet) in packets.iter().enumerate() {
+        if let Some(ts_str) = packet.get("timestamp").and_then(|v| v.as_str()) {
+            // Parse timestamp - just use index if parsing fails
+            // Format: "Mar  4, 2026 17:07:00.999844945 EST"
+            timestamps.push((idx, idx as f64));
+        }
+    }
+
+    if timestamps.is_empty() {
+        return;
+    }
+
+    let min_time = 0.0;
+    let max_time = packet_count as f64;
+    let time_range = max_time - min_time;
+
+    // Calculate timeline width
+    let timeline_width = area.width.saturating_sub(6) as usize;
+    let timeline_height = chunks[0].height.saturating_sub(4) as usize;
+
+    // Create timeline buckets
+    let bucket_count = timeline_width;
+    let mut buckets: Vec<Vec<(usize, &serde_json::Value)>> = vec![vec![]; bucket_count];
+
+    for (idx, _) in &timestamps {
+        if let Some(packet) = packets.get(*idx) {
+            let normalized_time = (*idx as f64 - min_time) / time_range;
+            let bucket_idx = (normalized_time * (bucket_count - 1) as f64) as usize;
+            if bucket_idx < bucket_count {
+                buckets[bucket_idx].push((*idx, packet));
+            }
+        }
+    }
+
+    // Render timeline
+    let mut timeline_lines = vec![];
+
+    // Title
+    timeline_lines.push(Line::from(vec![
+        Span::styled("Packet Activity Over Time", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::raw("  "),
+        Span::styled(format!("({} packets)", packet_count), Style::default().fg(Color::Gray)),
+    ]));
+    timeline_lines.push(Line::from(""));
+
+    // Draw timeline rows (different packet types stacked)
+    let packet_types = vec!["ADV_IND", "SCAN_REQ", "SCAN_RSP", "CONNECT_REQ", "DATA"];
+    let type_colors = vec![
+        Color::Green,
+        Color::Cyan,
+        Color::Blue,
+        Color::Yellow,
+        Color::Magenta,
+    ];
+
+    for (type_name, color) in packet_types.iter().zip(type_colors.iter()) {
+        let mut line_spans = vec![
+            Span::styled(format!("{:12} ", type_name), Style::default().fg(*color)),
+        ];
+
+        for bucket in &buckets {
+            let count_of_type = bucket.iter()
+                .filter(|(_, pkt)| {
+                    pkt.get("packet_type")
+                        .and_then(|v| v.as_str())
+                        .map(|t| t == *type_name)
+                        .unwrap_or(false)
+                })
+                .count();
+
+            let symbol = if count_of_type == 0 {
+                "·"
+            } else if count_of_type == 1 {
+                "▁"
+            } else if count_of_type == 2 {
+                "▃"
+            } else if count_of_type <= 4 {
+                "▅"
+            } else {
+                "█"
+            };
+
+            line_spans.push(Span::styled(symbol, Style::default().fg(*color)));
+        }
+
+        timeline_lines.push(Line::from(line_spans));
+    }
+
+    // Add a separator
+    timeline_lines.push(Line::from(""));
+    timeline_lines.push(Line::from(Span::styled(
+        "─".repeat(timeline_width + 15),
+        Style::default().fg(Color::DarkGray),
+    )));
+
+    // Density visualization (all packet types combined)
+    timeline_lines.push(Line::from(""));
+    timeline_lines.push(Line::from(Span::styled(
+        "All Packets  ",
+        Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+    )));
+
+    let mut density_line = vec![Span::raw("             ")];
+    for bucket in &buckets {
+        let total = bucket.len();
+        let symbol = if total == 0 {
+            " "
+        } else if total == 1 {
+            "░"
+        } else if total <= 3 {
+            "▒"
+        } else if total <= 6 {
+            "▓"
+        } else {
+            "█"
+        };
+        density_line.push(Span::styled(symbol, Style::default().fg(Color::White)));
+    }
+    timeline_lines.push(Line::from(density_line));
+
+    // Time axis markers
+    timeline_lines.push(Line::from(""));
+    let mut axis_line = vec![Span::raw("             ")];
+    for i in 0..bucket_count {
+        if i % 10 == 0 {
+            axis_line.push(Span::styled("|", Style::default().fg(Color::Gray)));
+        } else {
+            axis_line.push(Span::raw(" "));
+        }
+    }
+    timeline_lines.push(Line::from(axis_line));
+
+    // Time labels
+    let mut label_line = vec![Span::styled("Time -->     ", Style::default().fg(Color::Gray))];
+    for i in 0..bucket_count {
+        if i % 20 == 0 && i > 0 {
+            let packet_num = ((i as f64 / bucket_count as f64) * packet_count as f64) as usize;
+            label_line.push(Span::styled(format!("{}", packet_num), Style::default().fg(Color::Gray)));
+            // Add spacing
+            for _ in 0..format!("{}", packet_num).len() {
+                if i + 1 < bucket_count {
+                    label_line.push(Span::raw(" "));
+                }
+            }
+        }
+    }
+    timeline_lines.push(Line::from(label_line));
+
+    let timeline_block = Paragraph::new(timeline_lines)
+        .block(Block::default().borders(Borders::ALL).title(" Timeline View "))
+        .wrap(Wrap { trim: false });
+    f.render_widget(timeline_block, chunks[0]);
+
+    // Legend and navigation
+    let legend_lines = vec![
+        Line::from(vec![
+            Span::styled("Legend: ", Style::default().fg(Color::Yellow)),
+            Span::styled("· ", Style::default().fg(Color::DarkGray)),
+            Span::raw("none  "),
+            Span::styled("▁ ", Style::default().fg(Color::White)),
+            Span::raw("1  "),
+            Span::styled("▃ ", Style::default().fg(Color::White)),
+            Span::raw("2  "),
+            Span::styled("▅ ", Style::default().fg(Color::White)),
+            Span::raw("3-4  "),
+            Span::styled("█ ", Style::default().fg(Color::White)),
+            Span::raw("5+  "),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Packet Types: ", Style::default().fg(Color::Yellow)),
+            Span::styled("■ ", Style::default().fg(Color::Green)),
+            Span::raw("ADV  "),
+            Span::styled("■ ", Style::default().fg(Color::Cyan)),
+            Span::raw("SCAN_REQ  "),
+            Span::styled("■ ", Style::default().fg(Color::Blue)),
+            Span::raw("SCAN_RSP  "),
+            Span::styled("■ ", Style::default().fg(Color::Yellow)),
+            Span::raw("CONNECT  "),
+            Span::styled("■ ", Style::default().fg(Color::Magenta)),
+            Span::raw("DATA"),
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Navigation: ", Style::default().fg(Color::Yellow)),
+            Span::styled("l", Style::default().fg(Color::Cyan)),
+            Span::raw(" list view  "),
+            Span::styled("s", Style::default().fg(Color::Cyan)),
+            Span::raw(" statistics  "),
+            Span::styled("t", Style::default().fg(Color::Cyan)),
+            Span::raw(" timeline"),
+        ]),
+    ];
+
+    let legend_block = Paragraph::new(legend_lines)
+        .block(Block::default().borders(Borders::ALL).title(" Legend "))
+        .wrap(Wrap { trim: false });
+    f.render_widget(legend_block, chunks[1]);
 }

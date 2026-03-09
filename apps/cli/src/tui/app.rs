@@ -105,6 +105,22 @@ pub struct PacketListState {
     pub scroll_offset: usize,
     /// Active filters
     pub filters: PacketFilters,
+    /// View mode (list, timeline, stats)
+    pub view_mode: PacketViewMode,
+    /// Bookmarked packet indices
+    pub bookmarks: std::collections::HashSet<usize>,
+    /// Packets marked for comparison
+    pub comparison_marks: Vec<usize>,
+    /// Follow stream MAC address
+    pub follow_mac: Option<String>,
+}
+
+/// View mode for packet list
+#[derive(Debug, Clone, PartialEq)]
+pub enum PacketViewMode {
+    List,
+    Statistics,
+    Timeline,
 }
 
 /// Filters for packet list
@@ -122,6 +138,10 @@ impl PacketListState {
             expanded_packets: std::collections::HashSet::new(),
             scroll_offset: 0,
             filters: PacketFilters::default(),
+            view_mode: PacketViewMode::List,
+            bookmarks: std::collections::HashSet::new(),
+            comparison_marks: Vec::new(),
+            follow_mac: None,
         }
     }
 
@@ -135,6 +155,32 @@ impl PacketListState {
 
     pub fn is_expanded(&self, index: usize) -> bool {
         self.expanded_packets.contains(&index)
+    }
+
+    pub fn toggle_bookmark(&mut self, index: usize) {
+        if self.bookmarks.contains(&index) {
+            self.bookmarks.remove(&index);
+        } else {
+            self.bookmarks.insert(index);
+        }
+    }
+
+    pub fn is_bookmarked(&self, index: usize) -> bool {
+        self.bookmarks.contains(&index)
+    }
+
+    pub fn toggle_comparison_mark(&mut self, index: usize) {
+        if let Some(pos) = self.comparison_marks.iter().position(|&x| x == index) {
+            self.comparison_marks.remove(pos);
+        } else {
+            if self.comparison_marks.len() < 2 {
+                self.comparison_marks.push(index);
+            }
+        }
+    }
+
+    pub fn is_marked_for_comparison(&self, index: usize) -> bool {
+        self.comparison_marks.contains(&index)
     }
 }
 
@@ -738,6 +784,56 @@ impl App {
                                 KeyCode::Enter | KeyCode::Char(' ') => {
                                     // Toggle expand/collapse
                                     pls.toggle_expanded(pls.selected_index);
+                                    return Ok(());
+                                }
+                                KeyCode::Char('s') | KeyCode::Char('S') => {
+                                    // Toggle statistics view
+                                    pls.view_mode = match pls.view_mode {
+                                        PacketViewMode::List => PacketViewMode::Statistics,
+                                        PacketViewMode::Statistics => PacketViewMode::List,
+                                        PacketViewMode::Timeline => PacketViewMode::Statistics,
+                                    };
+                                    return Ok(());
+                                }
+                                KeyCode::Char('t') | KeyCode::Char('T') => {
+                                    // Toggle timeline view
+                                    pls.view_mode = match pls.view_mode {
+                                        PacketViewMode::List => PacketViewMode::Timeline,
+                                        PacketViewMode::Timeline => PacketViewMode::List,
+                                        PacketViewMode::Statistics => PacketViewMode::Timeline,
+                                    };
+                                    return Ok(());
+                                }
+                                KeyCode::Char('b') | KeyCode::Char('B') => {
+                                    // Toggle bookmark
+                                    pls.toggle_bookmark(pls.selected_index);
+                                    return Ok(());
+                                }
+                                KeyCode::Char('m') | KeyCode::Char('M') => {
+                                    // Mark for comparison
+                                    pls.toggle_comparison_mark(pls.selected_index);
+                                    return Ok(());
+                                }
+                                KeyCode::Char('f') | KeyCode::Char('F') => {
+                                    // Follow stream - toggle following the MAC of selected packet
+                                    if let Some(packet) = packets.get(pls.selected_index) {
+                                        let mac = packet.get("mac_address")
+                                            .and_then(|m| m.as_str())
+                                            .map(|s| s.to_string());
+
+                                        if pls.follow_mac.is_some() {
+                                            // Clear follow
+                                            pls.follow_mac = None;
+                                        } else {
+                                            // Start following
+                                            pls.follow_mac = mac;
+                                        }
+                                    }
+                                    return Ok(());
+                                }
+                                KeyCode::Char('l') | KeyCode::Char('L') => {
+                                    // Return to list view
+                                    pls.view_mode = PacketViewMode::List;
                                     return Ok(());
                                 }
                                 _ => {}
