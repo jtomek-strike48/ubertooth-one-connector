@@ -113,6 +113,8 @@ pub struct PacketListState {
     pub comparison_marks: Vec<usize>,
     /// Follow stream MAC address
     pub follow_mac: Option<String>,
+    /// Packet annotations (index -> note text)
+    pub annotations: std::collections::HashMap<usize, String>,
 }
 
 /// View mode for packet list
@@ -121,6 +123,7 @@ pub enum PacketViewMode {
     List,
     Statistics,
     Timeline,
+    Comparison,
 }
 
 /// Filters for packet list
@@ -142,6 +145,7 @@ impl PacketListState {
             bookmarks: std::collections::HashSet::new(),
             comparison_marks: Vec::new(),
             follow_mac: None,
+            annotations: std::collections::HashMap::new(),
         }
     }
 
@@ -181,6 +185,24 @@ impl PacketListState {
 
     pub fn is_marked_for_comparison(&self, index: usize) -> bool {
         self.comparison_marks.contains(&index)
+    }
+
+    pub fn add_annotation(&mut self, index: usize, note: String) {
+        if !note.is_empty() {
+            self.annotations.insert(index, note);
+        }
+    }
+
+    pub fn remove_annotation(&mut self, index: usize) {
+        self.annotations.remove(&index);
+    }
+
+    pub fn get_annotation(&self, index: usize) -> Option<&String> {
+        self.annotations.get(&index)
+    }
+
+    pub fn has_annotation(&self, index: usize) -> bool {
+        self.annotations.contains_key(&index)
     }
 }
 
@@ -792,6 +814,7 @@ impl App {
                                         PacketViewMode::List => PacketViewMode::Statistics,
                                         PacketViewMode::Statistics => PacketViewMode::List,
                                         PacketViewMode::Timeline => PacketViewMode::Statistics,
+                                        PacketViewMode::Comparison => PacketViewMode::Statistics,
                                     };
                                     return Ok(());
                                 }
@@ -801,6 +824,7 @@ impl App {
                                         PacketViewMode::List => PacketViewMode::Timeline,
                                         PacketViewMode::Timeline => PacketViewMode::List,
                                         PacketViewMode::Statistics => PacketViewMode::Timeline,
+                                        PacketViewMode::Comparison => PacketViewMode::Timeline,
                                     };
                                     return Ok(());
                                 }
@@ -834,6 +858,28 @@ impl App {
                                 KeyCode::Char('l') | KeyCode::Char('L') => {
                                     // Return to list view
                                     pls.view_mode = PacketViewMode::List;
+                                    return Ok(());
+                                }
+                                KeyCode::Char('c') | KeyCode::Char('C') => {
+                                    // Open comparison view if 2 packets are marked
+                                    if pls.comparison_marks.len() == 2 {
+                                        pls.view_mode = PacketViewMode::Comparison;
+                                    }
+                                    return Ok(());
+                                }
+                                KeyCode::Char('n') | KeyCode::Char('N') => {
+                                    // Add/edit annotation on selected packet
+                                    // For now, add a placeholder annotation
+                                    // TODO: Add proper text input dialog
+                                    let note = format!("Note added at {}", chrono::Utc::now().format("%H:%M:%S"));
+                                    pls.add_annotation(pls.selected_index, note);
+                                    return Ok(());
+                                }
+                                KeyCode::Delete | KeyCode::Backspace => {
+                                    // Remove annotation from selected packet (when in list view and has annotation)
+                                    if pls.view_mode == PacketViewMode::List && pls.has_annotation(pls.selected_index) {
+                                        pls.remove_annotation(pls.selected_index);
+                                    }
                                     return Ok(());
                                 }
                                 _ => {}
