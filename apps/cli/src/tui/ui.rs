@@ -80,8 +80,8 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
         AppState::Executing { tool_name, .. } => {
             render_executing(f, area, tool_name, frame_count);
         }
-        AppState::Results { tool_name, output, success, selected_capture, .. } => {
-            render_results(f, area, tool_name, output, *success, *selected_capture);
+        AppState::Results { tool_name, output, success, selected_capture, packet_list_state, .. } => {
+            render_results(f, area, tool_name, output, *success, *selected_capture, packet_list_state.as_ref());
         }
         AppState::Settings { selected_index } => {
             render_settings(f, area, *selected_index);
@@ -810,7 +810,7 @@ fn render_executing(f: &mut Frame, area: Rect, tool_name: &str, frame_count: u64
 }
 
 /// Render tool results
-fn render_results(f: &mut Frame, area: Rect, tool_name: &str, output: &serde_json::Value, success: bool, selected_capture: Option<usize>) {
+fn render_results(f: &mut Frame, area: Rect, tool_name: &str, output: &serde_json::Value, success: bool, selected_capture: Option<usize>, packet_list_state: Option<&crate::tui::app::PacketListState>) {
     // Split into header and content
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -846,6 +846,12 @@ fn render_results(f: &mut Frame, area: Rect, tool_name: &str, output: &serde_jso
     // Special formatting for bt_analyze - show analysis results
     if tool_name == "bt_analyze" && success {
         render_analysis_results(f, chunks[1], output);
+        return;
+    }
+
+    // Special formatting for bt_decode - show packet list
+    if tool_name == "bt_decode" && success {
+        render_decoded_packets(f, chunks[1], output, packet_list_state);
         return;
     }
 
@@ -1176,4 +1182,204 @@ fn categorize_error(error_msg: &str) -> (&'static str, &str, Option<&'static str
             None,
         )
     }
+}
+/// Render decoded packet list for bt_decode
+fn render_decoded_packets(f: &mut Frame, area: Rect, output: &serde_json::Value, packet_list_state: Option<&crate::tui::app::PacketListState>) {
+    use ratatui::{
+        layout::{Constraint, Layout},
+        style::{Color, Modifier, Style},
+        text::{Line, Span},
+        widgets::{Block, Borders, Paragraph, Wrap},
+    };
+
+    let packets = match output.get("decoded_packets").and_then(|p| p.as_array()) {
+        Some(p) => p,
+        None => {
+            let text = vec![
+                Line::from(""),
+                Line::from("No packets to display"),
+                Line::from(""),
+                Line::from(Span::styled(
+                    "The capture may be empty or the decode limit was 0.",
+                    Style::default().fg(Color::Gray),
+                )),
+            ];
+            let paragraph = Paragraph::new(text)
+                .block(Block::default().borders(Borders::ALL).title("Decoded Packets"))
+                .alignment(ratatui::layout::Alignment::Center);
+            f.render_widget(paragraph, area);
+            return;
+        }
+    };
+
+    let packet_count = packets.len();
+    if packet_count == 0 {
+        let text = vec![
+            Line::from(""),
+            Line::from("No packets to display"),
+            Line::from(""),
+            Line::from(Span::styled(
+                "The capture may be empty or the decode limit was 0.",
+                Style::default().fg(Color::Gray),
+            )),
+        ];
+        let paragraph = Paragraph::new(text)
+            .block(Block::default().borders(Borders::ALL).title("Decoded Packets"))
+            .alignment(ratatui::layout::Alignment::Center);
+        f.render_widget(paragraph, area);
+        return;
+    }
+
+    let default_state = crate::tui::app::PacketListState::new();
+    let state = packet_list_state.unwrap_or(&default_state);
+
+    // Calculate visible area
+    let visible_height = area.height.saturating_sub(4) as usize; // Account for borders and header
+    let start_idx = state.scroll_offset;
+    let end_idx = (start_idx + visible_height).min(packet_count);
+
+    let mut lines = vec![];
+
+    // Header line
+    lines.push(Line::from(vec![
+        Span::styled(" # ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::styled("Time          ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::styled("Ch ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::styled("RSSI ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::styled("Type          ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::styled("MAC Address             ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::styled("Proto ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::styled("Summary", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+    ]));
+
+    lines.push(Line::from(Span::styled(
+        "━".repeat(area.width as usize - 2),
+        Style::default().fg(Color::DarkGray),
+    )));
+
+    // Render visible packets
+    for idx in start_idx..end_idx {
+        if let Some(packet) = packets.get(idx) {
+            let is_selected = idx == state.selected_index;
+            let is_expanded = state.is_expanded(idx);
+
+            // Extract packet fields
+            let frame_num = packet.get("frame_number").and_then(|v| v.as_str()).unwrap_or("?");
+            let timestamp = packet.get("timestamp").and_then(|v| v.as_str()).unwrap_or("Unknown");
+            let time_short = timestamp.split(',').last().unwrap_or(timestamp).trim();
+            let time_display = if time_short.len() > 12 {
+                &time_short[time_short.len() - 12..]
+            } else {
+                time_short
+            };
+
+            let channel = packet.get("channel").and_then(|v| v.as_str()).unwrap_or("?");
+            let rssi = packet.get("rssi").and_then(|v| v.as_str()).unwrap_or("?");
+            let packet_type = packet.get("packet_type").and_then(|v| v.as_str()).unwrap_or("?");
+            let mac_address = packet.get("mac_address").and_then(|v| v.as_str()).unwrap_or("N/A");
+            let protocol = packet.get("protocol").and_then(|v| v.as_str()).unwrap_or("?");
+            let summary = packet.get("summary").and_then(|v| v.as_str()).unwrap_or("");
+
+            // Color based on packet type
+            let type_color = match packet_type {
+                "ADV_IND" | "ADV_NONCONN_IND" | "ADV_SCAN_IND" => Color::Green,
+                "SCAN_REQ" | "SCAN_RSP" => Color::Cyan,
+                "CONNECT_REQ" => Color::Yellow,
+                "DATA" => Color::Blue,
+                _ => Color::White,
+            };
+
+            // Selection indicator
+            let indicator = if is_selected {
+                if is_expanded { "▼" } else { "▶" }
+            } else {
+                " "
+            };
+
+            let bg_color = if is_selected {
+                Color::DarkGray
+            } else {
+                Color::Reset
+            };
+
+            // Main packet row
+            lines.push(Line::from(vec![
+                Span::styled(indicator, Style::default().fg(Color::Yellow).bg(bg_color)),
+                Span::styled(format!("{:3} ", frame_num), Style::default().fg(Color::Gray).bg(bg_color)),
+                Span::styled(format!("{:12} ", time_display), Style::default().fg(Color::White).bg(bg_color)),
+                Span::styled(format!("{:2} ", channel), Style::default().fg(Color::Magenta).bg(bg_color)),
+                Span::styled(format!("{:4} ", rssi), Style::default().fg(Color::Red).bg(bg_color)),
+                Span::styled(format!("{:13} ", packet_type), Style::default().fg(type_color).bg(bg_color)),
+                Span::styled(format!("{:23} ", mac_address), Style::default().fg(Color::Cyan).bg(bg_color)),
+                Span::styled(format!("{:5} ", protocol), Style::default().fg(Color::Blue).bg(bg_color)),
+                Span::styled(summary, Style::default().fg(Color::White).bg(bg_color)),
+            ]));
+
+            // Expanded view
+            if is_expanded {
+                let access_addr = packet.get("access_addr").and_then(|v| v.as_str()).unwrap_or("Unknown");
+
+                lines.push(Line::from(vec![
+                    Span::raw("  │ "),
+                    Span::styled("Access Address: ", Style::default().fg(Color::Gray)),
+                    Span::styled(access_addr, Style::default().fg(Color::White)),
+                ]));
+
+                lines.push(Line::from(vec![
+                    Span::raw("  │ "),
+                    Span::styled("Full timestamp: ", Style::default().fg(Color::Gray)),
+                    Span::styled(timestamp, Style::default().fg(Color::White)),
+                ]));
+
+                // Show protocol layers if available
+                if let Some(full_packet) = packet.get("full_packet") {
+                    if let Some(layers) = full_packet.get("_source").and_then(|s| s.get("layers")) {
+                        let layer_names: Vec<String> = if let Some(obj) = layers.as_object() {
+                            obj.keys().map(|k| k.to_string()).collect()
+                        } else {
+                            vec![]
+                        };
+
+                        if !layer_names.is_empty() {
+                            lines.push(Line::from(vec![
+                                Span::raw("  │ "),
+                                Span::styled("Layers: ", Style::default().fg(Color::Gray)),
+                                Span::styled(layer_names.join(" → "), Style::default().fg(Color::Cyan)),
+                            ]));
+                        }
+                    }
+                }
+
+                lines.push(Line::from(vec![
+                    Span::raw("  │ "),
+                    Span::styled("[Press Enter to collapse, v for full raw data]", Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC)),
+                ]));
+
+                lines.push(Line::from("  │"));
+            }
+        }
+    }
+
+    // Footer with navigation hints and stats
+    lines.push(Line::from(""));
+    lines.push(Line::from(vec![
+        Span::styled("Navigation: ", Style::default().fg(Color::Yellow)),
+        Span::styled("↑↓", Style::default().fg(Color::Cyan)),
+        Span::raw(" scroll  "),
+        Span::styled("PgUp/PgDn", Style::default().fg(Color::Cyan)),
+        Span::raw(" jump  "),
+        Span::styled("Home/End", Style::default().fg(Color::Cyan)),
+        Span::raw(" first/last  "),
+        Span::styled("Enter", Style::default().fg(Color::Cyan)),
+        Span::raw(" expand  "),
+        Span::raw(" │ "),
+        Span::styled(format!("Showing {}-{} of {} packets", start_idx + 1, end_idx, packet_count), Style::default().fg(Color::Gray)),
+    ]));
+
+    let title = format!(" Decoded Packets ({} total) ", packet_count);
+    let paragraph = Paragraph::new(lines)
+        .block(Block::default().borders(Borders::ALL).title(title))
+        .wrap(Wrap { trim: false });
+
+    f.render_widget(paragraph, area);
 }

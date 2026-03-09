@@ -60,6 +60,8 @@ pub enum AppState {
         success: bool,
         selected_capture: Option<usize>,
         tool: Option<Arc<dyn PentestTool>>,
+        // Packet list state for bt_decode
+        packet_list_state: Option<PacketListState>,
     },
 
     /// Settings page
@@ -90,6 +92,50 @@ pub struct DeviceStatus {
 pub struct Notification {
     pub message: String,
     pub success: bool,
+}
+
+/// Packet list state for bt_decode view
+#[derive(Debug, Clone)]
+pub struct PacketListState {
+    /// Currently selected packet index
+    pub selected_index: usize,
+    /// Set of expanded packet indices
+    pub expanded_packets: std::collections::HashSet<usize>,
+    /// Scroll offset (for large lists)
+    pub scroll_offset: usize,
+    /// Active filters
+    pub filters: PacketFilters,
+}
+
+/// Filters for packet list
+#[derive(Debug, Clone, Default)]
+pub struct PacketFilters {
+    pub packet_type: Option<String>,
+    pub mac_address: Option<String>,
+    pub time_range: Option<(f64, f64)>,
+}
+
+impl PacketListState {
+    pub fn new() -> Self {
+        Self {
+            selected_index: 0,
+            expanded_packets: std::collections::HashSet::new(),
+            scroll_offset: 0,
+            filters: PacketFilters::default(),
+        }
+    }
+
+    pub fn toggle_expanded(&mut self, index: usize) {
+        if self.expanded_packets.contains(&index) {
+            self.expanded_packets.remove(&index);
+        } else {
+            self.expanded_packets.insert(index);
+        }
+    }
+
+    pub fn is_expanded(&self, index: usize) -> bool {
+        self.expanded_packets.contains(&index)
+    }
 }
 
 /// Main TUI application
@@ -235,12 +281,20 @@ impl App {
                                                 None
                                             };
 
+                                            // Initialize packet list state for bt_decode
+                                            let packet_list_state = if tool_name == "bt_decode" {
+                                                Some(PacketListState::new())
+                                            } else {
+                                                None
+                                            };
+
                                             self.state = AppState::Results {
                                                 tool_name,
                                                 output,
                                                 success: true,
                                                 selected_capture,
                                                 tool: None, // TODO: Store tool for re-parameterization
+                                                packet_list_state,
                                             };
                                         }
                                     }
@@ -266,6 +320,7 @@ impl App {
                                                 success: false,
                                                 selected_capture: None,
                                                 tool: None,
+                                                packet_list_state: None,
                                             };
                                         }
                                     }
@@ -289,6 +344,7 @@ impl App {
                             success: false,
                             selected_capture: None,
                             tool: None,
+                            packet_list_state: None,
                         };
                     }
                 }
@@ -629,6 +685,69 @@ impl App {
             return Ok(());
         }
 
+        // Handle bt_decode packet list navigation
+        if let AppState::Results { tool_name, output, packet_list_state, .. } = &mut self.state {
+            if *tool_name == "bt_decode" {
+                if let Some(pls) = packet_list_state {
+                    if let Event::Key(KeyEvent { code, .. }) = event {
+                        if let Some(packets) = output.get("decoded_packets").and_then(|p| p.as_array()) {
+                            let packet_count = packets.len();
+
+                            match code {
+                                KeyCode::Up => {
+                                    if pls.selected_index > 0 {
+                                        pls.selected_index -= 1;
+                                        // Adjust scroll if needed
+                                        if pls.selected_index < pls.scroll_offset {
+                                            pls.scroll_offset = pls.selected_index;
+                                        }
+                                    }
+                                    return Ok(());
+                                }
+                                KeyCode::Down => {
+                                    if pls.selected_index < packet_count.saturating_sub(1) {
+                                        pls.selected_index += 1;
+                                        // Adjust scroll if needed (assume 20 visible lines)
+                                        let visible_lines = 20;
+                                        if pls.selected_index >= pls.scroll_offset + visible_lines {
+                                            pls.scroll_offset = pls.selected_index - visible_lines + 1;
+                                        }
+                                    }
+                                    return Ok(());
+                                }
+                                KeyCode::PageUp => {
+                                    pls.selected_index = pls.selected_index.saturating_sub(10);
+                                    pls.scroll_offset = pls.scroll_offset.saturating_sub(10);
+                                    return Ok(());
+                                }
+                                KeyCode::PageDown => {
+                                    pls.selected_index = (pls.selected_index + 10).min(packet_count.saturating_sub(1));
+                                    pls.scroll_offset = (pls.scroll_offset + 10).min(packet_count.saturating_sub(20));
+                                    return Ok(());
+                                }
+                                KeyCode::Home => {
+                                    pls.selected_index = 0;
+                                    pls.scroll_offset = 0;
+                                    return Ok(());
+                                }
+                                KeyCode::End => {
+                                    pls.selected_index = packet_count.saturating_sub(1);
+                                    pls.scroll_offset = packet_count.saturating_sub(20);
+                                    return Ok(());
+                                }
+                                KeyCode::Enter | KeyCode::Char(' ') => {
+                                    // Toggle expand/collapse
+                                    pls.toggle_expanded(pls.selected_index);
+                                    return Ok(());
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Normal navigation
         if let Event::Key(KeyEvent { code, .. }) = event {
             match code {
@@ -750,6 +869,7 @@ impl App {
                     success: true,
                     selected_capture: None,
                     tool: None,
+                    packet_list_state: None,
                 };
             }
             1 => {
@@ -764,6 +884,7 @@ impl App {
                     success: true,
                     selected_capture: None,
                     tool: None,
+                    packet_list_state: None,
                 };
             }
             2 => {
@@ -779,6 +900,7 @@ impl App {
                     success: true,
                     selected_capture: None,
                     tool: None,
+                    packet_list_state: None,
                 };
             }
             3 => {
@@ -794,6 +916,7 @@ impl App {
                     success: true,
                     selected_capture: None,
                     tool: None,
+                    packet_list_state: None,
                 };
             }
             4 => {
@@ -809,6 +932,7 @@ impl App {
                     success: true,
                     selected_capture: None,
                     tool: None,
+                    packet_list_state: None,
                 };
             }
             5 => {
@@ -824,6 +948,7 @@ impl App {
                     success: true,
                     selected_capture: None,
                     tool: None,
+                    packet_list_state: None,
                 };
             }
             _ => {}
@@ -1083,6 +1208,7 @@ impl App {
                 success: false,
                 selected_capture: None,
                 tool: None,
+                    packet_list_state: None,
             };
         }
 
