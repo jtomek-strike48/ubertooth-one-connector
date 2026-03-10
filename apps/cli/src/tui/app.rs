@@ -1,4 +1,36 @@
 //! TUI application state and main loop
+//!
+//! # Standard Hotkey Conventions
+//!
+//! ## Capture Management (capture_list)
+//! - `Enter` - Analyze selected capture
+//! - `V` - View capture details
+//! - `D` - Delete capture (with confirmation)
+//! - `E` - Export capture to file
+//! - `T` - Add tags to capture
+//!
+//! ## Packet Analysis (bt_decode)
+//! - `↑/↓` - Navigate packet list
+//! - `Enter` - Expand/collapse packet details
+//! - `b` - Bookmark packet
+//! - `m` - Mark packet for comparison
+//! - `f` - Follow stream (filter by MAC)
+//! - `/` - Open filter dialog
+//! - `e` - Open export menu
+//! - `n` - Add/edit annotation
+//! - `l/s/t/c` - Switch view modes (list/statistics/timeline/comparison)
+//!
+//! ## Analysis Results (bt_analyze)
+//! - `o` - Overview mode
+//! - `d` - Devices mode (interactive list)
+//! - `s` - Security observations mode
+//! - `t` - Timing analysis mode
+//! - `↑/↓` - Navigate items (in devices/security modes)
+//! - `Enter` - Expand/collapse details
+//!
+//! ## Global
+//! - `Esc` - Go back / Cancel
+//! - `q` - Quit application
 
 use anyhow::Result;
 use crossterm::{

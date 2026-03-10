@@ -1315,8 +1315,13 @@ fn render_footer(f: &mut Frame, area: Rect, state: &AppState) {
         AppState::Executing { .. } => {
             "Executing... please wait"
         }
-        AppState::Results { .. } => {
-            "[Esc] Back to Menu"
+        AppState::Results { tool_name, .. } => {
+            match tool_name.as_str() {
+                "capture_list" => "[↑/↓] Navigate  [Enter] Analyze  [V] View  [D] Delete  [E] Export  [T] Tag",
+                "bt_decode" => "[↑/↓] Navigate  [Enter] Expand  [b] Bookmark  [m] Mark  [/] Filter  [e] Export",
+                "bt_analyze" => "[o/d/s/t] View Modes  [↑/↓] Navigate  [Enter] Expand  [Esc] Back",
+                _ => "[Esc] Back to Menu"
+            }
         }
         AppState::Settings { .. } => {
             "[Esc] Back to Menu"
