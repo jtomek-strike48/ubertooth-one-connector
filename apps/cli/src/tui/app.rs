@@ -73,12 +73,70 @@ pub enum AppState {
         message: String,
         on_confirm: ConfirmAction,
     },
+
+    /// Export menu for packet data
+    ExportMenu {
+        selected_index: usize,
+        // Context from Results state
+        packets: Vec<serde_json::Value>,
+        packet_list_state: PacketListState,
+        // Store full results state to return to
+        previous_tool_name: String,
+        previous_output: serde_json::Value,
+        previous_success: bool,
+    },
 }
 
 /// Action to take on confirmation
 #[derive(Debug)]
 pub enum ConfirmAction {
     DeleteCapture(String),
+}
+
+/// Export options for packet data
+#[derive(Debug, Clone, Copy)]
+pub enum ExportOption {
+    BookmarkedPackets,
+    FilteredPackets,
+    Statistics,
+    ComparisonReport,
+    TimelineData,
+    AllPackets,
+}
+
+impl ExportOption {
+    pub fn all() -> Vec<Self> {
+        vec![
+            Self::BookmarkedPackets,
+            Self::FilteredPackets,
+            Self::Statistics,
+            Self::ComparisonReport,
+            Self::TimelineData,
+            Self::AllPackets,
+        ]
+    }
+
+    pub fn label(&self) -> &str {
+        match self {
+            Self::BookmarkedPackets => "Export Bookmarked Packets (JSON)",
+            Self::FilteredPackets => "Export Filtered Packets (JSON)",
+            Self::Statistics => "Export Statistics (JSON)",
+            Self::ComparisonReport => "Export Comparison Report (Markdown)",
+            Self::TimelineData => "Export Timeline Data (CSV)",
+            Self::AllPackets => "Export All Packets (JSON)",
+        }
+    }
+
+    pub fn description(&self) -> &str {
+        match self {
+            Self::BookmarkedPackets => "Export only packets marked with bookmarks (★)",
+            Self::FilteredPackets => "Export packets matching current filters",
+            Self::Statistics => "Export packet statistics and distribution data",
+            Self::ComparisonReport => "Export side-by-side comparison of marked packets",
+            Self::TimelineData => "Export timeline activity data as CSV",
+            Self::AllPackets => "Export all packets in the current capture",
+        }
+    }
 }
 
 /// Text input dialog context
@@ -808,7 +866,7 @@ impl App {
         }
 
         // Handle bt_decode packet list navigation
-        if let AppState::Results { tool_name, output, packet_list_state, .. } = &mut self.state {
+        if let AppState::Results { tool_name, output, success, packet_list_state, .. } = &mut self.state {
             if *tool_name == "bt_decode" {
                 if let Some(pls) = packet_list_state {
                     if let Event::Key(KeyEvent { code, .. }) = event {
@@ -946,12 +1004,107 @@ impl App {
                                     }
                                     return Ok(());
                                 }
+                                KeyCode::Char('e') | KeyCode::Char('E') => {
+                                    // Open export menu - store current state to return to
+                                    let tool_name_clone = tool_name.clone();
+                                    let output_clone = output.clone();
+                                    let success_clone = *success;
+
+                                    self.state = AppState::ExportMenu {
+                                        selected_index: 0,
+                                        packets: packets.clone(),
+                                        packet_list_state: pls.clone(),
+                                        previous_tool_name: tool_name_clone,
+                                        previous_output: output_clone,
+                                        previous_success: success_clone,
+                                    };
+                                    return Ok(());
+                                }
                                 _ => {}
                             }
                         }
                     }
                 }
             }
+        }
+
+        // Handle export menu
+        if let AppState::ExportMenu { selected_index, packets, packet_list_state, previous_tool_name, previous_output, previous_success } = &mut self.state {
+            if let Event::Key(KeyEvent { code, .. }) = event {
+                let options = ExportOption::all();
+                match code {
+                    KeyCode::Up => {
+                        if *selected_index > 0 {
+                            *selected_index -= 1;
+                        }
+                        return Ok(());
+                    }
+                    KeyCode::Down => {
+                        if *selected_index < options.len().saturating_sub(1) {
+                            *selected_index += 1;
+                        }
+                        return Ok(());
+                    }
+                    KeyCode::Enter => {
+                        // Execute export
+                        let option = options[*selected_index];
+                        let packets_clone = packets.clone();
+                        let state_clone = packet_list_state.clone();
+
+                        // Store previous state to restore
+                        let prev_tool = previous_tool_name.clone();
+                        let prev_output = previous_output.clone();
+                        let prev_success = *previous_success;
+                        let prev_state = packet_list_state.clone();
+
+                        // Return to results view
+                        self.state = AppState::Results {
+                            tool_name: prev_tool,
+                            output: prev_output,
+                            success: prev_success,
+                            selected_capture: None,
+                            tool: None,
+                            packet_list_state: Some(prev_state),
+                        };
+
+                        // Perform export
+                        match self.export_packets(option, packets_clone, state_clone) {
+                            Ok(path) => {
+                                self.notification = Some(Notification {
+                                    message: format!("Exported to: {}", path),
+                                    success: true,
+                                });
+                            }
+                            Err(e) => {
+                                self.notification = Some(Notification {
+                                    message: format!("Export failed: {}", e),
+                                    success: false,
+                                });
+                            }
+                        }
+                        return Ok(());
+                    }
+                    KeyCode::Esc => {
+                        // Restore previous results state
+                        let prev_tool = previous_tool_name.clone();
+                        let prev_output = previous_output.clone();
+                        let prev_success = *previous_success;
+                        let prev_state = packet_list_state.clone();
+
+                        self.state = AppState::Results {
+                            tool_name: prev_tool,
+                            output: prev_output,
+                            success: prev_success,
+                            selected_capture: None,
+                            tool: None,
+                            packet_list_state: Some(prev_state),
+                        };
+                        return Ok(());
+                    }
+                    _ => {}
+                }
+            }
+            return Ok(());
         }
 
         // Normal navigation
@@ -1561,6 +1714,235 @@ impl App {
         }
 
         Ok(())
+    }
+
+    /// Export packets based on selected option
+    fn export_packets(&self, option: ExportOption, packets: Vec<serde_json::Value>, state: PacketListState) -> Result<String> {
+        use std::fs;
+        use std::path::PathBuf;
+
+        // Create export directory
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        let export_dir = PathBuf::from(home).join(".ubertooth").join("exports");
+        fs::create_dir_all(&export_dir)?;
+
+        // Generate filename with timestamp
+        let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
+
+        match option {
+            ExportOption::BookmarkedPackets => {
+                let bookmarked: Vec<_> = packets.iter()
+                    .enumerate()
+                    .filter(|(idx, _)| state.is_bookmarked(*idx))
+                    .map(|(_, pkt)| pkt.clone())
+                    .collect();
+
+                let filename = format!("bookmarked_packets_{}.json", timestamp);
+                let path = export_dir.join(&filename);
+                let json = serde_json::to_string_pretty(&serde_json::json!({
+                    "exported_at": chrono::Utc::now().to_rfc3339(),
+                    "export_type": "bookmarked_packets",
+                    "packet_count": bookmarked.len(),
+                    "packets": bookmarked,
+                }))?;
+                fs::write(&path, json)?;
+                Ok(path.to_string_lossy().to_string())
+            }
+
+            ExportOption::FilteredPackets => {
+                let filtered: Vec<_> = packets.iter()
+                    .filter(|pkt| {
+                        // Apply filters from state
+                        if let Some(ref follow_mac) = state.follow_mac {
+                            if let Some(mac) = pkt.get("mac_address").and_then(|m| m.as_str()) {
+                                return mac == follow_mac;
+                            }
+                            return false;
+                        }
+                        true
+                    })
+                    .cloned()
+                    .collect();
+
+                let filename = format!("filtered_packets_{}.json", timestamp);
+                let path = export_dir.join(&filename);
+                let json = serde_json::to_string_pretty(&serde_json::json!({
+                    "exported_at": chrono::Utc::now().to_rfc3339(),
+                    "export_type": "filtered_packets",
+                    "filter": state.follow_mac.clone().unwrap_or_else(|| "none".to_string()),
+                    "packet_count": filtered.len(),
+                    "packets": filtered,
+                }))?;
+                fs::write(&path, json)?;
+                Ok(path.to_string_lossy().to_string())
+            }
+
+            ExportOption::Statistics => {
+                // Calculate statistics
+                let mut packet_types = std::collections::HashMap::new();
+                let mut channels = std::collections::HashMap::new();
+                let mut rssi_values = Vec::new();
+                let mut mac_addresses = std::collections::HashSet::new();
+
+                for packet in &packets {
+                    if let Some(pkt_type) = packet.get("packet_type").and_then(|t| t.as_str()) {
+                        *packet_types.entry(pkt_type.to_string()).or_insert(0) += 1;
+                    }
+                    if let Some(channel) = packet.get("channel").and_then(|c| c.as_str()) {
+                        *channels.entry(channel.to_string()).or_insert(0) += 1;
+                    }
+                    if let Some(rssi) = packet.get("rssi").and_then(|r| r.as_str()).and_then(|s| s.parse::<i32>().ok()) {
+                        rssi_values.push(rssi);
+                    }
+                    if let Some(mac) = packet.get("mac_address").and_then(|m| m.as_str()) {
+                        mac_addresses.insert(mac.to_string());
+                    }
+                }
+
+                let (rssi_min, rssi_max, rssi_avg) = if !rssi_values.is_empty() {
+                    let min = *rssi_values.iter().min().unwrap();
+                    let max = *rssi_values.iter().max().unwrap();
+                    let avg = rssi_values.iter().sum::<i32>() as f64 / rssi_values.len() as f64;
+                    (min, max, avg)
+                } else {
+                    (0, 0, 0.0)
+                };
+
+                let filename = format!("statistics_{}.json", timestamp);
+                let path = export_dir.join(&filename);
+                let json = serde_json::to_string_pretty(&serde_json::json!({
+                    "exported_at": chrono::Utc::now().to_rfc3339(),
+                    "export_type": "statistics",
+                    "total_packets": packets.len(),
+                    "packet_types": packet_types,
+                    "channels": channels,
+                    "rssi": {
+                        "min": rssi_min,
+                        "max": rssi_max,
+                        "avg": rssi_avg,
+                    },
+                    "unique_mac_addresses": mac_addresses.len(),
+                    "mac_addresses": mac_addresses.into_iter().collect::<Vec<_>>(),
+                }))?;
+                fs::write(&path, json)?;
+                Ok(path.to_string_lossy().to_string())
+            }
+
+            ExportOption::ComparisonReport => {
+                if state.comparison_marks.len() != 2 {
+                    return Err(anyhow::anyhow!("Exactly 2 packets must be marked for comparison"));
+                }
+
+                let idx1 = state.comparison_marks[0];
+                let idx2 = state.comparison_marks[1];
+                let pkt1 = packets.get(idx1).ok_or_else(|| anyhow::anyhow!("Packet 1 not found"))?;
+                let pkt2 = packets.get(idx2).ok_or_else(|| anyhow::anyhow!("Packet 2 not found"))?;
+
+                let filename = format!("comparison_report_{}.md", timestamp);
+                let path = export_dir.join(&filename);
+
+                let get_field = |pkt: &serde_json::Value, field: &str| {
+                    pkt.get(field).and_then(|v| v.as_str()).unwrap_or("N/A").to_string()
+                };
+
+                let mut report = String::new();
+                report.push_str("# Packet Comparison Report\n\n");
+                report.push_str(&format!("**Generated**: {}\n\n", chrono::Utc::now().to_rfc3339()));
+                report.push_str("## Packet A\n\n");
+                report.push_str(&format!("- **Index**: {}\n", idx1));
+                report.push_str(&format!("- **Frame**: {}\n", get_field(pkt1, "frame_number")));
+                report.push_str(&format!("- **Timestamp**: {}\n", get_field(pkt1, "timestamp")));
+                report.push_str(&format!("- **Channel**: {}\n", get_field(pkt1, "channel")));
+                report.push_str(&format!("- **RSSI**: {} dBm\n", get_field(pkt1, "rssi")));
+                report.push_str(&format!("- **Type**: {}\n", get_field(pkt1, "packet_type")));
+                report.push_str(&format!("- **MAC**: {}\n", get_field(pkt1, "mac_address")));
+                report.push_str(&format!("- **Protocol**: {}\n", get_field(pkt1, "protocol")));
+                report.push_str(&format!("- **Access Address**: {}\n", get_field(pkt1, "access_addr")));
+                report.push_str(&format!("- **Summary**: {}\n\n", get_field(pkt1, "summary")));
+
+                if let Some(note) = state.get_annotation(idx1) {
+                    report.push_str(&format!("**Note**: {}\n\n", note));
+                }
+
+                report.push_str("## Packet B\n\n");
+                report.push_str(&format!("- **Index**: {}\n", idx2));
+                report.push_str(&format!("- **Frame**: {}\n", get_field(pkt2, "frame_number")));
+                report.push_str(&format!("- **Timestamp**: {}\n", get_field(pkt2, "timestamp")));
+                report.push_str(&format!("- **Channel**: {}\n", get_field(pkt2, "channel")));
+                report.push_str(&format!("- **RSSI**: {} dBm\n", get_field(pkt2, "rssi")));
+                report.push_str(&format!("- **Type**: {}\n", get_field(pkt2, "packet_type")));
+                report.push_str(&format!("- **MAC**: {}\n", get_field(pkt2, "mac_address")));
+                report.push_str(&format!("- **Protocol**: {}\n", get_field(pkt2, "protocol")));
+                report.push_str(&format!("- **Access Address**: {}\n", get_field(pkt2, "access_addr")));
+                report.push_str(&format!("- **Summary**: {}\n\n", get_field(pkt2, "summary")));
+
+                if let Some(note) = state.get_annotation(idx2) {
+                    report.push_str(&format!("**Note**: {}\n\n", note));
+                }
+
+                report.push_str("## Differences\n\n");
+                let fields = vec![
+                    ("Channel", "channel"),
+                    ("RSSI", "rssi"),
+                    ("Type", "packet_type"),
+                    ("MAC Address", "mac_address"),
+                    ("Protocol", "protocol"),
+                    ("Access Address", "access_addr"),
+                ];
+
+                for (label, field) in fields {
+                    let val1 = get_field(pkt1, field);
+                    let val2 = get_field(pkt2, field);
+                    if val1 != val2 {
+                        report.push_str(&format!("- **{}**: `{}` → `{}`\n", label, val1, val2));
+                    }
+                }
+
+                fs::write(&path, report)?;
+                Ok(path.to_string_lossy().to_string())
+            }
+
+            ExportOption::TimelineData => {
+                let filename = format!("timeline_{}.csv", timestamp);
+                let path = export_dir.join(&filename);
+
+                let mut csv = String::new();
+                csv.push_str("index,frame_number,timestamp,channel,rssi,packet_type,mac_address\n");
+
+                for (idx, packet) in packets.iter().enumerate() {
+                    let get_field = |field: &str| {
+                        packet.get(field).and_then(|v| v.as_str()).unwrap_or("").to_string()
+                    };
+
+                    csv.push_str(&format!(
+                        "{},{},{},{},{},{},{}\n",
+                        idx,
+                        get_field("frame_number"),
+                        get_field("timestamp"),
+                        get_field("channel"),
+                        get_field("rssi"),
+                        get_field("packet_type"),
+                        get_field("mac_address")
+                    ));
+                }
+
+                fs::write(&path, csv)?;
+                Ok(path.to_string_lossy().to_string())
+            }
+
+            ExportOption::AllPackets => {
+                let filename = format!("all_packets_{}.json", timestamp);
+                let path = export_dir.join(&filename);
+                let json = serde_json::to_string_pretty(&serde_json::json!({
+                    "exported_at": chrono::Utc::now().to_rfc3339(),
+                    "export_type": "all_packets",
+                    "packet_count": packets.len(),
+                    "packets": packets,
+                }))?;
+                fs::write(&path, json)?;
+                Ok(path.to_string_lossy().to_string())
+            }
+        }
     }
 
     /// Launch capture_tag

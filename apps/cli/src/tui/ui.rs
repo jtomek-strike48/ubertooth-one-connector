@@ -94,6 +94,9 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
         AppState::Confirmation { message, .. } => {
             render_confirmation(f, area, message);
         }
+        AppState::ExportMenu { selected_index, packets, packet_list_state, .. } => {
+            render_export_menu(f, area, *selected_index, packets.len(), packet_list_state);
+        }
     }
 }
 
@@ -1005,6 +1008,9 @@ fn render_footer(f: &mut Frame, area: Rect, state: &AppState) {
         }
         AppState::Confirmation { .. } => {
             "[Y] Confirm  [N] Cancel"
+        }
+        AppState::ExportMenu { .. } => {
+            "[↑/↓] Navigate  [Enter] Export  [Esc] Cancel"
         }
     };
 
@@ -2189,4 +2195,94 @@ fn render_dialog(f: &mut Frame, area: Rect, dialog: &TextInputDialog) {
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT));
     f.render_widget(help, dialog_chunks[2]);
+}
+
+/// Render export menu
+fn render_export_menu(f: &mut Frame, area: Rect, selected_index: usize, packet_count: usize, state: &crate::tui::app::PacketListState) {
+    use crate::tui::app::ExportOption;
+
+    let options = ExportOption::all();
+
+    // Build menu items with availability info
+    let items: Vec<ListItem> = options.iter().enumerate().map(|(idx, opt)| {
+        let is_available = match opt {
+            ExportOption::BookmarkedPackets => !state.bookmarks.is_empty(),
+            ExportOption::FilteredPackets => state.follow_mac.is_some(),
+            ExportOption::ComparisonReport => state.comparison_marks.len() == 2,
+            _ => true,
+        };
+
+        let count_info = match opt {
+            ExportOption::BookmarkedPackets => format!(" ({} bookmarks)", state.bookmarks.len()),
+            ExportOption::FilteredPackets => {
+                if let Some(ref mac) = state.follow_mac {
+                    format!(" (following {})", mac)
+                } else {
+                    " (no filter active)".to_string()
+                }
+            }
+            ExportOption::ComparisonReport => format!(" ({}/2 marked)", state.comparison_marks.len()),
+            _ => format!(" ({} packets)", packet_count),
+        };
+
+        let label = format!("{}  {}", opt.label(), count_info);
+        let description = opt.description();
+
+        let style = if idx == selected_index {
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+        } else if !is_available {
+            Style::default().fg(Color::DarkGray)
+        } else {
+            Style::default().fg(Color::White)
+        };
+
+        let content = vec![
+            Line::from(Span::styled(label, style)),
+            Line::from(Span::styled(
+                format!("  {}", description),
+                Style::default().fg(Color::Gray).add_modifier(Modifier::ITALIC),
+            )),
+            Line::from(""),
+        ];
+
+        ListItem::new(content)
+    }).collect();
+
+    let list = List::new(items)
+        .block(Block::default().borders(Borders::ALL).title(" Export Menu "))
+        .highlight_style(Style::default().add_modifier(Modifier::BOLD));
+
+    // Split into list and help
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Min(20),     // Export options list
+            Constraint::Length(5),   // Help
+        ])
+        .split(area);
+
+    f.render_widget(list, chunks[0]);
+
+    // Help text
+    let help_text = vec![
+        Line::from(vec![
+            Span::styled("↑/↓", Style::default().fg(Color::Cyan)),
+            Span::raw(" Navigate  "),
+            Span::styled("Enter", Style::default().fg(Color::Green)),
+            Span::raw(" Export  "),
+            Span::styled("Esc", Style::default().fg(Color::Red)),
+            Span::raw(" Cancel"),
+        ]),
+        Line::from(""),
+        Line::from(Span::styled(
+            "Exports are saved to ~/.ubertooth/exports/",
+            Style::default().fg(Color::Gray).add_modifier(Modifier::ITALIC),
+        )),
+    ];
+
+    let help = Paragraph::new(help_text)
+        .block(Block::default().borders(Borders::ALL).title(" Help "))
+        .alignment(Alignment::Center);
+
+    f.render_widget(help, chunks[1]);
 }
