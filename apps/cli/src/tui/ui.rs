@@ -10,11 +10,11 @@ use ratatui::{
 use std::sync::Arc;
 use ubertooth_core::ToolRegistry;
 
-use super::app::{AppState, DeviceStatus, Notification};
+use super::app::{AppState, DeviceStatus, Notification, TextInputDialog};
 use super::views::{Category, FieldInputMode, FieldType};
 
 /// Render the entire UI
-pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>, device_status: &DeviceStatus, notification: &Option<Notification>, frame_count: u64) {
+pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>, device_status: &DeviceStatus, notification: &Option<Notification>, frame_count: u64, dialog: &Option<TextInputDialog>) {
     // Main layout: header + content + footer
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -32,6 +32,11 @@ pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>, dev
     // Render notification on top if present
     if let Some(notif) = notification {
         render_notification(f, f.size(), notif);
+    }
+
+    // Render dialog overlay on top if present
+    if let Some(dlg) = dialog {
+        render_dialog(f, f.size(), dlg);
     }
 }
 
@@ -2126,4 +2131,62 @@ fn render_packet_comparison(f: &mut Frame, area: Rect, packets: &[serde_json::Va
     // Render both packets side by side
     render_packet_details(packet1, idx1, chunks[0], f);
     render_packet_details(packet2, idx2, chunks[1], f);
+}
+
+/// Render text input dialog overlay
+fn render_dialog(f: &mut Frame, area: Rect, dialog: &TextInputDialog) {
+    use ratatui::widgets::Clear;
+
+    // Create centered dialog area
+    let dialog_width = area.width.saturating_sub(20).min(80);
+    let dialog_height = 10;
+    let dialog_x = (area.width.saturating_sub(dialog_width)) / 2;
+    let dialog_y = (area.height.saturating_sub(dialog_height)) / 2;
+
+    let dialog_area = Rect {
+        x: dialog_x,
+        y: dialog_y,
+        width: dialog_width,
+        height: dialog_height,
+    };
+
+    // Clear the background
+    f.render_widget(Clear, dialog_area);
+
+    // Split dialog into title, input, and help
+    let dialog_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(3),  // Title
+            Constraint::Min(4),     // Text input
+            Constraint::Length(2),  // Help text
+        ])
+        .split(dialog_area);
+
+    // Render title
+    let title_text = format!(" {} ", dialog.title);
+    let title = Paragraph::new(title_text)
+        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::TOP | Borders::LEFT | Borders::RIGHT));
+    f.render_widget(title, dialog_chunks[0]);
+
+    // Render textarea widget
+    let widget = dialog.textarea.widget();
+    f.render_widget(widget, dialog_chunks[1]);
+
+    // Render help text
+    let help_text = vec![
+        Line::from(vec![
+            Span::styled("Enter", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw(" to submit  |  "),
+            Span::styled("Esc", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+            Span::raw(" to cancel"),
+        ]),
+    ];
+    let help = Paragraph::new(help_text)
+        .style(Style::default().fg(Color::Gray))
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::BOTTOM | Borders::LEFT | Borders::RIGHT));
+    f.render_widget(help, dialog_chunks[2]);
 }

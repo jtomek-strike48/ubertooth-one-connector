@@ -11,6 +11,7 @@ use serde_json::Value;
 use std::io;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use tui_textarea::TextArea;
 use ubertooth_core::{PentestTool, ToolRegistry};
 use ubertooth_platform::SidecarManager;
 use ubertooth_tools::create_tool_registry;
@@ -78,6 +79,27 @@ pub enum AppState {
 #[derive(Debug)]
 pub enum ConfirmAction {
     DeleteCapture(String),
+}
+
+/// Text input dialog context
+#[derive(Debug)]
+pub enum DialogContext {
+    /// Adding/editing annotation for packet index
+    Annotation { packet_index: usize },
+    /// Search functionality (future use)
+    Search,
+    /// Filter input (future use)
+    Filter { field: String },
+}
+
+/// Text input dialog state
+pub struct TextInputDialog {
+    /// The textarea widget
+    pub textarea: TextArea<'static>,
+    /// What action to take when dialog is submitted
+    pub context: DialogContext,
+    /// Dialog title
+    pub title: String,
 }
 
 /// Device connection status
@@ -232,6 +254,9 @@ pub struct App {
     /// Recently seen MAC addresses (for filtering)
     recent_macs: Vec<String>,
 
+    /// Active text input dialog (overlays on current state)
+    dialog: Option<TextInputDialog>,
+
     /// Should quit?
     should_quit: bool,
 }
@@ -255,6 +280,7 @@ impl App {
             tool_history: Vec::new(),
             favorites: Vec::new(),
             recent_macs: Vec::new(),
+            dialog: None,
             should_quit: false,
         })
     }
@@ -288,7 +314,7 @@ impl App {
                 self.frame_count = self.frame_count.wrapping_add(1);
 
                 // Render UI (catch and log any render errors)
-                if let Err(e) = terminal.draw(|f| ui::render(f, &self.state, &self.registry, &self.device_status, &self.notification, self.frame_count)) {
+                if let Err(e) = terminal.draw(|f| ui::render(f, &self.state, &self.registry, &self.device_status, &self.notification, self.frame_count, &self.dialog)) {
                     tracing::error!("Render error: {}", e);
                     // Continue anyway - might be transient
                 }
@@ -443,6 +469,34 @@ impl App {
         // Clear notification on any key press
         if matches!(event, Event::Key(_)) {
             self.notification = None;
+        }
+
+        // Handle text input dialog (highest priority)
+        if self.dialog.is_some() {
+            if let Event::Key(KeyEvent { code, .. }) = event {
+                match code {
+                    KeyCode::Esc => {
+                        // Cancel dialog
+                        self.dialog = None;
+                        return Ok(());
+                    }
+                    KeyCode::Enter => {
+                        // Submit dialog
+                        if let Some(dialog) = self.dialog.take() {
+                            self.handle_dialog_submit(dialog)?;
+                        }
+                        return Ok(());
+                    }
+                    _ => {
+                        // Pass input to textarea
+                        if let Some(dialog) = &mut self.dialog {
+                            dialog.textarea.input(event);
+                        }
+                        return Ok(());
+                    }
+                }
+            }
+            return Ok(());
         }
 
         // Handle confirmation dialog
@@ -868,11 +922,21 @@ impl App {
                                     return Ok(());
                                 }
                                 KeyCode::Char('n') | KeyCode::Char('N') => {
-                                    // Add/edit annotation on selected packet
-                                    // For now, add a placeholder annotation
-                                    // TODO: Add proper text input dialog
-                                    let note = format!("Note added at {}", chrono::Utc::now().format("%H:%M:%S"));
-                                    pls.add_annotation(pls.selected_index, note);
+                                    // Open text input dialog for annotation
+                                    let packet_index = pls.selected_index;
+                                    let existing_note = pls.get_annotation(packet_index).cloned().unwrap_or_default();
+
+                                    let mut textarea = TextArea::default();
+                                    if !existing_note.is_empty() {
+                                        // Pre-fill with existing annotation
+                                        textarea = TextArea::new(vec![existing_note]);
+                                    }
+
+                                    self.dialog = Some(TextInputDialog {
+                                        textarea,
+                                        context: DialogContext::Annotation { packet_index },
+                                        title: format!("Annotation for Packet #{}", packet_index),
+                                    });
                                     return Ok(());
                                 }
                                 KeyCode::Delete | KeyCode::Backspace => {
@@ -1398,6 +1462,45 @@ impl App {
     }
 
     /// Execute confirmed delete action
+    /// Handle dialog submission
+    fn handle_dialog_submit(&mut self, dialog: TextInputDialog) -> Result<()> {
+        let lines = dialog.textarea.lines();
+        let text = lines.join("\n").trim().to_string();
+
+        match dialog.context {
+            DialogContext::Annotation { packet_index } => {
+                // Update annotation in packet list state
+                if let AppState::Results { packet_list_state, .. } = &mut self.state {
+                    if let Some(pls) = packet_list_state {
+                        if text.is_empty() {
+                            // Remove annotation if text is empty
+                            pls.remove_annotation(packet_index);
+                        } else {
+                            // Add or update annotation
+                            pls.add_annotation(packet_index, text);
+                        }
+                    }
+                }
+            }
+            DialogContext::Search => {
+                // TODO: Implement search functionality in Task #49
+                self.notification = Some(Notification {
+                    message: "Search not yet implemented".to_string(),
+                    success: false,
+                });
+            }
+            DialogContext::Filter { field: _ } => {
+                // TODO: Implement filter in Task #47
+                self.notification = Some(Notification {
+                    message: "Filter not yet implemented".to_string(),
+                    success: false,
+                });
+            }
+        }
+
+        Ok(())
+    }
+
     fn execute_delete_capture(&mut self, capture_id: String) -> Result<()> {
         let tool = self.registry.tools()
             .iter()
