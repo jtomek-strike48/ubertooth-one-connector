@@ -85,6 +85,21 @@ pub enum AppState {
         previous_output: serde_json::Value,
         previous_success: bool,
     },
+
+    /// Filter dialog for packet data
+    FilterDialog {
+        selected_section: usize,  // 0=packet types, 1=MAC, 2=RSSI, 3=actions
+        selected_packet_type: usize,
+        packet_type_selections: std::collections::HashSet<String>,
+        mac_filter: String,
+        rssi_min: String,
+        rssi_max: String,
+        // Store full results state to return to
+        previous_tool_name: String,
+        previous_output: serde_json::Value,
+        previous_success: bool,
+        previous_packet_list_state: PacketListState,
+    },
 }
 
 /// Action to take on confirmation
@@ -209,9 +224,77 @@ pub enum PacketViewMode {
 /// Filters for packet list
 #[derive(Debug, Clone, Default)]
 pub struct PacketFilters {
-    pub packet_type: Option<String>,
+    pub packet_types: Vec<String>,  // Multi-select packet types
     pub mac_address: Option<String>,
+    pub rssi_min: Option<i32>,
+    pub rssi_max: Option<i32>,
     pub time_range: Option<(f64, f64)>,
+}
+
+impl PacketFilters {
+    pub fn is_active(&self) -> bool {
+        !self.packet_types.is_empty()
+            || self.mac_address.is_some()
+            || self.rssi_min.is_some()
+            || self.rssi_max.is_some()
+            || self.time_range.is_some()
+    }
+
+    pub fn clear(&mut self) {
+        self.packet_types.clear();
+        self.mac_address = None;
+        self.rssi_min = None;
+        self.rssi_max = None;
+        self.time_range = None;
+    }
+
+    pub fn matches(&self, packet: &serde_json::Value) -> bool {
+        // Check packet type filter
+        if !self.packet_types.is_empty() {
+            if let Some(pkt_type) = packet.get("packet_type").and_then(|t| t.as_str()) {
+                if !self.packet_types.iter().any(|t| t == pkt_type) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+
+        // Check MAC address filter
+        if let Some(ref filter_mac) = self.mac_address {
+            if let Some(packet_mac) = packet.get("mac_address").and_then(|m| m.as_str()) {
+                if !packet_mac.contains(filter_mac) {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+
+        // Check RSSI range filter
+        if self.rssi_min.is_some() || self.rssi_max.is_some() {
+            if let Some(rssi_str) = packet.get("rssi").and_then(|r| r.as_str()) {
+                if let Ok(rssi) = rssi_str.parse::<i32>() {
+                    if let Some(min) = self.rssi_min {
+                        if rssi < min {
+                            return false;
+                        }
+                    }
+                    if let Some(max) = self.rssi_max {
+                        if rssi > max {
+                            return false;
+                        }
+                    }
+                } else {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+
+        true
+    }
 }
 
 impl PacketListState {
@@ -1020,6 +1103,33 @@ impl App {
                                     };
                                     return Ok(());
                                 }
+                                KeyCode::Char('/') => {
+                                    // Open filter dialog
+                                    let tool_name_clone = tool_name.clone();
+                                    let output_clone = output.clone();
+                                    let success_clone = *success;
+                                    let pls_clone = pls.clone();
+
+                                    // Prepopulate with existing filters
+                                    let packet_type_selections = pls.filters.packet_types.iter().cloned().collect();
+                                    let mac_filter = pls.filters.mac_address.clone().unwrap_or_default();
+                                    let rssi_min = pls.filters.rssi_min.map(|v| v.to_string()).unwrap_or_default();
+                                    let rssi_max = pls.filters.rssi_max.map(|v| v.to_string()).unwrap_or_default();
+
+                                    self.state = AppState::FilterDialog {
+                                        selected_section: 0,
+                                        selected_packet_type: 0,
+                                        packet_type_selections,
+                                        mac_filter,
+                                        rssi_min,
+                                        rssi_max,
+                                        previous_tool_name: tool_name_clone,
+                                        previous_output: output_clone,
+                                        previous_success: success_clone,
+                                        previous_packet_list_state: pls_clone,
+                                    };
+                                    return Ok(());
+                                }
                                 _ => {}
                             }
                         }
@@ -1098,6 +1208,163 @@ impl App {
                             selected_capture: None,
                             tool: None,
                             packet_list_state: Some(prev_state),
+                        };
+                        return Ok(());
+                    }
+                    _ => {}
+                }
+            }
+            return Ok(());
+        }
+
+        // Handle filter dialog
+        if let AppState::FilterDialog {
+            selected_section,
+            selected_packet_type,
+            packet_type_selections,
+            mac_filter,
+            rssi_min,
+            rssi_max,
+            previous_tool_name,
+            previous_output,
+            previous_success,
+            previous_packet_list_state,
+        } = &mut self.state {
+            if let Event::Key(KeyEvent { code, .. }) = event {
+                let packet_types = vec!["ADV_IND", "SCAN_REQ", "SCAN_RSP", "CONNECT_REQ", "DATA"];
+
+                match code {
+                    KeyCode::Up => {
+                        if *selected_section > 0 {
+                            *selected_section -= 1;
+                        }
+                        return Ok(());
+                    }
+                    KeyCode::Down => {
+                        if *selected_section < 3 {  // 0=types, 1=MAC, 2=RSSI, 3=actions
+                            *selected_section += 1;
+                        }
+                        return Ok(());
+                    }
+                    KeyCode::Left => {
+                        if *selected_section == 0 && *selected_packet_type > 0 {
+                            *selected_packet_type -= 1;
+                        }
+                        return Ok(());
+                    }
+                    KeyCode::Right => {
+                        if *selected_section == 0 && *selected_packet_type < packet_types.len().saturating_sub(1) {
+                            *selected_packet_type += 1;
+                        }
+                        return Ok(());
+                    }
+                    KeyCode::Char(' ') => {
+                        // Toggle packet type selection
+                        if *selected_section == 0 {
+                            let pkt_type = packet_types[*selected_packet_type].to_string();
+                            if packet_type_selections.contains(&pkt_type) {
+                                packet_type_selections.remove(&pkt_type);
+                            } else {
+                                packet_type_selections.insert(pkt_type);
+                            }
+                        }
+                        return Ok(());
+                    }
+                    KeyCode::Char(c) => {
+                        // Input for text fields
+                        match *selected_section {
+                            1 => {  // MAC filter
+                                mac_filter.push(c);
+                            }
+                            2 => {  // RSSI (assume we're on min for now, can toggle later)
+                                if c.is_ascii_digit() || c == '-' {
+                                    if rssi_min.len() < 4 {  // -120 to -30 typically
+                                        rssi_min.push(c);
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                        return Ok(());
+                    }
+                    KeyCode::Backspace => {
+                        // Remove character from text fields
+                        match *selected_section {
+                            1 => {
+                                mac_filter.pop();
+                            }
+                            2 => {
+                                rssi_min.pop();
+                            }
+                            _ => {}
+                        }
+                        return Ok(());
+                    }
+                    KeyCode::Enter => {
+                        // Apply filters
+                        if *selected_section == 3 {  // "Apply" action
+                            let mut new_pls = previous_packet_list_state.clone();
+                            new_pls.filters.packet_types = packet_type_selections.iter().cloned().collect();
+                            new_pls.filters.mac_address = if mac_filter.is_empty() {
+                                None
+                            } else {
+                                Some(mac_filter.clone())
+                            };
+                            new_pls.filters.rssi_min = rssi_min.parse().ok();
+                            new_pls.filters.rssi_max = rssi_max.parse().ok();
+
+                            self.state = AppState::Results {
+                                tool_name: previous_tool_name.clone(),
+                                output: previous_output.clone(),
+                                success: *previous_success,
+                                selected_capture: None,
+                                tool: None,
+                                packet_list_state: Some(new_pls),
+                            };
+
+                            self.notification = Some(Notification {
+                                message: "Filters applied".to_string(),
+                                success: true,
+                            });
+                        }
+                        return Ok(());
+                    }
+                    KeyCode::Char('c') | KeyCode::Char('C') => {
+                        // Clear all filters (only when focused on actions section)
+                        if *selected_section == 3 {
+                            packet_type_selections.clear();
+                            mac_filter.clear();
+                            rssi_min.clear();
+                            rssi_max.clear();
+
+                            let mut new_pls = previous_packet_list_state.clone();
+                            new_pls.filters.clear();
+
+                            self.state = AppState::Results {
+                                tool_name: previous_tool_name.clone(),
+                                output: previous_output.clone(),
+                                success: *previous_success,
+                                selected_capture: None,
+                                tool: None,
+                                packet_list_state: Some(new_pls),
+                            };
+
+                            self.notification = Some(Notification {
+                                message: "Filters cleared".to_string(),
+                                success: true,
+                            });
+                        }
+                        return Ok(());
+                    }
+                    KeyCode::Esc => {
+                        // Cancel - restore previous state
+                        self.state = AppState::Results {
+                            tool_name: previous_tool_name.clone(),
+                            output: previous_output.clone(),
+                            success: *previous_success,
+                            selected_capture: None,
+                            tool: None,
+                            packet_list_state: Some(previous_packet_list_state.clone()),
                         };
                         return Ok(());
                     }

@@ -97,6 +97,17 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
         AppState::ExportMenu { selected_index, packets, packet_list_state, .. } => {
             render_export_menu(f, area, *selected_index, packets.len(), packet_list_state);
         }
+        AppState::FilterDialog {
+            selected_section,
+            selected_packet_type,
+            packet_type_selections,
+            mac_filter,
+            rssi_min,
+            rssi_max,
+            ..
+        } => {
+            render_filter_dialog(f, area, *selected_section, *selected_packet_type, packet_type_selections, mac_filter, rssi_min, rssi_max);
+        }
     }
 }
 
@@ -1012,6 +1023,9 @@ fn render_footer(f: &mut Frame, area: Rect, state: &AppState) {
         AppState::ExportMenu { .. } => {
             "[↑/↓] Navigate  [Enter] Export  [Esc] Cancel"
         }
+        AppState::FilterDialog { .. } => {
+            "[↑/↓] Navigate  [←/→] Select  [Space] Toggle  [Enter] Apply  [C] Clear  [Esc] Cancel"
+        }
     };
 
     let footer = Paragraph::new(shortcuts)
@@ -1271,19 +1285,24 @@ fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], 
 
     let packet_count = packets.len();
 
-    // Apply follow stream filter if active
-    let filtered_packets: Vec<(usize, &serde_json::Value)> = if let Some(ref mac) = state.follow_mac {
-        packets.iter().enumerate()
-            .filter(|(_, pkt)| {
-                pkt.get("mac_address")
-                    .and_then(|m| m.as_str())
-                    .map(|m| m.contains(mac))
-                    .unwrap_or(false)
-            })
-            .collect()
-    } else {
-        packets.iter().enumerate().collect()
-    };
+    // Apply all active filters
+    let filtered_packets: Vec<(usize, &serde_json::Value)> = packets.iter().enumerate()
+        .filter(|(_, pkt)| {
+            // Follow stream filter (legacy, keeping for compatibility)
+            if let Some(ref mac) = state.follow_mac {
+                if let Some(packet_mac) = pkt.get("mac_address").and_then(|m| m.as_str()) {
+                    if !packet_mac.contains(mac) {
+                        return false;
+                    }
+                } else {
+                    return false;
+                }
+            }
+
+            // Apply filter rules from state.filters
+            state.filters.matches(pkt)
+        })
+        .collect();
 
     let displayed_count = filtered_packets.len();
     if displayed_count == 0 {
@@ -1292,7 +1311,7 @@ fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], 
             Line::from("No packets match the current filter"),
             Line::from(""),
             Line::from(Span::styled(
-                "Press 'f' to clear the follow stream filter",
+                "Press '/' to modify filters",
                 Style::default().fg(Color::Gray),
             )),
         ];
@@ -1479,6 +1498,10 @@ fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], 
         Span::raw(" compare  "),
         Span::styled("n", Style::default().fg(Color::Cyan)),
         Span::raw(" note  "),
+        Span::styled("/", Style::default().fg(Color::Cyan)),
+        Span::raw(" filter  "),
+        Span::styled("e", Style::default().fg(Color::Cyan)),
+        Span::raw(" export  "),
         Span::raw(" │ "),
         Span::styled(format!("Showing {}-{} of {}", start_idx + 1, end_idx, displayed_count), Style::default().fg(Color::Gray)),
         if displayed_count < packet_count {
@@ -1504,6 +1527,30 @@ fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], 
         lines.push(Line::from(vec![
             Span::styled("★ ", Style::default().fg(Color::Yellow)),
             Span::styled(format!("{} bookmarked packet{}", bookmark_count, if bookmark_count == 1 { "" } else { "s" }), Style::default().fg(Color::White)),
+        ]));
+    }
+
+    // Active filters indicator
+    if state.filters.is_active() {
+        let mut filter_parts = vec![];
+
+        if !state.filters.packet_types.is_empty() {
+            filter_parts.push(format!("Types: {}", state.filters.packet_types.join(", ")));
+        }
+        if let Some(ref mac) = state.filters.mac_address {
+            filter_parts.push(format!("MAC: {}", mac));
+        }
+        if state.filters.rssi_min.is_some() || state.filters.rssi_max.is_some() {
+            let min = state.filters.rssi_min.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+            let max = state.filters.rssi_max.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+            filter_parts.push(format!("RSSI: {} to {} dBm", min, max));
+        }
+
+        lines.push(Line::from(vec![
+            Span::styled("🔍 Active Filters: ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(filter_parts.join(" | "), Style::default().fg(Color::White)),
+            Span::raw("  "),
+            Span::styled("(press '/' to modify)", Style::default().fg(Color::Gray).add_modifier(Modifier::ITALIC)),
         ]));
     }
 
@@ -2285,4 +2332,149 @@ fn render_export_menu(f: &mut Frame, area: Rect, selected_index: usize, packet_c
         .alignment(Alignment::Center);
 
     f.render_widget(help, chunks[1]);
+}
+
+/// Render filter dialog
+fn render_filter_dialog(
+    f: &mut Frame,
+    area: Rect,
+    selected_section: usize,
+    selected_packet_type: usize,
+    packet_type_selections: &std::collections::HashSet<String>,
+    mac_filter: &str,
+    rssi_min: &str,
+    rssi_max: &str,
+) {
+    let packet_types = vec!["ADV_IND", "SCAN_REQ", "SCAN_RSP", "CONNECT_REQ", "DATA"];
+
+    // Split into sections
+    let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(8),   // Packet types
+            Constraint::Length(5),   // MAC filter
+            Constraint::Length(5),   // RSSI range
+            Constraint::Length(5),   // Actions
+            Constraint::Min(1),      // Spacer
+        ])
+        .split(area);
+
+    // Section 1: Packet Types (multi-select)
+    let mut packet_type_lines = vec![
+        Line::from(Span::styled(
+            "Filter by Packet Type:",
+            if selected_section == 0 {
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::White)
+            },
+        )),
+        Line::from(""),
+    ];
+
+    for (idx, pkt_type) in packet_types.iter().enumerate() {
+        let is_selected = idx == selected_packet_type && selected_section == 0;
+        let is_checked = packet_type_selections.contains(*pkt_type);
+
+        let checkbox = if is_checked { "[✓]" } else { "[ ]" };
+        let style = if is_selected {
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+        } else if is_checked {
+            Style::default().fg(Color::Green)
+        } else {
+            Style::default().fg(Color::Gray)
+        };
+
+        packet_type_lines.push(Line::from(Span::styled(
+            format!("  {} {}", checkbox, pkt_type),
+            style,
+        )));
+    }
+
+    let packet_type_widget = Paragraph::new(packet_type_lines)
+        .block(Block::default().borders(Borders::ALL).title(" Packet Types (Space to toggle) "));
+    f.render_widget(packet_type_widget, chunks[0]);
+
+    // Section 2: MAC Address Filter
+    let mac_lines = vec![
+        Line::from(Span::styled(
+            "Filter by MAC Address:",
+            if selected_section == 1 {
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::White)
+            },
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            if mac_filter.is_empty() {
+                "  (empty - no MAC filter)"
+            } else {
+                mac_filter
+            },
+            if selected_section == 1 {
+                Style::default().fg(Color::Cyan)
+            } else {
+                Style::default().fg(Color::Gray)
+            },
+        )),
+    ];
+
+    let mac_widget = Paragraph::new(mac_lines)
+        .block(Block::default().borders(Borders::ALL).title(" MAC Address Filter "));
+    f.render_widget(mac_widget, chunks[1]);
+
+    // Section 3: RSSI Range
+    let rssi_lines = vec![
+        Line::from(Span::styled(
+            "Filter by RSSI Range:",
+            if selected_section == 2 {
+                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::White)
+            },
+        )),
+        Line::from(""),
+        Line::from(Span::styled(
+            format!(
+                "  Min: {} dBm | Max: {} dBm",
+                if rssi_min.is_empty() { "(none)" } else { rssi_min },
+                if rssi_max.is_empty() { "(none)" } else { rssi_max }
+            ),
+            if selected_section == 2 {
+                Style::default().fg(Color::Cyan)
+            } else {
+                Style::default().fg(Color::Gray)
+            },
+        )),
+    ];
+
+    let rssi_widget = Paragraph::new(rssi_lines)
+        .block(Block::default().borders(Borders::ALL).title(" RSSI Range "));
+    f.render_widget(rssi_widget, chunks[2]);
+
+    // Section 4: Actions
+    let actions_lines = vec![
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(
+                "  [Enter] ",
+                if selected_section == 3 {
+                    Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::Gray)
+                },
+            ),
+            Span::raw("Apply Filters    "),
+            Span::styled(
+                "[C] ",
+                Style::default().fg(Color::Red),
+            ),
+            Span::raw("Clear All"),
+        ]),
+    ];
+
+    let actions_widget = Paragraph::new(actions_lines)
+        .block(Block::default().borders(Borders::ALL).title(" Actions "));
+    f.render_widget(actions_widget, chunks[3]);
 }
