@@ -63,6 +63,8 @@ pub enum AppState {
         tool: Option<Arc<dyn PentestTool>>,
         // Packet list state for bt_decode
         packet_list_state: Option<PacketListState>,
+        // Analysis view state for bt_analyze
+        analysis_view_state: Option<AnalysisViewState>,
     },
 
     /// Settings page
@@ -187,6 +189,51 @@ pub struct DeviceStatus {
 pub struct Notification {
     pub message: String,
     pub success: bool,
+}
+
+/// Analysis view state for bt_analyze
+#[derive(Debug, Clone)]
+pub struct AnalysisViewState {
+    /// Currently selected item index (device/observation)
+    pub selected_index: usize,
+    /// Set of expanded item indices
+    pub expanded_items: std::collections::HashSet<usize>,
+    /// View mode (overview, devices, security, timing)
+    pub view_mode: AnalysisViewMode,
+    /// Scroll offset
+    pub scroll_offset: usize,
+}
+
+/// View mode for analysis results
+#[derive(Debug, Clone, PartialEq)]
+pub enum AnalysisViewMode {
+    Overview,
+    Devices,
+    Security,
+    Timing,
+}
+
+impl AnalysisViewState {
+    pub fn new() -> Self {
+        Self {
+            selected_index: 0,
+            expanded_items: std::collections::HashSet::new(),
+            view_mode: AnalysisViewMode::Overview,
+            scroll_offset: 0,
+        }
+    }
+
+    pub fn toggle_expanded(&mut self, index: usize) {
+        if self.expanded_items.contains(&index) {
+            self.expanded_items.remove(&index);
+        } else {
+            self.expanded_items.insert(index);
+        }
+    }
+
+    pub fn is_expanded(&self, index: usize) -> bool {
+        self.expanded_items.contains(&index)
+    }
 }
 
 /// Packet list state for bt_decode view
@@ -523,6 +570,13 @@ impl App {
                                                 None
                                             };
 
+                                            // Initialize analysis view state for bt_analyze
+                                            let analysis_view_state = if tool_name == "bt_analyze" {
+                                                Some(AnalysisViewState::new())
+                                            } else {
+                                                None
+                                            };
+
                                             self.state = AppState::Results {
                                                 tool_name,
                                                 output,
@@ -530,6 +584,7 @@ impl App {
                                                 selected_capture,
                                                 tool: None, // TODO: Store tool for re-parameterization
                                                 packet_list_state,
+                                                analysis_view_state,
                                             };
                                         }
                                     }
@@ -556,6 +611,7 @@ impl App {
                                                 selected_capture: None,
                                                 tool: None,
                                                 packet_list_state: None,
+                    analysis_view_state: None,
                                             };
                                         }
                                     }
@@ -580,6 +636,7 @@ impl App {
                             selected_capture: None,
                             tool: None,
                             packet_list_state: None,
+                    analysis_view_state: None,
                         };
                     }
                 }
@@ -1138,6 +1195,84 @@ impl App {
             }
         }
 
+        // Handle bt_analyze analysis view navigation
+        if let AppState::Results { tool_name, output, analysis_view_state, .. } = &mut self.state {
+            if *tool_name == "bt_analyze" {
+                if let Some(avs) = analysis_view_state {
+                    if let Event::Key(KeyEvent { code, .. }) = event {
+                        match code {
+                            KeyCode::Char('o') | KeyCode::Char('O') => {
+                                // Switch to overview mode
+                                avs.view_mode = AnalysisViewMode::Overview;
+                                return Ok(());
+                            }
+                            KeyCode::Char('d') | KeyCode::Char('D') => {
+                                // Switch to devices mode
+                                avs.view_mode = AnalysisViewMode::Devices;
+                                return Ok(());
+                            }
+                            KeyCode::Char('s') | KeyCode::Char('S') => {
+                                // Switch to security mode
+                                avs.view_mode = AnalysisViewMode::Security;
+                                return Ok(());
+                            }
+                            KeyCode::Char('t') | KeyCode::Char('T') => {
+                                // Switch to timing mode
+                                avs.view_mode = AnalysisViewMode::Timing;
+                                return Ok(());
+                            }
+                            KeyCode::Up => {
+                                if avs.selected_index > 0 {
+                                    avs.selected_index -= 1;
+                                    if avs.selected_index < avs.scroll_offset {
+                                        avs.scroll_offset = avs.selected_index;
+                                    }
+                                }
+                                return Ok(());
+                            }
+                            KeyCode::Down => {
+                                // Determine max index based on view mode
+                                let max_index = match avs.view_mode {
+                                    AnalysisViewMode::Devices => {
+                                        output.get("analysis")
+                                            .and_then(|a| a.get("devices"))
+                                            .and_then(|d| d.as_array())
+                                            .map(|arr| arr.len().saturating_sub(1))
+                                            .unwrap_or(0)
+                                    }
+                                    AnalysisViewMode::Security => {
+                                        output.get("analysis")
+                                            .and_then(|a| a.get("security_observations"))
+                                            .and_then(|s| s.as_array())
+                                            .map(|arr| arr.len().saturating_sub(1))
+                                            .unwrap_or(0)
+                                    }
+                                    _ => 0,
+                                };
+
+                                if avs.selected_index < max_index {
+                                    avs.selected_index += 1;
+                                    let visible_lines = 20;
+                                    if avs.selected_index >= avs.scroll_offset + visible_lines {
+                                        avs.scroll_offset = avs.selected_index - visible_lines + 1;
+                                    }
+                                }
+                                return Ok(());
+                            }
+                            KeyCode::Enter | KeyCode::Char(' ') => {
+                                // Toggle expansion for devices/security items
+                                if matches!(avs.view_mode, AnalysisViewMode::Devices | AnalysisViewMode::Security) {
+                                    avs.toggle_expanded(avs.selected_index);
+                                }
+                                return Ok(());
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+
         // Handle export menu
         if let AppState::ExportMenu { selected_index, packets, packet_list_state, previous_tool_name, previous_output, previous_success } = &mut self.state {
             if let Event::Key(KeyEvent { code, .. }) = event {
@@ -1175,6 +1310,7 @@ impl App {
                             selected_capture: None,
                             tool: None,
                             packet_list_state: Some(prev_state),
+                    analysis_view_state: None,
                         };
 
                         // Perform export
@@ -1208,6 +1344,7 @@ impl App {
                             selected_capture: None,
                             tool: None,
                             packet_list_state: Some(prev_state),
+                    analysis_view_state: None,
                         };
                         return Ok(());
                     }
@@ -1320,6 +1457,7 @@ impl App {
                                 selected_capture: None,
                                 tool: None,
                                 packet_list_state: Some(new_pls),
+                    analysis_view_state: None,
                             };
 
                             self.notification = Some(Notification {
@@ -1347,6 +1485,7 @@ impl App {
                                 selected_capture: None,
                                 tool: None,
                                 packet_list_state: Some(new_pls),
+                    analysis_view_state: None,
                             };
 
                             self.notification = Some(Notification {
@@ -1365,6 +1504,7 @@ impl App {
                             selected_capture: None,
                             tool: None,
                             packet_list_state: Some(previous_packet_list_state.clone()),
+                    analysis_view_state: None,
                         };
                         return Ok(());
                     }
@@ -1496,6 +1636,7 @@ impl App {
                     selected_capture: None,
                     tool: None,
                     packet_list_state: None,
+                    analysis_view_state: None,
                 };
             }
             1 => {
@@ -1511,6 +1652,7 @@ impl App {
                     selected_capture: None,
                     tool: None,
                     packet_list_state: None,
+                    analysis_view_state: None,
                 };
             }
             2 => {
@@ -1527,6 +1669,7 @@ impl App {
                     selected_capture: None,
                     tool: None,
                     packet_list_state: None,
+                    analysis_view_state: None,
                 };
             }
             3 => {
@@ -1543,6 +1686,7 @@ impl App {
                     selected_capture: None,
                     tool: None,
                     packet_list_state: None,
+                    analysis_view_state: None,
                 };
             }
             4 => {
@@ -1559,6 +1703,7 @@ impl App {
                     selected_capture: None,
                     tool: None,
                     packet_list_state: None,
+                    analysis_view_state: None,
                 };
             }
             5 => {
@@ -1575,6 +1720,7 @@ impl App {
                     selected_capture: None,
                     tool: None,
                     packet_list_state: None,
+                    analysis_view_state: None,
                 };
             }
             _ => {}
@@ -1835,6 +1981,7 @@ impl App {
                 selected_capture: None,
                 tool: None,
                     packet_list_state: None,
+                    analysis_view_state: None,
             };
         }
 

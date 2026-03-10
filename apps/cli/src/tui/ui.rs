@@ -85,8 +85,8 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
         AppState::Executing { tool_name, .. } => {
             render_executing(f, area, tool_name, frame_count);
         }
-        AppState::Results { tool_name, output, success, selected_capture, packet_list_state, .. } => {
-            render_results(f, area, tool_name, output, *success, *selected_capture, packet_list_state.as_ref());
+        AppState::Results { tool_name, output, success, selected_capture, packet_list_state, analysis_view_state, .. } => {
+            render_results(f, area, tool_name, output, *success, *selected_capture, packet_list_state.as_ref(), analysis_view_state.as_ref());
         }
         AppState::Settings { selected_index } => {
             render_settings(f, area, *selected_index);
@@ -468,7 +468,7 @@ fn render_tool_form(f: &mut Frame, area: Rect, form: &crate::tui::views::ToolFor
 }
 
 /// Render analysis results in readable format
-fn render_analysis_results(f: &mut Frame, area: Rect, output: &serde_json::Value) {
+fn render_analysis_results(f: &mut Frame, area: Rect, output: &serde_json::Value, state: Option<&crate::tui::app::AnalysisViewState>) {
     let mut lines = Vec::new();
     lines.push(Line::from(""));
 
@@ -829,7 +829,7 @@ fn render_executing(f: &mut Frame, area: Rect, tool_name: &str, frame_count: u64
 }
 
 /// Render tool results
-fn render_results(f: &mut Frame, area: Rect, tool_name: &str, output: &serde_json::Value, success: bool, selected_capture: Option<usize>, packet_list_state: Option<&crate::tui::app::PacketListState>) {
+fn render_results(f: &mut Frame, area: Rect, tool_name: &str, output: &serde_json::Value, success: bool, selected_capture: Option<usize>, packet_list_state: Option<&crate::tui::app::PacketListState>, analysis_view_state: Option<&crate::tui::app::AnalysisViewState>) {
     // Split into header and content
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -864,7 +864,7 @@ fn render_results(f: &mut Frame, area: Rect, tool_name: &str, output: &serde_jso
 
     // Special formatting for bt_analyze - show analysis results
     if tool_name == "bt_analyze" && success {
-        render_analysis_results(f, chunks[1], output);
+        render_analysis_results(f, chunks[1], output, analysis_view_state);
         return;
     }
 
