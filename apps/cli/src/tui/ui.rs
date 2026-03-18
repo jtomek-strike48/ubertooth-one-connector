@@ -11,10 +11,11 @@ use std::sync::Arc;
 use ubertooth_core::ToolRegistry;
 
 use super::app::{AppState, DeviceStatus, Notification, TextInputDialog};
+use super::themes::Theme;
 use super::views::{Category, FieldInputMode, FieldType};
 
 /// Render the entire UI
-pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>, device_status: &DeviceStatus, notification: &Option<Notification>, frame_count: u64, dialog: &Option<TextInputDialog>) {
+pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>, device_status: &DeviceStatus, notification: &Option<Notification>, frame_count: u64, dialog: &Option<TextInputDialog>, theme: &Theme) {
     // Main layout: header + content + footer
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -25,8 +26,8 @@ pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>, dev
         ])
         .split(f.size());
 
-    render_header(f, chunks[0], device_status);
-    render_content(f, chunks[1], state, registry, device_status, frame_count);
+    render_header(f, chunks[0], device_status, theme);
+    render_content(f, chunks[1], state, registry, device_status, frame_count, theme);
     render_footer(f, chunks[2], state);
 
     // Render notification on top if present
@@ -41,7 +42,7 @@ pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>, dev
 }
 
 /// Render header with device status
-fn render_header(f: &mut Frame, area: Rect, device_status: &DeviceStatus) {
+fn render_header(f: &mut Frame, area: Rect, device_status: &DeviceStatus, theme: &Theme) {
     // Build status string
     let device_str = if device_status.connected {
         if let Some(fw) = &device_status.firmware {
@@ -59,7 +60,7 @@ fn render_header(f: &mut Frame, area: Rect, device_status: &DeviceStatus) {
     let title = format!("{} | {} | {}", device_str, backend_str, strike48_str);
 
     let header = Paragraph::new("Ubertooth CLI")
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .style(Style::default().fg(theme.colors.title.to_color()).add_modifier(Modifier::BOLD))
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL).title(title));
 
@@ -67,7 +68,7 @@ fn render_header(f: &mut Frame, area: Rect, device_status: &DeviceStatus) {
 }
 
 /// Render main content based on state
-fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<ToolRegistry>, device_status: &DeviceStatus, frame_count: u64) {
+fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<ToolRegistry>, device_status: &DeviceStatus, frame_count: u64, theme: &Theme) {
     match state {
         AppState::MainMenu { selected_index } => {
             render_main_menu(f, area, *selected_index, device_status);
@@ -109,7 +110,10 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
             render_filter_dialog(f, area, *selected_section, *selected_packet_type, packet_type_selections, mac_filter, rssi_min, rssi_max);
         }
         AppState::HelpOverlay { scroll_offset, .. } => {
-            render_help_overlay(f, area, *scroll_offset);
+            render_help_overlay(f, area, *scroll_offset, theme);
+        }
+        AppState::ThemeSelector { selected_index, themes } => {
+            render_theme_selector(f, area, *selected_index, themes, theme);
         }
     }
 }
@@ -1525,6 +1529,9 @@ fn render_footer(f: &mut Frame, area: Rect, state: &AppState) {
         }
         AppState::HelpOverlay { .. } => {
             "[↑/↓/PgUp/PgDn] Scroll  [Esc/?/q] Close Help"
+        }
+        AppState::ThemeSelector { .. } => {
+            "[↑/↓] Navigate  [Enter] Apply Theme  [1-5] Quick Select  [Esc] Cancel"
         }
     };
 
@@ -2980,7 +2987,7 @@ fn render_filter_dialog(
 }
 
 /// Render help overlay with keyboard shortcuts
-fn render_help_overlay(f: &mut Frame, area: Rect, scroll_offset: usize) {
+fn render_help_overlay(f: &mut Frame, area: Rect, scroll_offset: usize, theme: &Theme) {
     // Create centered overlay area (80% width, 90% height)
     let overlay_width = (area.width * 80) / 100;
     let overlay_height = (area.height * 90) / 100;
@@ -3329,4 +3336,89 @@ fn render_help_overlay(f: &mut Frame, area: Rect, scroll_offset: usize) {
 
     // Render help overlay
     f.render_widget(help_widget, overlay_area);
+}
+
+/// Render theme selector dialog
+fn render_theme_selector(f: &mut Frame, area: Rect, selected_index: usize, themes: &[Theme], current_theme: &Theme) {
+    // Create centered dialog area (60% width, 70% height)
+    let dialog_width = (area.width * 60) / 100;
+    let dialog_height = (area.height * 70) / 100;
+    let dialog_x = (area.width - dialog_width) / 2;
+    let dialog_y = (area.height - dialog_height) / 2;
+
+    let dialog_area = Rect {
+        x: dialog_x,
+        y: dialog_y,
+        width: dialog_width,
+        height: dialog_height,
+    };
+
+    // Create theme list items
+    let items: Vec<ListItem> = themes
+        .iter()
+        .enumerate()
+        .map(|(i, theme)| {
+            let is_current = theme.name == current_theme.name;
+            let is_selected = i == selected_index;
+
+            let content = if is_current {
+                format!("★ {} - {} (current)", theme.name, theme.description)
+            } else {
+                format!("  {} - {}", theme.name, theme.description)
+            };
+
+            let style = if is_selected {
+                Style::default()
+                    .fg(current_theme.colors.selected.to_color())
+                    .bg(current_theme.colors.selected_bg.to_color())
+                    .add_modifier(Modifier::BOLD)
+            } else if is_current {
+                Style::default()
+                    .fg(current_theme.colors.success.to_color())
+            } else {
+                Style::default()
+                    .fg(current_theme.colors.foreground.to_color())
+            };
+
+            ListItem::new(content).style(style)
+        })
+        .collect();
+
+    let list = List::new(items)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(current_theme.colors.border_focused.to_color()))
+                .title(vec![
+                    Span::raw(" "),
+                    Span::styled(
+                        "Select Theme",
+                        Style::default()
+                            .fg(current_theme.colors.title.to_color())
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                    Span::raw(" "),
+                ])
+                .title_bottom(vec![
+                    Span::raw(" "),
+                    Span::styled(
+                        "[↑/↓] Navigate  [Enter] Apply  [Esc] Cancel  [1-5] Quick Select",
+                        Style::default().fg(current_theme.colors.dimmed.to_color()),
+                    ),
+                    Span::raw(" "),
+                ]),
+        )
+        .highlight_style(
+            Style::default()
+                .bg(current_theme.colors.selected_bg.to_color())
+                .add_modifier(Modifier::BOLD),
+        );
+
+    // Clear background with semi-transparent effect
+    let clear_widget = Block::default()
+        .style(Style::default().bg(current_theme.colors.background.to_color()));
+    f.render_widget(clear_widget, area);
+
+    // Render theme list
+    f.render_widget(list, dialog_area);
 }

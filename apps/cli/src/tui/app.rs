@@ -49,6 +49,7 @@ use ubertooth_platform::SidecarManager;
 use ubertooth_tools::create_tool_registry;
 
 use super::events::EventHandler;
+use super::themes::Theme;
 use super::ui;
 use super::views::{Category, ToolForm};
 
@@ -141,6 +142,14 @@ pub enum AppState {
         previous_state: Box<AppState>,
         /// Scroll position in help text
         scroll_offset: usize,
+    },
+
+    /// Theme selector
+    ThemeSelector {
+        /// Selected theme index
+        selected_index: usize,
+        /// Available themes
+        themes: Vec<Theme>,
     },
 }
 
@@ -485,6 +494,9 @@ pub struct App {
     /// Active text input dialog (overlays on current state)
     dialog: Option<TextInputDialog>,
 
+    /// Current theme
+    theme: Theme,
+
     /// Should quit?
     should_quit: bool,
 }
@@ -495,6 +507,9 @@ impl App {
         // Create backend (default to Python for now, will add config later)
         let backend = SidecarManager::new();
         let registry = Arc::new(create_tool_registry(backend));
+
+        // Load current theme (or default)
+        let theme = Theme::load_current();
 
         Ok(Self {
             state: AppState::MainMenu { selected_index: 0 },
@@ -509,6 +524,7 @@ impl App {
             favorites: Vec::new(),
             recent_macs: Vec::new(),
             dialog: None,
+            theme,
             should_quit: false,
         })
     }
@@ -542,7 +558,7 @@ impl App {
                 self.frame_count = self.frame_count.wrapping_add(1);
 
                 // Render UI (catch and log any render errors)
-                if let Err(e) = terminal.draw(|f| ui::render(f, &self.state, &self.registry, &self.device_status, &self.notification, self.frame_count, &self.dialog)) {
+                if let Err(e) = terminal.draw(|f| ui::render(f, &self.state, &self.registry, &self.device_status, &self.notification, self.frame_count, &self.dialog, &self.theme)) {
                     tracing::error!("Render error: {}", e);
                     // Continue anyway - might be transient
                 }
@@ -1595,6 +1611,59 @@ impl App {
             return Ok(());
         }
 
+        // Handle theme selector
+        if let AppState::ThemeSelector { selected_index, themes } = &mut self.state {
+            if let Event::Key(KeyEvent { code, .. }) = event {
+                match code {
+                    KeyCode::Esc => {
+                        // Cancel and go back to settings
+                        self.state = AppState::Settings { selected_index: 0 };
+                        return Ok(());
+                    }
+                    KeyCode::Up => {
+                        if *selected_index > 0 {
+                            *selected_index -= 1;
+                        }
+                        return Ok(());
+                    }
+                    KeyCode::Down => {
+                        if *selected_index < themes.len() - 1 {
+                            *selected_index += 1;
+                        }
+                        return Ok(());
+                    }
+                    KeyCode::Enter => {
+                        // Apply selected theme
+                        if let Some(selected_theme) = themes.get(*selected_index) {
+                            self.theme = selected_theme.clone();
+                            // Save as current theme
+                            if let Err(e) = self.theme.save_as_current() {
+                                tracing::warn!("Failed to save theme: {}", e);
+                            }
+                            self.notification = Some(Notification {
+                                message: format!("Theme '{}' applied and saved", self.theme.name),
+                                success: true,
+                            });
+                        }
+                        self.state = AppState::Settings { selected_index: 0 };
+                        return Ok(());
+                    }
+                    KeyCode::Char(ch) if ch.is_ascii_digit() => {
+                        // Quick select with number key
+                        let digit = ch.to_digit(10).unwrap() as usize;
+                        if digit > 0 && digit <= themes.len() {
+                            *selected_index = digit - 1;
+                        }
+                        return Ok(());
+                    }
+                    _ => {
+                        return Ok(());
+                    }
+                }
+            }
+            return Ok(());
+        }
+
         // Normal navigation
         if let Event::Key(KeyEvent { code, .. }) = event {
             match code {
@@ -1713,6 +1782,14 @@ impl App {
     fn handle_settings_selection(&mut self, selected_index: usize) -> Result<()> {
         match selected_index {
             0 => {
+                // Change Theme
+                let themes = Theme::all_built_in();
+                self.state = AppState::ThemeSelector {
+                    selected_index: 0,
+                    themes,
+                };
+            }
+            1 => {
                 // View Tool History
                 let history_data = serde_json::json!({
                     "history": self.tool_history.clone(),
@@ -1728,7 +1805,7 @@ impl App {
                     analysis_view_state: None,
                 };
             }
-            1 => {
+            2 => {
                 // View Favorites
                 let favorites_data = serde_json::json!({
                     "favorites": self.favorites.clone(),

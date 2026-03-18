@@ -1,0 +1,46 @@
+# Example Custom Theme for Ubertooth CLI
+#
+# To use this theme:
+# 1. Copy this file to ~/.config/ubertooth/theme.toml
+# 2. Edit colors to your preference
+# 3. Restart ubertooth-cli or select "Change Theme" in settings
+#
+# Colors can be:
+# - Named colors: "black", "red", "green", "yellow", "blue", "magenta", "cyan",
+#                 "gray", "darkgray", "white", "lightred", "lightgreen", etc.
+# - RGB values: { r = 255, g = 128, b = 0 }
+
+name = "Custom"
+description = "Your custom theme"
+
+[colors]
+# UI Elements
+background = "black"
+foreground = "white"
+border = "white"
+border_focused = "cyan"
+title = "cyan"
+
+# Status colors
+success = "green"
+error = "red"
+warning = "yellow"
+info = "blue"
+
+# Interactive elements
+selected = "black"
+selected_bg = "cyan"
+highlight = "cyan"
+dimmed = "darkgray"
+
+# Syntax/data colors
+primary = "cyan"
+secondary = "magenta"
+accent = "yellow"
+
+# Specific elements
+device_connected = "green"
+device_disconnected = "red"
+packet_header = "cyan"
+packet_data = "white"
+shortcut = "green"

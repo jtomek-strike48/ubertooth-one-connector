@@ -4,11 +4,13 @@
 
 mod app;
 mod events;
+mod themes;
 mod ui;
 mod views;
 
 pub use app::{App, AppState, DeviceStatus};
 pub use events::EventHandler;
+pub use themes::Theme;
 
 use anyhow::Result;
 
