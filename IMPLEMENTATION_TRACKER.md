@@ -1,13 +1,16 @@
 # Ubertooth CLI Enhancement - Implementation Tracker
 
-**Last Updated:** 2026-03-18
-**Status:** Phase 5 - UX Polish (In Progress)
+**Last Updated:** 2026-03-18 (Evening)
+**Status:** Phase 5 - UX Polish (In Progress - 3/4 Complete)
 
 ---
 
 ## Recent Work Completed (2026-03)
 
 ### ✅ UX Enhancements (2026-03-18)
+- **Commit:** `c618323` - Theme system with 5 built-in themes (Phase 5.3 COMPLETE)
+- **Commit:** `7883cec` - Update Cargo.lock for theme dependencies
+- **Commit:** `79d7797` - Update tracker - Phase 5.2 keyboard reference complete
 - **Commit:** `26fa642` - Keyboard reference overlay (Phase 5.2 COMPLETE)
 - **Commit:** `ccd03ed` - Repository cleanup and documentation archival
 
@@ -416,27 +419,36 @@ pcap-file = "2.0"
 ---
 
 #### 5.3 Theme System
-**Status:** 🔲 Not Started
-**Estimated Effort:** 2-3 days
+**Status:** ✅ **COMPLETE** (commits `c618323`, `7883cec`)
+**Completed:** 2026-03-18
 
-**Tasks:**
-- [ ] Create `apps/cli/src/tui/themes.rs`
-- [ ] Define theme structure (colors, styles)
-- [ ] Implement built-in themes (dark, light, cyberpunk, etc.)
-- [ ] Add theme persistence in config
-- [ ] Add theme switcher UI
-- [ ] Support custom theme files
+**Completed Tasks:**
+- ✅ Create `apps/cli/src/tui/themes.rs` (~400 lines)
+- ✅ Define theme structure (Theme, ColorPalette, ColorDef)
+- ✅ Implement 5 built-in themes (Dark, Light, Cyberpunk, Solarized Dark, Matrix)
+- ✅ Add theme persistence in `~/.config/ubertooth/theme.toml`
+- ✅ Add theme switcher UI (Settings → Change Theme)
+- ✅ Support custom theme files (TOML format)
+- ✅ Quick theme selection with number keys (1-5)
+- ✅ Live theme preview and application
+- ✅ RGB and named color support
+- ✅ Example custom theme template
 
-**Files to Create/Modify:**
-- `apps/cli/src/tui/themes.rs` (new)
-- `apps/cli/src/tui/ui.rs` (modify - use theme colors)
-- `~/.config/ubertooth/theme.toml` (user config)
+**Files Created:**
+- `apps/cli/src/tui/themes.rs` (theme system)
+- `docs/example-theme.toml` (custom theme template)
+- `THEME_SYSTEM.md` (comprehensive documentation)
+
+**Dependencies Added:**
+- `toml = "0.8"` (theme file parsing)
+- `dirs = "5"` (home directory detection)
 
 **Success Criteria:**
-- [ ] Can switch themes dynamically
-- [ ] At least 3 built-in themes
-- [ ] Themes saved to config
-- [ ] Custom themes supported
+- ✅ Can switch themes dynamically (live switching works)
+- ✅ 5 built-in themes (exceeds minimum of 3)
+- ✅ Themes saved to config (auto-saves on selection)
+- ✅ Custom themes supported (TOML format with example)
+- ⏳ Full UI theming (partial - header uses theme, more areas need updating)
 
 ---
 
@@ -520,9 +532,9 @@ cargo install flamegraph   # CPU profiling
 | Phase 2: Core Enhancements | 🔲 Not Started | 0/2 | HIGH 🔴 |
 | Phase 3: Analysis Features | 🔲 Not Started | 0/3 | MEDIUM 🟡 |
 | Phase 4: Integration | 🔲 Not Started | 0/3 | LOW 🟢 |
-| Phase 5: UX Polish | 🔴 In Progress | 2/4 | MEDIUM 🟡 |
+| Phase 5: UX Polish | 🔴 In Progress | 3/4 | MEDIUM 🟡 |
 
-**Total Tasks:** 1/14 complete (7%)
+**Total Tasks:** 2/14 complete (14%)
 
 ### Next Actions
 
