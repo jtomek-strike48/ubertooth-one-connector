@@ -1,0 +1,199 @@
+[
+  {
+    "id": "apple-iphone",
+    "manufacturer": "Apple Inc.",
+    "device_type": "iPhone",
+    "os_family": "iOS",
+    "rules": [
+      { "type": "ManufacturerData", "company_id": 76 },
+      { "type": "Oui", "prefix": "00:17:F2" }
+    ]
+  },
+  {
+    "id": "apple-iphone-alt1",
+    "manufacturer": "Apple Inc.",
+    "device_type": "iPhone",
+    "os_family": "iOS",
+    "rules": [
+      { "type": "ManufacturerData", "company_id": 76 },
+      { "type": "Oui", "prefix": "00:1B:63" }
+    ]
+  },
+  {
+    "id": "apple-iphone-alt2",
+    "manufacturer": "Apple Inc.",
+    "device_type": "iPhone",
+    "os_family": "iOS",
+    "rules": [
+      { "type": "ManufacturerData", "company_id": 76 },
+      { "type": "Oui", "prefix": "00:26:BB" }
+    ]
+  },
+  {
+    "id": "apple-airpods",
+    "manufacturer": "Apple Inc.",
+    "device_type": "AirPods",
+    "os_family": null,
+    "rules": [
+      { "type": "ManufacturerData", "company_id": 76 },
+      { "type": "DeviceName", "pattern": "AirPods" }
+    ]
+  },
+  {
+    "id": "apple-airpods-pro",
+    "manufacturer": "Apple Inc.",
+    "device_type": "AirPods Pro",
+    "os_family": null,
+    "rules": [
+      { "type": "ManufacturerData", "company_id": 76 },
+      { "type": "DeviceName", "pattern": "AirPods Pro" }
+    ]
+  },
+  {
+    "id": "apple-watch",
+    "manufacturer": "Apple Inc.",
+    "device_type": "Apple Watch",
+    "os_family": "watchOS",
+    "rules": [
+      { "type": "ManufacturerData", "company_id": 76 },
+      { "type": "DeviceName", "pattern": "Watch" }
+    ]
+  },
+  {
+    "id": "google-pixel",
+    "manufacturer": "Google LLC",
+    "device_type": "Pixel Phone",
+    "os_family": "Android",
+    "rules": [
+      { "type": "Oui", "prefix": "F4:F5:E8" },
+      { "type": "DeviceName", "pattern": "Pixel" }
+    ]
+  },
+  {
+    "id": "google-pixel-buds",
+    "manufacturer": "Google LLC",
+    "device_type": "Pixel Buds",
+    "os_family": null,
+    "rules": [
+      { "type": "Oui", "prefix": "F4:F5:E8" },
+      { "type": "DeviceName", "pattern": "Pixel Buds" }
+    ]
+  },
+  {
+    "id": "samsung-galaxy",
+    "manufacturer": "Samsung Electronics",
+    "device_type": "Galaxy Phone",
+    "os_family": "Android",
+    "rules": [
+      { "type": "Oui", "prefix": "C8:F2:30" }
+    ]
+  },
+  {
+    "id": "samsung-galaxy-alt1",
+    "manufacturer": "Samsung Electronics",
+    "device_type": "Galaxy Phone",
+    "os_family": "Android",
+    "rules": [
+      { "type": "Oui", "prefix": "2C:44:01" }
+    ]
+  },
+  {
+    "id": "samsung-galaxy-watch",
+    "manufacturer": "Samsung Electronics",
+    "device_type": "Galaxy Watch",
+    "os_family": "Wear OS",
+    "rules": [
+      { "type": "Oui", "prefix": "C8:F2:30" },
+      { "type": "DeviceName", "pattern": "Galaxy Watch" }
+    ]
+  },
+  {
+    "id": "samsung-galaxy-buds",
+    "manufacturer": "Samsung Electronics",
+    "device_type": "Galaxy Buds",
+    "os_family": null,
+    "rules": [
+      { "type": "Oui", "prefix": "C8:F2:30" },
+      { "type": "DeviceName", "pattern": "Galaxy Buds" }
+    ]
+  },
+  {
+    "id": "fitbit-tracker",
+    "manufacturer": "Fitbit",
+    "device_type": "Fitness Tracker",
+    "os_family": null,
+    "rules": [
+      { "type": "Oui", "prefix": "D4:E8:B2" },
+      { "type": "DeviceName", "pattern": "Fitbit" }
+    ]
+  },
+  {
+    "id": "xiaomi-miband",
+    "manufacturer": "Xiaomi",
+    "device_type": "Mi Band",
+    "os_family": null,
+    "rules": [
+      { "type": "Oui", "prefix": "C8:0F:10" },
+      { "type": "DeviceName", "pattern": "Mi Band" }
+    ]
+  },
+  {
+    "id": "xiaomi-miband-alt",
+    "manufacturer": "Xiaomi",
+    "device_type": "Mi Band",
+    "os_family": null,
+    "rules": [
+      { "type": "Oui", "prefix": "88:0F:10" },
+      { "type": "DeviceName", "pattern": "Mi Band" }
+    ]
+  },
+  {
+    "id": "microsoft-surface",
+    "manufacturer": "Microsoft Corporation",
+    "device_type": "Surface Device",
+    "os_family": "Windows",
+    "rules": [
+      { "type": "Oui", "prefix": "00:1D:D8" }
+    ]
+  },
+  {
+    "id": "sony-wh1000xm",
+    "manufacturer": "Sony Corporation",
+    "device_type": "WH-1000XM Headphones",
+    "os_family": null,
+    "rules": [
+      { "type": "Oui", "prefix": "1C:48:F9" },
+      { "type": "DeviceName", "pattern": "WH-1000XM" }
+    ]
+  },
+  {
+    "id": "amazon-echo",
+    "manufacturer": "Amazon",
+    "device_type": "Echo Device",
+    "os_family": null,
+    "rules": [
+      { "type": "Oui", "prefix": "50:DC:E7" },
+      { "type": "DeviceName", "pattern": "Echo" }
+    ]
+  },
+  {
+    "id": "nest-thermostat",
+    "manufacturer": "Google Nest",
+    "device_type": "Nest Thermostat",
+    "os_family": null,
+    "rules": [
+      { "type": "Oui", "prefix": "18:B4:30" },
+      { "type": "DeviceName", "pattern": "Nest" }
+    ]
+  },
+  {
+    "id": "tile-tracker",
+    "manufacturer": "Tile Inc.",
+    "device_type": "Tile Tracker",
+    "os_family": null,
+    "rules": [
+      { "type": "Oui", "prefix": "D8:A9:8B" },
+      { "type": "DeviceName", "pattern": "Tile" }
+    ]
+  }
+]

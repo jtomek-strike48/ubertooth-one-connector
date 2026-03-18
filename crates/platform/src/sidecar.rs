@@ -2560,82 +2560,201 @@ impl SidecarManager {
     }
 
     async fn bt_fingerprint(&self, _params: Value) -> Result<Value> {
+        use crate::fingerprint::FingerprintEngine;
+
         let capture_id = _params.get("capture_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'capture_id'".to_string()))?;
 
-        let target_mac = _params.get("target_mac").and_then(|v| v.as_str());
+        let target_mac = _params.get("target_mac")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'target_mac'".to_string()))?;
 
-        tracing::info!("Fingerprinting capture {} (target: {:?})", capture_id, target_mac);
+        tracing::info!("Fingerprinting capture {} (target: {})", capture_id, target_mac);
 
         let store = CaptureStore::new()?;
         let pcap_path = store.captures_dir().join(format!("{}.pcap", capture_id));
 
-        // Use tshark to extract device info
-        let output = self.execute_ubertooth_command(
-            "tshark",
-            &["-r", pcap_path.to_str().unwrap(), "-T", "fields", "-e", "bluetooth.addr", "-e", "bluetooth.name"]
-        ).await.unwrap_or_default();
+        if !pcap_path.exists() {
+            return Err(UbertoothError::CaptureNotFound(capture_id.to_string()));
+        }
 
-        let mut indicators = Vec::new();
-        let mut manufacturer = "Unknown".to_string();
-        let mut device_type = "Unknown".to_string();
-        let mut confidence = 0.0;
+        // Initialize fingerprint engine
+        let engine = FingerprintEngine::new();
 
-        // Parse output for device patterns
-        for line in output.lines() {
-            let parts: Vec<&str> = line.split('\t').collect();
-            if parts.len() >= 1 {
-                let addr = parts[0].trim();
-                if !addr.is_empty() {
-                    indicators.push(format!("BD_ADDR: {}", addr));
+        // Parse PCAP file and extract advertising data for target MAC
+        let packet_data = self.extract_ble_advertising_data(&pcap_path, target_mac)?;
 
-                    // Simple OUI-based manufacturer detection
-                    let oui = &addr[0..8];
-                    manufacturer = match oui {
-                        "00:1A:7D" => "Apple".to_string(),
-                        "00:25:00" => "Samsung".to_string(),
-                        "00:23:12" => "Intel".to_string(),
-                        _ => "Unknown".to_string(),
-                    };
+        // Perform fingerprinting
+        let fingerprint = engine.fingerprint(&packet_data);
 
-                    if manufacturer != "Unknown" {
-                        confidence = 0.8;
+        if let Some(fp) = fingerprint {
+            Ok(json!({
+                "success": true,
+                "device": {
+                    "mac_address": target_mac,
+                    "fingerprint": {
+                        "manufacturer": fp.manufacturer,
+                        "device_type": fp.device_type,
+                        "os_version": fp.os_version,
+                        "confidence": fp.confidence
+                    },
+                    "indicators": fp.indicators
+                }
+            }))
+        } else {
+            // Fallback to OUI lookup
+            let manufacturer = engine.lookup_manufacturer(target_mac);
+            let has_match = manufacturer.is_some();
+
+            Ok(json!({
+                "success": true,
+                "device": {
+                    "mac_address": target_mac,
+                    "fingerprint": {
+                        "manufacturer": manufacturer.unwrap_or_else(|| "Unknown".to_string()),
+                        "device_type": "Unknown",
+                        "os_version": null,
+                        "confidence": if has_match { 0.5 } else { 0.0 }
+                    },
+                    "indicators": if has_match {
+                        vec!["OUI match only".to_string()]
+                    } else {
+                        vec!["No match found".to_string()]
                     }
                 }
-            }
-            if parts.len() >= 2 {
-                let name = parts[1].trim();
-                if !name.is_empty() {
-                    indicators.push(format!("Device name: {}", name));
+            }))
+        }
+    }
 
-                    // Infer device type from name
-                    if name.to_lowercase().contains("phone") {
-                        device_type = "Smartphone".to_string();
-                        confidence = 0.9;
-                    } else if name.to_lowercase().contains("headset") || name.to_lowercase().contains("buds") {
-                        device_type = "Audio device".to_string();
-                        confidence = 0.85;
+    /// Extract BLE advertising data from PCAP file for specific MAC address.
+    fn extract_ble_advertising_data(
+        &self,
+        pcap_path: &std::path::Path,
+        target_mac: &str,
+    ) -> Result<crate::FingerprintPacketData> {
+        use crate::FingerprintPacketData;
+        use pcap_file::{pcap::PcapReader, PcapError};
+        use std::fs::File;
+
+        let file = File::open(pcap_path)?;
+        let mut pcap_reader = PcapReader::new(file)
+            .map_err(|e| UbertoothError::BackendError(format!("PCAP parse error: {:?}", e)))?;
+
+        let mut packet_data = FingerprintPacketData {
+            mac_address: Some(target_mac.to_string()),
+            ..Default::default()
+        };
+
+        // Parse packets looking for BLE advertising data
+        while let Some(pkt) = pcap_reader.next_packet() {
+            match pkt {
+                Ok(packet) => {
+                    // Parse BLE advertising packet
+                    if let Some(adv_data) = self.parse_ble_advertising(&packet.data, target_mac) {
+                        packet_data = adv_data;
+                        break; // Use first matching packet
                     }
+                }
+                Err(PcapError::IncompleteBuffer) => continue,
+                Err(e) => {
+                    tracing::warn!("PCAP read error: {:?}", e);
+                    break;
                 }
             }
         }
 
-        let device_mac = target_mac.unwrap_or("unknown");
+        Ok(packet_data)
+    }
 
-        Ok(json!({
-            "success": true,
-            "device": {
-                "mac_address": device_mac,
-                "fingerprint": {
-                    "manufacturer": manufacturer,
-                    "device_type": device_type,
-                    "os_version": null,
-                    "confidence": confidence
-                },
-                "indicators": indicators
+    /// Parse BLE advertising packet data.
+    fn parse_ble_advertising(
+        &self,
+        data: &[u8],
+        target_mac: &str,
+    ) -> Option<crate::FingerprintPacketData> {
+        use crate::{FingerprintPacketData, fingerprint::ManufacturerData};
+
+        // Minimum BLE advertising packet size
+        if data.len() < 10 {
+            return None;
+        }
+
+        let mut packet_data = FingerprintPacketData {
+            mac_address: Some(target_mac.to_string()),
+            ..Default::default()
+        };
+
+        // Parse advertising data structures (AD structures)
+        // Format: [length][type][data...]
+        let mut offset = 0;
+
+        // Skip to advertising data (varies by link layer)
+        // For now, start at offset 6 (typical for BLE advertising packets)
+        offset = 6.min(data.len());
+
+        while offset < data.len() {
+            if offset + 1 >= data.len() {
+                break;
             }
-        }))
+
+            let length = data[offset] as usize;
+            if length == 0 || offset + length >= data.len() {
+                break;
+            }
+
+            let ad_type = data[offset + 1];
+            let ad_data = &data[offset + 2..offset + 1 + length];
+
+            match ad_type {
+                0x01 => {
+                    // Flags
+                    if !ad_data.is_empty() {
+                        packet_data.flags = Some(ad_data[0]);
+                    }
+                }
+                0x08 | 0x09 => {
+                    // Shortened/Complete Local Name
+                    if let Ok(name) = String::from_utf8(ad_data.to_vec()) {
+                        packet_data.device_name = Some(name);
+                    }
+                }
+                0x0A => {
+                    // TX Power Level
+                    if !ad_data.is_empty() {
+                        packet_data.tx_power = Some(ad_data[0] as i8);
+                    }
+                }
+                0xFF => {
+                    // Manufacturer Specific Data
+                    if ad_data.len() >= 2 {
+                        let company_id = u16::from_le_bytes([ad_data[0], ad_data[1]]);
+                        packet_data.manufacturer_data = Some(ManufacturerData {
+                            company_id,
+                            data: ad_data[2..].to_vec(),
+                        });
+                    }
+                }
+                0x02 | 0x03 => {
+                    // Incomplete/Complete List of 16-bit Service UUIDs
+                    let mut uuids = Vec::new();
+                    for chunk in ad_data.chunks(2) {
+                        if chunk.len() == 2 {
+                            let uuid = format!("{:04x}", u16::from_le_bytes([chunk[0], chunk[1]]));
+                            uuids.push(uuid);
+                        }
+                    }
+                    packet_data.service_uuids = Some(uuids);
+                }
+                _ => {
+                    // Unknown AD type, skip
+                }
+            }
+
+            offset += 1 + length;
+        }
+
+        Some(packet_data)
     }
 
     async fn pcap_merge(&self, _params: Value) -> Result<Value> {
