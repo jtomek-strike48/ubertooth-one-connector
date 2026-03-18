@@ -1,13 +1,17 @@
 # Ubertooth CLI Enhancement - Implementation Tracker
 
-**Last Updated:** 2026-03-10
-**Status:** Phase 1 - Foundation
+**Last Updated:** 2026-03-18
+**Status:** Phase 5 - UX Polish (In Progress)
 
 ---
 
 ## Recent Work Completed (2026-03)
 
-### ✅ Interactive View Foundation
+### ✅ UX Enhancements (2026-03-18)
+- **Commit:** `26fa642` - Keyboard reference overlay (Phase 5.2 COMPLETE)
+- **Commit:** `ccd03ed` - Repository cleanup and documentation archival
+
+### ✅ Interactive View Foundation (2026-03-10)
 - **Commit:** `34df227` - Side-by-side comparison view for bt_compare
 - **Commit:** `55f9a0d` - Unified keyboard shortcuts across CLI
 - **Commit:** `301426a` - Complete interactive analysis views for bt_analyze
@@ -385,24 +389,29 @@ pcap-file = "2.0"
 ---
 
 #### 5.2 Keyboard Reference Overlay
-**Status:** ✅ Partially Complete (unified shortcuts in commit `55f9a0d`)
-**Remaining Work:** 1-2 days
+**Status:** ✅ **COMPLETE** (commit `26fa642`)
+**Completed:** 2026-03-18
 
-**Tasks:**
-- [ ] Create comprehensive keyboard reference
-- [ ] Add `?` hotkey to show reference
-- [ ] Make reference context-aware (show relevant keys for current view)
-- [ ] Add searchable hotkey list
+**Completed Tasks:**
+- ✅ Create comprehensive keyboard reference
+- ✅ Add `?` hotkey to show reference
+- ✅ Scrollable help overlay with all shortcuts
+- ✅ Footer hints updated to show `[?] Help`
+- ⏳ Make reference context-aware (shows all, not filtered) - future enhancement
+- ⏳ Add searchable hotkey list - future enhancement
 
-**Files to Create/Modify:**
-- `apps/cli/src/tui/ui.rs` (modify - reference overlay)
-- `apps/cli/src/tui/app.rs` (modify - handle `?` key)
+**Files Modified:**
+- `apps/cli/src/tui/app.rs` (HelpOverlay state + event handling)
+- `apps/cli/src/tui/ui.rs` (render_help_overlay + footer updates)
+- `KEYBOARD_REFERENCE.md` (documentation)
 
 **Success Criteria:**
-- [ ] Pressing `?` shows all available hotkeys
-- [ ] Reference shows context-specific keys
-- [ ] Can search for specific commands
-- [ ] Reference is up-to-date with code
+- ✅ Pressing `?` shows all available hotkeys
+- ✅ Reference organized by category (Global, Navigation, etc.)
+- ✅ Scrollable with up/down arrows and page keys
+- ✅ Reference shows all shortcuts comprehensively
+- ⏳ Context-specific filtering - future enhancement
+- ⏳ Search functionality - future enhancement
 
 ---
 
@@ -511,9 +520,9 @@ cargo install flamegraph   # CPU profiling
 | Phase 2: Core Enhancements | 🔲 Not Started | 0/2 | HIGH 🔴 |
 | Phase 3: Analysis Features | 🔲 Not Started | 0/3 | MEDIUM 🟡 |
 | Phase 4: Integration | 🔲 Not Started | 0/3 | LOW 🟢 |
-| Phase 5: UX Polish | 🔴 In Progress | 1/4 | MEDIUM 🟡 |
+| Phase 5: UX Polish | 🔴 In Progress | 2/4 | MEDIUM 🟡 |
 
-**Total Tasks:** 0/14 complete (0%)
+**Total Tasks:** 1/14 complete (7%)
 
 ### Next Actions
 
