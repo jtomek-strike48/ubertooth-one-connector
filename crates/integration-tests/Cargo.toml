@@ -1,0 +1,23 @@
+[package]
+name = "ubertooth-integration-tests"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+# Internal crates
+ubertooth-core.workspace = true
+ubertooth-platform.workspace = true
+ubertooth-tools.workspace = true
+ubertooth-usb.workspace = true
+
+# Testing utilities
+tempfile.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+mockito.workspace = true

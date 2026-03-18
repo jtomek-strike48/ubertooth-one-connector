@@ -5,6 +5,7 @@ members = [
     "crates/platform",
     "crates/tools",
     "crates/usb",
+    "crates/integration-tests",
     "apps/headless",
     "apps/cli",
 ]
@@ -65,3 +66,7 @@ ubertooth-core = { path = "crates/core" }
 ubertooth-platform = { path = "crates/platform", default-features = false }
 ubertooth-tools = { path = "crates/tools", default-features = false }
 ubertooth-usb = { path = "crates/usb" }
+
+# Testing dependencies
+insta = "1.34"          # Snapshot testing
+mockito = "1.2"         # HTTP mocking
