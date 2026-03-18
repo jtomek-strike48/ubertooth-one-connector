@@ -12,7 +12,7 @@ pub mod system_info;
 pub mod rust_usb;
 
 pub use backend::UbertoothBackendProvider;
-pub use capture_store::CaptureStore;
+pub use capture_store::{CaptureCategory, CaptureMetadata, CaptureStore, Tag};
 pub use config_store::ConfigStore;
 pub use session_manager::{PacketFilter, SessionManager, SessionMetadata, SessionState, ViewState};
 pub use sidecar::SidecarManager;

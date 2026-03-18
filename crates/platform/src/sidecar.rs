@@ -415,6 +415,8 @@ impl SidecarManager {
             pcap_path: final_pcap_str.to_string(),
             tags: vec!["ble".to_string(), "multi-channel".to_string()],
             description: format!("Multi-channel BLE scan (channels 37, 38, 39)"),
+                    category: None,
+            notes: None,
         };
 
         // Save metadata
@@ -655,6 +657,8 @@ impl SidecarManager {
             pcap_path: pcap_path_str.to_string(),
             tags: vec!["specan".to_string(), format!("{}-{}_MHz", low_freq, high_freq)],
             description: format!("Spectrum scan {}-{} MHz", low_freq, high_freq),
+                    category: None,
+            notes: None,
         };
 
         // Save metadata
@@ -1752,6 +1756,8 @@ impl SidecarManager {
             pcap_path: pcap_path.to_string_lossy().to_string(),
             tags: Vec::new(),
             description: format!("Bluetooth Classic scan, {} devices found", total_devices),
+                    category: None,
+            notes: None,
         };
         store.save_metadata(&metadata)?;
 
@@ -1832,6 +1838,8 @@ impl SidecarManager {
             pcap_path: pcap_path.to_string_lossy().to_string(),
             tags: vec![format!("bd_addr:{}", bd_addr)],
             description: format!("Following Bluetooth connection {}", bd_addr),
+                    category: None,
+            notes: None,
         };
         store.save_metadata(&metadata)?;
 
@@ -1992,6 +2000,8 @@ impl SidecarManager {
             pcap_path: pcap_path.to_string_lossy().to_string(),
             tags: Vec::new(),
             description: format!("Promiscuous BT discovery, {} piconets found", piconets_found.len()),
+                    category: None,
+            notes: None,
         };
         store.save_metadata(&metadata)?;
 
@@ -2078,6 +2088,8 @@ impl SidecarManager {
             pcap_path: pcap_path.to_string_lossy().to_string(),
             tags: vec![format!("access_address:{}", access_address)],
             description: format!("Following BLE connection {}", access_address),
+                    category: None,
+            notes: None,
         };
         store.save_metadata(&metadata)?;
 
@@ -2695,6 +2707,8 @@ impl SidecarManager {
             pcap_path: output_path.to_string_lossy().to_string(),
             tags: vec!["merged".to_string()],
             description: format!("Merged from {} source captures", capture_ids.len()),
+                    category: None,
+            notes: None,
         };
         store.save_metadata(&metadata)?;
 
@@ -2889,6 +2903,8 @@ impl SidecarManager {
             pcap_path: pcap_path.to_string_lossy().to_string(),
             tags: vec![format!("mac:{}", mac_address)],
             description: format!("BLE slave mode, {} connections", connections_received),
+                    category: None,
+            notes: None,
         };
         store.save_metadata(&metadata)?;
 
