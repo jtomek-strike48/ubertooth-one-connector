@@ -126,6 +126,9 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
         } => {
             render_live_capture(f, area, buffer, stats, *paused, limits, *selected_index, *scroll_offset, tool_name);
         }
+        AppState::SessionManager { selected_index, sessions, mode, session_name } => {
+            render_session_manager(f, area, *selected_index, sessions, mode, session_name);
+        }
     }
 }
 
@@ -1549,6 +1552,14 @@ fn render_footer(f: &mut Frame, area: Rect, state: &AppState) {
                 "[Space] Resume  [s] Save  [c] Clear  [Esc] Stop  [?] Help"
             } else {
                 "[Space] Pause  [s] Save  [c] Clear  [Esc] Stop  [?] Help"
+            }
+        }
+        AppState::SessionManager { mode, .. } => {
+            use crate::tui::app::SessionMode;
+            match mode {
+                SessionMode::List => "[↑/↓] Navigate  [Enter] Load  [s] Save  [d] Delete  [Esc] Back",
+                SessionMode::Save => "[Type name]  [Enter] Save  [Esc] Cancel",
+                SessionMode::Load => "Loading session...",
             }
         }
     };
@@ -3637,4 +3648,175 @@ fn render_live_statistics(
     let buffer_panel = Paragraph::new(buffer_text)
         .block(Block::default().borders(Borders::ALL).title(" Buffer "));
     f.render_widget(buffer_panel, chunks[1]);
+}
+
+/// Render session manager view
+fn render_session_manager(
+    f: &mut Frame,
+    area: Rect,
+    selected_index: usize,
+    sessions: &[ubertooth_platform::SessionMetadata],
+    mode: &crate::tui::app::SessionMode,
+    session_name: &str,
+) {
+    use crate::tui::app::SessionMode;
+
+    match mode {
+        SessionMode::List => {
+            render_session_list(f, area, selected_index, sessions);
+        }
+        SessionMode::Save => {
+            render_session_save(f, area, session_name);
+        }
+        SessionMode::Load => {
+            render_session_loading(f, area);
+        }
+    }
+}
+
+/// Render session list
+fn render_session_list(
+    f: &mut Frame,
+    area: Rect,
+    selected_index: usize,
+    sessions: &[ubertooth_platform::SessionMetadata],
+) {
+    if sessions.is_empty() {
+        let empty = Paragraph::new(vec![
+            Line::from(""),
+            Line::from(Span::styled(
+                "No saved sessions yet",
+                Style::default().fg(Color::Gray),
+            )),
+            Line::from(""),
+            Line::from(Span::styled(
+                "Press 's' to save current session",
+                Style::default().fg(Color::Yellow),
+            )),
+        ])
+        .block(Block::default().borders(Borders::ALL).title(" Session Manager "))
+        .alignment(Alignment::Center);
+
+        f.render_widget(empty, area);
+        return;
+    }
+
+    // Build session list items
+    let items: Vec<ListItem> = sessions
+        .iter()
+        .enumerate()
+        .map(|(i, session)| {
+            let is_selected = i == selected_index;
+
+            let tool_str = session.current_tool.as_ref().map(|t| t.as_str()).unwrap_or("None");
+            let updated = session.updated_at.format("%Y-%m-%d %H:%M:%S");
+
+            let lines = vec![
+                Line::from(vec![
+                    Span::styled(
+                        format!("  {}", session.name),
+                        Style::default()
+                            .fg(if is_selected { Color::Yellow } else { Color::White })
+                            .add_modifier(Modifier::BOLD),
+                    ),
+                ]),
+                Line::from(vec![
+                    Span::styled("    Tool: ", Style::default().fg(Color::Gray)),
+                    Span::styled(tool_str, Style::default().fg(Color::Cyan)),
+                    Span::raw("  "),
+                    Span::styled(format!("{} capture(s)", session.captures_count), Style::default().fg(Color::Green)),
+                ]),
+                Line::from(vec![
+                    Span::styled("    Updated: ", Style::default().fg(Color::Gray)),
+                    Span::styled(updated.to_string(), Style::default().fg(Color::Magenta)),
+                ]),
+                Line::from(""), // Blank line between items
+            ];
+
+            ListItem::new(lines)
+        })
+        .collect();
+
+    let list = List::new(items)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(format!(" Session Manager ({} sessions) ", sessions.len())),
+        )
+        .highlight_style(
+            Style::default()
+                .bg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+        )
+        .highlight_symbol("▶ ");
+
+    f.render_widget(list, area);
+}
+
+/// Render session save dialog
+fn render_session_save(f: &mut Frame, area: Rect, session_name: &str) {
+    // Create centered dialog
+    let dialog_area = centered_rect(60, 30, area);
+
+    let text = vec![
+        Line::from(""),
+        Line::from(Span::styled(
+            "Save Current Session",
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        )),
+        Line::from(""),
+        Line::from(Span::styled("Session Name:", Style::default().fg(Color::White))),
+        Line::from(""),
+        Line::from(Span::styled(
+            format!("> {}_", session_name),
+            Style::default().fg(Color::Cyan),
+        )),
+        Line::from(""),
+        Line::from(""),
+        Line::from(Span::styled(
+            "[Enter] Save  [Esc] Cancel",
+            Style::default().fg(Color::Gray),
+        )),
+    ];
+
+    let dialog = Paragraph::new(text)
+        .block(Block::default().borders(Borders::ALL).title(" Save Session "))
+        .alignment(Alignment::Center);
+
+    // Clear background
+    let clear_widget = Block::default().style(Style::default().bg(Color::Black));
+    f.render_widget(clear_widget, area);
+
+    f.render_widget(dialog, dialog_area);
+}
+
+/// Render session loading message
+fn render_session_loading(f: &mut Frame, area: Rect) {
+    let text = Paragraph::new("Loading session...")
+        .style(Style::default().fg(Color::Yellow))
+        .alignment(Alignment::Center)
+        .block(Block::default().borders(Borders::ALL).title(" Session Manager "));
+
+    f.render_widget(text, area);
+}
+
+/// Helper to create centered rectangle
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage((100 - percent_y) / 2),
+            Constraint::Percentage(percent_y),
+            Constraint::Percentage((100 - percent_y) / 2),
+        ])
+        .split(r);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage((100 - percent_x) / 2),
+            Constraint::Percentage(percent_x),
+            Constraint::Percentage((100 - percent_x) / 2),
+        ])
+        .split(popup_layout[1])[1]
 }

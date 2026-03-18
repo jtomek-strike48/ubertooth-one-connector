@@ -169,6 +169,29 @@ pub enum AppState {
         /// Tool name that started the capture
         tool_name: String,
     },
+
+    /// Session management - save/load sessions
+    SessionManager {
+        /// Selected session index
+        selected_index: usize,
+        /// List of available sessions
+        sessions: Vec<ubertooth_platform::SessionMetadata>,
+        /// Action mode (list, save, load)
+        mode: SessionMode,
+        /// Name input for saving (if in save mode)
+        session_name: String,
+    },
+}
+
+/// Session manager mode
+#[derive(Debug, Clone, PartialEq)]
+pub enum SessionMode {
+    /// Listing sessions
+    List,
+    /// Saving current session (prompting for name)
+    Save,
+    /// Loading selected session
+    Load,
 }
 
 /// Action to take on confirmation

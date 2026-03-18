@@ -3,6 +3,7 @@
 pub mod backend;
 pub mod capture_store;
 pub mod config_store;
+pub mod session_manager;
 pub mod sidecar;
 pub mod streaming_buffer;
 pub mod system_info;
@@ -13,6 +14,7 @@ pub mod rust_usb;
 pub use backend::UbertoothBackendProvider;
 pub use capture_store::CaptureStore;
 pub use config_store::ConfigStore;
+pub use session_manager::{PacketFilter, SessionManager, SessionMetadata, SessionState, ViewState};
 pub use sidecar::SidecarManager;
 pub use streaming_buffer::{BufferStats, CaptureLimits, PacketData, StreamingBuffer};
 pub use system_info::SystemInfo;
