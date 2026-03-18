@@ -134,6 +134,14 @@ pub enum AppState {
         previous_success: bool,
         previous_packet_list_state: PacketListState,
     },
+
+    /// Help overlay showing keyboard shortcuts
+    HelpOverlay {
+        /// Previous state to return to
+        previous_state: Box<AppState>,
+        /// Scroll position in help text
+        scroll_offset: usize,
+    },
 }
 
 /// Action to take on confirmation
@@ -1546,11 +1554,60 @@ impl App {
             return Ok(());
         }
 
+        // Handle help overlay
+        if let AppState::HelpOverlay { previous_state, scroll_offset } = &mut self.state {
+            if let Event::Key(KeyEvent { code, .. }) = event {
+                match code {
+                    KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('q') => {
+                        // Close help and return to previous state
+                        if let AppState::HelpOverlay { previous_state, .. } = std::mem::replace(&mut self.state, AppState::MainMenu { selected_index: 0 }) {
+                            self.state = *previous_state;
+                        }
+                        return Ok(());
+                    }
+                    KeyCode::Up | KeyCode::Char('k') => {
+                        if *scroll_offset > 0 {
+                            *scroll_offset -= 1;
+                        }
+                        return Ok(());
+                    }
+                    KeyCode::Down | KeyCode::Char('j') => {
+                        *scroll_offset += 1;
+                        return Ok(());
+                    }
+                    KeyCode::PageUp => {
+                        *scroll_offset = scroll_offset.saturating_sub(10);
+                        return Ok(());
+                    }
+                    KeyCode::PageDown => {
+                        *scroll_offset += 10;
+                        return Ok(());
+                    }
+                    KeyCode::Home => {
+                        *scroll_offset = 0;
+                        return Ok(());
+                    }
+                    _ => {
+                        return Ok(());
+                    }
+                }
+            }
+            return Ok(());
+        }
+
         // Normal navigation
         if let Event::Key(KeyEvent { code, .. }) = event {
             match code {
                 KeyCode::Char('q') => {
                     self.should_quit = true;
+                }
+                KeyCode::Char('?') => {
+                    // Show help overlay
+                    let previous_state = std::mem::replace(&mut self.state, AppState::MainMenu { selected_index: 0 });
+                    self.state = AppState::HelpOverlay {
+                        previous_state: Box::new(previous_state),
+                        scroll_offset: 0,
+                    };
                 }
                 KeyCode::Char('s') => {
                     // Open settings

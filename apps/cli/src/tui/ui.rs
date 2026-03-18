@@ -108,6 +108,9 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
         } => {
             render_filter_dialog(f, area, *selected_section, *selected_packet_type, packet_type_selections, mac_filter, rssi_min, rssi_max);
         }
+        AppState::HelpOverlay { scroll_offset, .. } => {
+            render_help_overlay(f, area, *scroll_offset);
+        }
     }
 }
 
@@ -1480,20 +1483,20 @@ fn render_settings(f: &mut Frame, area: Rect, selected_index: usize) {
 fn render_footer(f: &mut Frame, area: Rect, state: &AppState) {
     let shortcuts = match state {
         AppState::MainMenu { .. } => {
-            "[0-6] Quick Select  [↑/↓] Navigate  [Enter] Select  [Esc] Back  [q] Quit"
+            "[0-6] Quick Select  [↑/↓] Navigate  [Enter] Select  [?] Help  [q] Quit"
         }
         AppState::ToolCategory { category, .. } => {
             if matches!(category, Category::DeviceManagement) {
-                "[1-9] Quick Select  [→] Device Status  [Enter] Select  [Esc] Back"
+                "[1-9] Quick Select  [→] Device Status  [Enter] Select  [?] Help  [Esc] Back"
             } else {
-                "[1-9] Quick Select  [↑/↓] Navigate  [Enter] Select  [Esc] Back"
+                "[1-9] Quick Select  [↑/↓] Navigate  [Enter] Select  [?] Help  [Esc] Back"
             }
         }
         AppState::ToolForm { hotkey_mode, .. } => {
             if *hotkey_mode {
-                "[1-9] Set Value  [Enter] Execute  [Esc] Back"
+                "[1-9] Set Value  [Enter] Execute  [?] Help  [Esc] Back"
             } else {
-                "[Tab] Next  [Enter] Execute  [Esc] Cancel"
+                "[Tab] Next  [Enter] Execute  [?] Help  [Esc] Cancel"
             }
         }
         AppState::Executing { .. } => {
@@ -1501,24 +1504,27 @@ fn render_footer(f: &mut Frame, area: Rect, state: &AppState) {
         }
         AppState::Results { tool_name, .. } => {
             match tool_name.as_str() {
-                "capture_list" => "[↑/↓] Navigate  [Enter] Analyze  [V] View  [D] Delete  [E] Export  [T] Tag",
-                "bt_decode" => "[↑/↓] Navigate  [Enter] Expand  [b] Bookmark  [m] Mark  [/] Filter  [e] Export",
-                "bt_analyze" => "[o/d/s/t] View Modes  [↑/↓] Navigate  [Enter] Expand  [Esc] Back",
-                "bt_compare" => "[Esc] Back to Menu - Side-by-side capture comparison",
-                _ => "[Esc] Back to Menu"
+                "capture_list" => "[↑/↓] Navigate  [Enter] Analyze  [V] View  [D] Delete  [E] Export  [T] Tag  [?] Help",
+                "bt_decode" => "[↑/↓] Navigate  [Enter] Expand  [b] Bookmark  [m] Mark  [/] Filter  [e] Export  [?] Help",
+                "bt_analyze" => "[o/d/s/t] View Modes  [↑/↓] Navigate  [Enter] Expand  [?] Help  [Esc] Back",
+                "bt_compare" => "[?] Help  [Esc] Back to Menu - Side-by-side capture comparison",
+                _ => "[?] Help  [Esc] Back to Menu"
             }
         }
         AppState::Settings { .. } => {
-            "[Esc] Back to Menu"
+            "[?] Help  [Esc] Back to Menu"
         }
         AppState::Confirmation { .. } => {
             "[Y] Confirm  [N] Cancel"
         }
         AppState::ExportMenu { .. } => {
-            "[↑/↓] Navigate  [Enter] Export  [Esc] Cancel"
+            "[↑/↓] Navigate  [Enter] Export  [?] Help  [Esc] Cancel"
         }
         AppState::FilterDialog { .. } => {
-            "[↑/↓] Navigate  [←/→] Select  [Space] Toggle  [Enter] Apply  [C] Clear  [Esc] Cancel"
+            "[↑/↓] Navigate  [←/→] Select  [Space] Toggle  [Enter] Apply  [C] Clear  [?] Help  [Esc] Cancel"
+        }
+        AppState::HelpOverlay { .. } => {
+            "[↑/↓/PgUp/PgDn] Scroll  [Esc/?/q] Close Help"
         }
     };
 
@@ -2971,4 +2977,356 @@ fn render_filter_dialog(
     let actions_widget = Paragraph::new(actions_lines)
         .block(Block::default().borders(Borders::ALL).title(" Actions "));
     f.render_widget(actions_widget, chunks[3]);
+}
+
+/// Render help overlay with keyboard shortcuts
+fn render_help_overlay(f: &mut Frame, area: Rect, scroll_offset: usize) {
+    // Create centered overlay area (80% width, 90% height)
+    let overlay_width = (area.width * 80) / 100;
+    let overlay_height = (area.height * 90) / 100;
+    let overlay_x = (area.width - overlay_width) / 2;
+    let overlay_y = (area.height - overlay_height) / 2;
+
+    let overlay_area = Rect {
+        x: overlay_x,
+        y: overlay_y,
+        width: overlay_width,
+        height: overlay_height,
+    };
+
+    // Create help text with comprehensive keyboard shortcuts
+    let help_lines = vec![
+        Line::from(vec![
+            Span::styled("Ubertooth CLI - Keyboard Reference",
+                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        ]),
+        Line::from(""),
+
+        // Global shortcuts
+        Line::from(vec![
+            Span::styled("GLOBAL SHORTCUTS", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  ?  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Show this help overlay")
+        ]),
+        Line::from(vec![
+            Span::styled("  q  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Quit application")
+        ]),
+        Line::from(vec![
+            Span::styled(" Esc ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Go back / Cancel current action")
+        ]),
+        Line::from(vec![
+            Span::styled("  s  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Open settings")
+        ]),
+        Line::from(vec![
+            Span::styled(" 1-9 ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Quick select menu item")
+        ]),
+        Line::from(""),
+
+        // Navigation
+        Line::from(vec![
+            Span::styled("NAVIGATION", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(" ↑/↓ ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Navigate up/down in menus and lists")
+        ]),
+        Line::from(vec![
+            Span::styled("Enter", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw(" Select item / Confirm action")
+        ]),
+        Line::from(vec![
+            Span::styled(" Tab ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Switch between form fields")
+        ]),
+        Line::from(vec![
+            Span::styled("PgUp ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("/ "),
+            Span::styled("PgDn", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw(" Page up/down in lists")
+        ]),
+        Line::from(vec![
+            Span::styled("Home ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("/ "),
+            Span::styled(" End", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw(" Jump to start/end of list")
+        ]),
+        Line::from(""),
+
+        // Capture management
+        Line::from(vec![
+            Span::styled("CAPTURE MANAGEMENT (capture_list view)", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Enter", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw(" Analyze selected capture")
+        ]),
+        Line::from(vec![
+            Span::styled("  V  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("View capture details")
+        ]),
+        Line::from(vec![
+            Span::styled("  D  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Delete capture (with confirmation)")
+        ]),
+        Line::from(vec![
+            Span::styled("  E  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Export capture to file")
+        ]),
+        Line::from(vec![
+            Span::styled("  T  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Add/edit tags for capture")
+        ]),
+        Line::from(""),
+
+        // Packet analysis
+        Line::from(vec![
+            Span::styled("PACKET ANALYSIS (bt_decode view)", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(" ↑/↓ ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Navigate packet list")
+        ]),
+        Line::from(vec![
+            Span::styled("Enter", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw(" / "),
+            Span::styled("Space", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw(" Expand/collapse packet details")
+        ]),
+        Line::from(vec![
+            Span::styled("  b  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Bookmark packet (mark with ★)")
+        ]),
+        Line::from(vec![
+            Span::styled("  m  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Mark packet for comparison")
+        ]),
+        Line::from(vec![
+            Span::styled("  f  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Follow stream (filter by MAC address)")
+        ]),
+        Line::from(vec![
+            Span::styled("  /  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Open filter dialog")
+        ]),
+        Line::from(vec![
+            Span::styled("  e  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Open export menu")
+        ]),
+        Line::from(vec![
+            Span::styled("  n  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Add/edit annotation for packet")
+        ]),
+        Line::from(vec![
+            Span::styled("Del  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Delete annotation from packet")
+        ]),
+        Line::from(""),
+
+        // View modes
+        Line::from(vec![
+            Span::styled("VIEW MODES (bt_decode)", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  l  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Switch to List view")
+        ]),
+        Line::from(vec![
+            Span::styled("  s  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Switch to Statistics view")
+        ]),
+        Line::from(vec![
+            Span::styled("  t  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Switch to Timeline view")
+        ]),
+        Line::from(vec![
+            Span::styled("  c  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Switch to Comparison view (side-by-side)")
+        ]),
+        Line::from(""),
+
+        // Analysis results
+        Line::from(vec![
+            Span::styled("ANALYSIS RESULTS (bt_analyze view)", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  o  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Overview mode - show summary")
+        ]),
+        Line::from(vec![
+            Span::styled("  d  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Devices mode - interactive device list")
+        ]),
+        Line::from(vec![
+            Span::styled("  s  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Security observations mode")
+        ]),
+        Line::from(vec![
+            Span::styled("  t  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Timing analysis mode")
+        ]),
+        Line::from(vec![
+            Span::styled(" ↑/↓ ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Navigate items in devices/security modes")
+        ]),
+        Line::from(vec![
+            Span::styled("Enter", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw(" Expand/collapse item details")
+        ]),
+        Line::from(""),
+
+        // Filter dialog
+        Line::from(vec![
+            Span::styled("FILTER DIALOG", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(" ↑/↓ ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Navigate between filter sections")
+        ]),
+        Line::from(vec![
+            Span::styled("←/→ ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Navigate packet types")
+        ]),
+        Line::from(vec![
+            Span::styled("Space", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw(" Toggle packet type selection")
+        ]),
+        Line::from(vec![
+            Span::styled("Enter", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw(" Apply filters")
+        ]),
+        Line::from(vec![
+            Span::styled("  C  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Clear all filters")
+        ]),
+        Line::from(""),
+
+        // Export menu
+        Line::from(vec![
+            Span::styled("EXPORT MENU", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(" ↑/↓ ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Select export option")
+        ]),
+        Line::from(vec![
+            Span::styled("Enter", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw(" Execute export")
+        ]),
+        Line::from(""),
+
+        // Form input
+        Line::from(vec![
+            Span::styled("TOOL PARAMETER FORMS", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled(" Tab ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Move to next field")
+        ]),
+        Line::from(vec![
+            Span::styled(" ↑/↓ ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw("Change dropdown selection")
+        ]),
+        Line::from(vec![
+            Span::styled("Enter", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw(" Submit form and execute tool")
+        ]),
+        Line::from(""),
+
+        // Tips
+        Line::from(vec![
+            Span::styled("TIPS", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
+        ]),
+        Line::from(""),
+        Line::from(vec![
+            Span::raw("• Press "),
+            Span::styled("?", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw(" anytime to see this help overlay")
+        ]),
+        Line::from(vec![
+            Span::raw("• Use "),
+            Span::styled("Esc", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw(" to go back or cancel dialogs")
+        ]),
+        Line::from(vec![
+            Span::raw("• Number keys "),
+            Span::styled("1-9", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw(" provide quick navigation shortcuts")
+        ]),
+        Line::from(vec![
+            Span::raw("• Most views support "),
+            Span::styled("PgUp/PgDn", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::raw(" for fast scrolling")
+        ]),
+        Line::from(""),
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("Press ", Style::default().fg(Color::Gray)),
+            Span::styled("Esc", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(" or ", Style::default().fg(Color::Gray)),
+            Span::styled("?", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(" to close this help", Style::default().fg(Color::Gray)),
+        ]),
+    ];
+
+    // Calculate visible lines based on scroll offset
+    let max_lines = (overlay_height as usize).saturating_sub(4); // Account for borders and padding
+    let total_lines = help_lines.len();
+    let max_scroll = total_lines.saturating_sub(max_lines);
+    let clamped_scroll = scroll_offset.min(max_scroll);
+
+    let visible_lines: Vec<Line> = help_lines
+        .into_iter()
+        .skip(clamped_scroll)
+        .take(max_lines)
+        .collect();
+
+    // Show scroll indicator if needed
+    let scroll_indicator = if total_lines > max_lines {
+        format!(" [↑/↓ to scroll {}/{}] ", clamped_scroll + 1, total_lines)
+    } else {
+        " ".to_string()
+    };
+
+    let help_text = Text::from(visible_lines);
+    let help_widget = Paragraph::new(help_text)
+        .wrap(Wrap { trim: false })
+        .style(Style::default().bg(Color::Black).fg(Color::White))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::default().fg(Color::Cyan))
+                .title(vec![
+                    Span::raw(" "),
+                    Span::styled("Keyboard Reference", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                    Span::raw(" "),
+                ])
+                .title_bottom(vec![
+                    Span::raw(" "),
+                    Span::styled(scroll_indicator, Style::default().fg(Color::Gray)),
+                    Span::raw(" "),
+                ])
+        );
+
+    // Clear background
+    let clear_widget = Block::default()
+        .style(Style::default().bg(Color::Black));
+    f.render_widget(clear_widget, area);
+
+    // Render help overlay
+    f.render_widget(help_widget, overlay_area);
 }
