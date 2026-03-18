@@ -4,6 +4,7 @@ pub mod backend;
 pub mod capture_store;
 pub mod config_store;
 pub mod sidecar;
+pub mod streaming_buffer;
 pub mod system_info;
 
 #[cfg(feature = "rust-backend")]
@@ -13,6 +14,7 @@ pub use backend::UbertoothBackendProvider;
 pub use capture_store::CaptureStore;
 pub use config_store::ConfigStore;
 pub use sidecar::SidecarManager;
+pub use streaming_buffer::{BufferStats, CaptureLimits, PacketData, StreamingBuffer};
 pub use system_info::SystemInfo;
 
 #[cfg(feature = "rust-backend")]

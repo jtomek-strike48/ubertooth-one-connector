@@ -151,6 +151,24 @@ pub enum AppState {
         /// Available themes
         themes: Vec<Theme>,
     },
+
+    /// Live packet capture with real-time streaming
+    LiveCapture {
+        /// Streaming buffer for packets
+        buffer: Arc<ubertooth_platform::StreamingBuffer>,
+        /// Capture statistics
+        stats: ubertooth_platform::BufferStats,
+        /// Is capture paused?
+        paused: bool,
+        /// Capture limits
+        limits: ubertooth_platform::CaptureLimits,
+        /// Selected packet index for viewing
+        selected_index: usize,
+        /// Scroll offset for packet list
+        scroll_offset: usize,
+        /// Tool name that started the capture
+        tool_name: String,
+    },
 }
 
 /// Action to take on confirmation
