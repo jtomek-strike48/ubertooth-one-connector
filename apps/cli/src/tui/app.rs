@@ -1664,6 +1664,147 @@ impl App {
             return Ok(());
         }
 
+        // Handle mouse events
+        if let Event::Mouse(mouse_event) = event {
+            use crossterm::event::{MouseButton, MouseEventKind};
+
+            match mouse_event.kind {
+                MouseEventKind::Down(MouseButton::Left) => {
+                    // Handle left click - select item at mouse position
+                    let row = mouse_event.row;
+                    let col = mouse_event.column;
+
+                    // Calculate which item was clicked based on row
+                    // Account for header (3 lines) and content starts at row 3
+                    if row > 3 {
+                        let content_row = (row - 3) as usize;
+
+                        match &mut self.state {
+                            AppState::MainMenu { selected_index } => {
+                                // Each menu item is roughly 1 row in the list
+                                // Adjust for list item spacing
+                                let clicked_index = content_row.saturating_sub(1) / 2; // Assume 2 lines per item with spacing
+                                if clicked_index < 7 {
+                                    *selected_index = clicked_index;
+                                    // Double-click effect: select immediately
+                                    self.handle_selection()?;
+                                }
+                            }
+                            AppState::ToolCategory { selected_index, category } => {
+                                let device_connected = if matches!(category, Category::DeviceManagement) {
+                                    Some(self.device_status.connected)
+                                } else {
+                                    None
+                                };
+                                let tool_count = category.tool_count_filtered(&self.registry, device_connected);
+                                let clicked_index = content_row.saturating_sub(1) / 2;
+                                if clicked_index < tool_count {
+                                    *selected_index = clicked_index;
+                                    self.handle_selection()?;
+                                }
+                            }
+                            AppState::Settings { selected_index } => {
+                                let clicked_index = content_row.saturating_sub(1) / 2;
+                                if clicked_index < 6 {
+                                    *selected_index = clicked_index;
+                                    self.handle_selection()?;
+                                }
+                            }
+                            AppState::ThemeSelector { selected_index, themes } => {
+                                let clicked_index = content_row.saturating_sub(1);
+                                if clicked_index < themes.len() {
+                                    *selected_index = clicked_index;
+                                    // Apply theme on click
+                                    if let Some(selected_theme) = themes.get(*selected_index) {
+                                        self.theme = selected_theme.clone();
+                                        if let Err(e) = self.theme.save_as_current() {
+                                            tracing::warn!("Failed to save theme: {}", e);
+                                        }
+                                        self.notification = Some(Notification {
+                                            message: format!("Theme '{}' applied", self.theme.name),
+                                            success: true,
+                                        });
+                                    }
+                                    self.state = AppState::Settings { selected_index: 0 };
+                                }
+                            }
+                            AppState::Results { packet_list_state, output, .. } => {
+                                // Handle packet list clicks
+                                if let Some(pls) = packet_list_state {
+                                    let clicked_index = content_row.saturating_sub(1);
+                                    // Get packet count from output
+                                    let packet_count = output.get("packets")
+                                        .and_then(|p| p.as_array())
+                                        .map(|arr| arr.len())
+                                        .unwrap_or(0);
+                                    if clicked_index < packet_count {
+                                        let pls = packet_list_state.as_mut().unwrap();
+                                        pls.selected_index = clicked_index;
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    return Ok(());
+                }
+                MouseEventKind::ScrollDown => {
+                    // Scroll down - move selection down or scroll content
+                    match &mut self.state {
+                        AppState::MainMenu { .. } |
+                        AppState::ToolCategory { .. } |
+                        AppState::Settings { .. } |
+                        AppState::ThemeSelector { .. } => {
+                            self.move_selection(1);
+                        }
+                        AppState::Results { packet_list_state, output, .. } => {
+                            if let Some(pls) = packet_list_state {
+                                let packet_count = output.get("packets")
+                                    .and_then(|p| p.as_array())
+                                    .map(|arr| arr.len())
+                                    .unwrap_or(0);
+                                if pls.selected_index < packet_count.saturating_sub(1) {
+                                    pls.selected_index += 1;
+                                }
+                            }
+                        }
+                        AppState::HelpOverlay { scroll_offset, .. } => {
+                            *scroll_offset += 1;
+                        }
+                        _ => {}
+                    }
+                    return Ok(());
+                }
+                MouseEventKind::ScrollUp => {
+                    // Scroll up - move selection up or scroll content
+                    match &mut self.state {
+                        AppState::MainMenu { .. } |
+                        AppState::ToolCategory { .. } |
+                        AppState::Settings { .. } |
+                        AppState::ThemeSelector { .. } => {
+                            self.move_selection(-1);
+                        }
+                        AppState::Results { packet_list_state, output, .. } => {
+                            if let Some(pls) = packet_list_state {
+                                if pls.selected_index > 0 {
+                                    pls.selected_index -= 1;
+                                }
+                            }
+                        }
+                        AppState::HelpOverlay { scroll_offset, .. } => {
+                            if *scroll_offset > 0 {
+                                *scroll_offset -= 1;
+                            }
+                        }
+                        _ => {}
+                    }
+                    return Ok(());
+                }
+                _ => {}
+            }
+            return Ok(());
+        }
+
         // Normal navigation
         if let Event::Key(KeyEvent { code, .. }) = event {
             match code {
