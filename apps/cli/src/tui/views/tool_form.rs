@@ -123,7 +123,11 @@ impl ToolForm {
     }
 
     /// Determine if a field should have dropdown options
-    fn get_dropdown_options(name: &str, field_type: &FieldType, prop: &Value) -> Option<Vec<String>> {
+    fn get_dropdown_options(
+        name: &str,
+        field_type: &FieldType,
+        prop: &Value,
+    ) -> Option<Vec<String>> {
         // Check for explicit enum in schema
         if let Some(enum_values) = prop.get("enum").and_then(|e| e.as_array()) {
             let options: Vec<String> = enum_values
@@ -181,7 +185,10 @@ impl ToolForm {
                 if !captures.is_empty() {
                     let mut options = captures;
                     options.push("Other (manual)".to_string());
-                    tracing::debug!("Created dropdown with {} options for capture_id", options.len());
+                    tracing::debug!(
+                        "Created dropdown with {} options for capture_id",
+                        options.len()
+                    );
                     return Some(options);
                 } else {
                     tracing::debug!("Captures list was empty");
@@ -259,11 +266,7 @@ impl ToolForm {
         let required_fields = schema
             .get("required")
             .and_then(|r| r.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str())
-                    .collect::<Vec<_>>()
-            })
+            .map(|arr| arr.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>())
             .unwrap_or_default();
 
         for (name, prop) in properties {
@@ -322,7 +325,9 @@ impl ToolForm {
 
     /// Check if all fields are optional (have defaults or not required)
     pub fn all_fields_optional(&self) -> bool {
-        self.fields.iter().all(|f| !f.required || f.default.is_some())
+        self.fields
+            .iter()
+            .all(|f| !f.required || f.default.is_some())
     }
 
     /// Get all text inputs
@@ -342,7 +347,9 @@ impl ToolForm {
 
     /// Navigate dropdown up
     pub fn dropdown_prev(&mut self) {
-        if let Some(FieldInputMode::Dropdown { selected_index }) = self.input_modes.get_mut(self.focused_index) {
+        if let Some(FieldInputMode::Dropdown { selected_index }) =
+            self.input_modes.get_mut(self.focused_index)
+        {
             if let Some(options) = &self.fields[self.focused_index].dropdown_options {
                 if *selected_index > 0 {
                     *selected_index -= 1;
@@ -353,7 +360,9 @@ impl ToolForm {
 
     /// Navigate dropdown down
     pub fn dropdown_next(&mut self) {
-        if let Some(FieldInputMode::Dropdown { selected_index }) = self.input_modes.get_mut(self.focused_index) {
+        if let Some(FieldInputMode::Dropdown { selected_index }) =
+            self.input_modes.get_mut(self.focused_index)
+        {
             if let Some(options) = &self.fields[self.focused_index].dropdown_options {
                 if *selected_index < options.len() - 1 {
                     *selected_index += 1;
@@ -483,9 +492,13 @@ impl ToolForm {
     }
 
     /// Execute the tool with current parameters
+    #[allow(dead_code)]
     pub async fn execute(&self) -> Result<Value> {
         let params = self.build_params();
-        self.tool.execute(params).await.map_err(|e| anyhow::anyhow!("{}", e))
+        self.tool
+            .execute(params)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
     }
 
     /// Get the tool reference (for async execution)
@@ -505,9 +518,7 @@ impl ToolForm {
                     None
                 }
             }
-            FieldInputMode::Text => {
-                Some(self.inputs[idx].lines().join(""))
-            }
+            FieldInputMode::Text => Some(self.inputs[idx].lines().join("")),
         }
     }
 
@@ -559,16 +570,43 @@ impl ToolForm {
         for field in &self.fields {
             // Determine hotkey and options for this field
             let (hotkey, options): (char, Vec<String>) = if field.name == "duration_sec" {
-                ('D', vec!["5".to_string(), "10".to_string(), "30".to_string(), "60".to_string(), "120".to_string()])
+                (
+                    'D',
+                    vec![
+                        "5".to_string(),
+                        "10".to_string(),
+                        "30".to_string(),
+                        "60".to_string(),
+                        "120".to_string(),
+                    ],
+                )
             } else if field.name == "channel" {
-                ('C', vec!["37".to_string(), "38".to_string(), "39".to_string()])
+                (
+                    'C',
+                    vec!["37".to_string(), "38".to_string(), "39".to_string()],
+                )
             } else if field.name == "save_pcap" {
                 ('S', vec!["true".to_string(), "false".to_string()])
             } else if field.name == "analysis_type" {
-                ('A', vec!["auto".to_string(), "protocol".to_string(), "timing".to_string(), "security".to_string()])
+                (
+                    'A',
+                    vec![
+                        "auto".to_string(),
+                        "protocol".to_string(),
+                        "timing".to_string(),
+                        "security".to_string(),
+                    ],
+                )
             } else {
                 // Default: first letter of field name
-                let first_char = field.name.chars().next().unwrap_or('?').to_uppercase().next().unwrap();
+                let first_char = field
+                    .name
+                    .chars()
+                    .next()
+                    .unwrap_or('?')
+                    .to_uppercase()
+                    .next()
+                    .unwrap();
 
                 // Get options from dropdown or generate defaults
                 let opts = if let Some(dropdown_opts) = &field.dropdown_options {

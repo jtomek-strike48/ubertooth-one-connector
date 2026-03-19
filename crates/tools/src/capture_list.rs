@@ -149,7 +149,9 @@ mod tests {
                     "limit": 50
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 

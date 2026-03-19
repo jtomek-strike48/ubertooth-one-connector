@@ -4,12 +4,12 @@
 //! This module implements a non-blocking polling reader that mimics the async behavior.
 
 use crate::constants::*;
-use crate::error::{Result, UsbError};
 use crate::device::UbertoothDevice;
 use crate::device_libusb::UbertoothDeviceLibusb;
+use crate::error::{Result, UsbError};
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use tokio::time::{Duration, sleep};
+use tokio::time::{sleep, Duration};
 use tracing::{debug, trace, warn};
 
 /// Asynchronous packet reader that polls the USB bulk endpoint.
@@ -39,8 +39,8 @@ impl AsyncPacketReader {
         Self {
             device,
             buffer_size,
-            poll_interval_ms: 1,      // Poll every 1ms
-            read_timeout_ms: 10,       // Very short USB timeout
+            poll_interval_ms: 1, // Poll every 1ms
+            read_timeout_ms: 10, // Very short USB timeout
         }
     }
 
@@ -79,11 +79,7 @@ impl AsyncPacketReader {
     /// - Duration expires
     /// - Callback returns false
     /// - Fatal error occurs
-    pub async fn read_packets<F>(
-        &self,
-        duration: Duration,
-        mut callback: F,
-    ) -> Result<usize>
+    pub async fn read_packets<F>(&self, duration: Duration, mut callback: F) -> Result<usize>
     where
         F: FnMut(Vec<u8>) -> bool,
     {
@@ -114,7 +110,10 @@ impl AsyncPacketReader {
                 Err(e) => {
                     consecutive_errors += 1;
                     if consecutive_errors >= max_consecutive_errors {
-                        warn!("Too many consecutive errors ({}), stopping", consecutive_errors);
+                        warn!(
+                            "Too many consecutive errors ({}), stopping",
+                            consecutive_errors
+                        );
                         return Err(e);
                     }
 
@@ -137,17 +136,18 @@ impl AsyncPacketReader {
         self.read_packets(duration, |packet| {
             // Try to send packet to channel
             match tx.try_send(packet) {
-                Ok(_) => true,  // Continue reading
+                Ok(_) => true, // Continue reading
                 Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => {
                     warn!("Channel full, dropping packet");
-                    true  // Continue anyway
+                    true // Continue anyway
                 }
                 Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => {
                     debug!("Channel closed");
-                    false  // Stop reading
+                    false // Stop reading
                 }
             }
-        }).await
+        })
+        .await
     }
 
     /// Configure polling parameters for performance tuning.
@@ -169,7 +169,8 @@ pub async fn flush_usb_buffer(device: Arc<Mutex<UbertoothDevice>>) -> Result<()>
 
     // Quick non-blocking reads to clear any stale data
     for _ in 0..10 {
-        match dev.bulk_read(&mut buffer, 5) {  // 5ms timeout
+        match dev.bulk_read(&mut buffer, 5) {
+            // 5ms timeout
             Ok(len) => {
                 flushed_bytes += len;
                 trace!("Flushed {} bytes", len);
@@ -206,7 +207,8 @@ pub async fn flush_usb_buffer_libusb(device: Arc<Mutex<UbertoothDeviceLibusb>>) 
 
     // Quick non-blocking reads to clear any stale data
     for _ in 0..10 {
-        match dev.bulk_read(&mut buffer, 5) {  // 5ms timeout
+        match dev.bulk_read(&mut buffer, 5) {
+            // 5ms timeout
             Ok(len) => {
                 flushed_bytes += len;
                 trace!("Flushed {} bytes", len);
@@ -229,6 +231,7 @@ pub async fn flush_usb_buffer_libusb(device: Arc<Mutex<UbertoothDeviceLibusb>>) 
 
 #[cfg(test)]
 mod tests {
+    #[allow(unused_imports)]
     use super::*;
 
     #[tokio::test]

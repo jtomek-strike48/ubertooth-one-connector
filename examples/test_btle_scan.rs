@@ -24,10 +24,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("[2/4] Connecting to Ubertooth One (index 0)...");
     device.connect(0)?;
 
-    let info = device.device_info().expect("Device info should be available");
-    println!("✅ Connected to: {} (firmware: {})",
-             info.board_name(),
-             info.firmware_version);
+    let info = device
+        .device_info()
+        .expect("Device info should be available");
+    println!(
+        "✅ Connected to: {} (firmware: {})",
+        info.board_name(),
+        info.firmware_version
+    );
     println!("   Board ID: {}", info.board_id);
     println!("   Serial: {}", info.serial_number);
     println!();
@@ -50,12 +54,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let start = std::time::Instant::now();
 
-    let result = commands.btle_scan(json!({
-        "duration_sec": 5,
-        "channel": 37,
-        "promiscuous": true,
-        "save_pcap": false
-    })).await;
+    let result = commands
+        .btle_scan(json!({
+            "duration_sec": 5,
+            "channel": 37,
+            "promiscuous": true,
+            "save_pcap": false
+        }))
+        .await;
 
     let elapsed = start.elapsed();
 
@@ -80,8 +86,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("  • Scan time: {:.2}s", elapsed.as_secs_f64());
 
             if total_packets > 0 {
-                println!("  • Throughput: {:.0} packets/sec",
-                         total_packets as f64 / elapsed.as_secs_f64());
+                println!(
+                    "  • Throughput: {:.0} packets/sec",
+                    total_packets as f64 / elapsed.as_secs_f64()
+                );
             }
 
             println!();

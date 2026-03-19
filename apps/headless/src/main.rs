@@ -70,7 +70,9 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or_else(|_| args.backend.clone())
         .to_lowercase();
 
-    let backend: Arc<dyn ubertooth_platform::UbertoothBackendProvider> = match backend_choice.as_str() {
+    let backend: Arc<dyn ubertooth_platform::UbertoothBackendProvider> = match backend_choice
+        .as_str()
+    {
         "rust" => {
             #[cfg(feature = "rust-backend")]
             {
@@ -103,10 +105,7 @@ async fn main() -> anyhow::Result<()> {
         }
         "python" | _ => {
             if backend_choice != "python" && !backend_choice.is_empty() {
-                tracing::warn!(
-                    "Unknown backend '{}', defaulting to Python",
-                    backend_choice
-                );
+                tracing::warn!("Unknown backend '{}', defaulting to Python", backend_choice);
             }
             tracing::info!("Backend: Python sidecar (ubertooth-tools)");
             SidecarManager::new()
@@ -142,8 +141,14 @@ async fn main() -> anyhow::Result<()> {
             Ok(schemas) => {
                 tracing::info!("✓ Tool schemas valid (Strike48 SDK format)");
                 if let Some(first) = schemas.first() {
-                    tracing::info!("Example tool: {}", first["name"].as_str().unwrap_or("unknown"));
-                    tracing::debug!("Example schema: {}", serde_json::to_string_pretty(first).unwrap_or_default());
+                    tracing::info!(
+                        "Example tool: {}",
+                        first["name"].as_str().unwrap_or("unknown")
+                    );
+                    tracing::debug!(
+                        "Example schema: {}",
+                        serde_json::to_string_pretty(first).unwrap_or_default()
+                    );
                 }
             }
             Err(e) => {

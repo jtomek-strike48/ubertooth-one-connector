@@ -93,7 +93,9 @@ mod tests {
                     "message": format!("Configuration '{}' deleted", config_name)
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 
@@ -115,9 +117,12 @@ mod tests {
         let backend = Arc::new(MockBackend);
         let tool = ConfigDeleteTool::new(backend);
 
-        let result = tool.execute(json!({
-            "config_name": "ble_ch37"
-        })).await.unwrap();
+        let result = tool
+            .execute(json!({
+                "config_name": "ble_ch37"
+            }))
+            .await
+            .unwrap();
 
         assert_eq!(result["success"], true);
         assert!(result["message"].as_str().unwrap().contains("deleted"));

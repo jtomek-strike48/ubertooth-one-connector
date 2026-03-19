@@ -1,8 +1,8 @@
 //! Test: EXACT command sequence from Python ubertooth-btle tool
 //! Based on USB capture analysis
 
-use ubertooth_usb::{UbertoothDevice, constants::*};
 use std::time::Duration;
+use ubertooth_usb::{constants::*, UbertoothDevice};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("========================================");

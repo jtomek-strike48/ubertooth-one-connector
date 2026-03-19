@@ -40,8 +40,9 @@ pub struct ConfigStore {
 impl ConfigStore {
     /// Create a new config store at ~/.ubertooth/configs/
     pub fn new() -> Result<Self> {
-        let home = dirs::home_dir()
-            .ok_or_else(|| UbertoothError::BackendError("Cannot find home directory".to_string()))?;
+        let home = dirs::home_dir().ok_or_else(|| {
+            UbertoothError::BackendError("Cannot find home directory".to_string())
+        })?;
 
         let ubertooth_dir = home.join(".ubertooth");
         let configs_dir = ubertooth_dir.join("configs");

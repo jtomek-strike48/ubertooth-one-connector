@@ -133,7 +133,9 @@ mod tests {
                     "message": "Packet injected successfully"
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 
@@ -155,11 +157,14 @@ mod tests {
         let backend = Arc::new(MockBackend);
         let tool = BtleInjectTool::new(backend);
 
-        let result = tool.execute(json!({
-            "access_address": "0x8E89BED6",
-            "channel": 37,
-            "packet_hex": "0201061AFF4C00"
-        })).await.unwrap();
+        let result = tool
+            .execute(json!({
+                "access_address": "0x8E89BED6",
+                "channel": 37,
+                "packet_hex": "0201061AFF4C00"
+            }))
+            .await
+            .unwrap();
 
         assert_eq!(result["success"], true);
         assert_eq!(result["packets_sent"], 1);

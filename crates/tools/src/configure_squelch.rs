@@ -101,7 +101,9 @@ mod tests {
                     "message": format!("Squelch set to {} dBm", level)
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 

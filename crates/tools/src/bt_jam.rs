@@ -100,21 +100,34 @@ mod tests {
     impl UbertoothBackendProvider for MockBackend {
         async fn call(&self, method: &str, _params: Value) -> Result<Value> {
             if method == "bt_jam" {
-                Ok(json!({"success": true, "jam_mode": "continuous", "duration_sec": 10, "channels_jammed": 79, "message": "Jamming completed"}))
+                Ok(
+                    json!({"success": true, "jam_mode": "continuous", "duration_sec": 10, "channels_jammed": 79, "message": "Jamming completed"}),
+                )
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
-        async fn is_alive(&self) -> bool { true }
-        async fn restart(&self) -> Result<()> { Ok(()) }
-        fn backend_type(&self) -> &str { "mock" }
+        async fn is_alive(&self) -> bool {
+            true
+        }
+        async fn restart(&self) -> Result<()> {
+            Ok(())
+        }
+        fn backend_type(&self) -> &str {
+            "mock"
+        }
     }
 
     #[tokio::test]
     async fn test_bt_jam() {
         let backend = Arc::new(MockBackend);
         let tool = BtJamTool::new(backend);
-        let result = tool.execute(json!({"jam_mode": "continuous"})).await.unwrap();
+        let result = tool
+            .execute(json!({"jam_mode": "continuous"}))
+            .await
+            .unwrap();
         assert_eq!(result["success"], true);
     }
 

@@ -179,31 +179,31 @@ impl Theme {
             name: "Cyberpunk".to_string(),
             description: "Neon colors inspired by cyberpunk aesthetics".to_string(),
             colors: ColorPalette {
-                background: ColorDef::rgb(10, 0, 20), // Very dark purple
-                foreground: ColorDef::rgb(0, 255, 255), // Bright cyan
-                border: ColorDef::rgb(255, 0, 255), // Magenta
+                background: ColorDef::rgb(10, 0, 20),       // Very dark purple
+                foreground: ColorDef::rgb(0, 255, 255),     // Bright cyan
+                border: ColorDef::rgb(255, 0, 255),         // Magenta
                 border_focused: ColorDef::rgb(0, 255, 255), // Bright cyan
-                title: ColorDef::rgb(255, 0, 255), // Magenta
+                title: ColorDef::rgb(255, 0, 255),          // Magenta
 
                 success: ColorDef::rgb(0, 255, 128), // Neon green
-                error: ColorDef::rgb(255, 0, 128), // Hot pink
+                error: ColorDef::rgb(255, 0, 128),   // Hot pink
                 warning: ColorDef::rgb(255, 255, 0), // Bright yellow
-                info: ColorDef::rgb(0, 128, 255), // Electric blue
+                info: ColorDef::rgb(0, 128, 255),    // Electric blue
 
                 selected: ColorDef::rgb(0, 0, 0),
                 selected_bg: ColorDef::rgb(255, 0, 255), // Magenta
-                highlight: ColorDef::rgb(0, 255, 255), // Bright cyan
-                dimmed: ColorDef::rgb(80, 0, 80), // Dark purple
+                highlight: ColorDef::rgb(0, 255, 255),   // Bright cyan
+                dimmed: ColorDef::rgb(80, 0, 80),        // Dark purple
 
-                primary: ColorDef::rgb(255, 0, 255), // Magenta
+                primary: ColorDef::rgb(255, 0, 255),   // Magenta
                 secondary: ColorDef::rgb(0, 255, 255), // Cyan
-                accent: ColorDef::rgb(255, 255, 0), // Yellow
+                accent: ColorDef::rgb(255, 255, 0),    // Yellow
 
                 device_connected: ColorDef::rgb(0, 255, 128), // Neon green
                 device_disconnected: ColorDef::rgb(255, 0, 128), // Hot pink
-                packet_header: ColorDef::rgb(255, 0, 255), // Magenta
-                packet_data: ColorDef::rgb(0, 255, 255), // Cyan
-                shortcut: ColorDef::rgb(0, 255, 128), // Neon green
+                packet_header: ColorDef::rgb(255, 0, 255),    // Magenta
+                packet_data: ColorDef::rgb(0, 255, 255),      // Cyan
+                shortcut: ColorDef::rgb(0, 255, 128),         // Neon green
             },
         }
     }
@@ -214,31 +214,31 @@ impl Theme {
             name: "Solarized Dark".to_string(),
             description: "Solarized dark color scheme".to_string(),
             colors: ColorPalette {
-                background: ColorDef::rgb(0, 43, 54), // base03
-                foreground: ColorDef::rgb(131, 148, 150), // base0
-                border: ColorDef::rgb(88, 110, 117), // base01
+                background: ColorDef::rgb(0, 43, 54),        // base03
+                foreground: ColorDef::rgb(131, 148, 150),    // base0
+                border: ColorDef::rgb(88, 110, 117),         // base01
                 border_focused: ColorDef::rgb(38, 139, 210), // blue
-                title: ColorDef::rgb(38, 139, 210), // blue
+                title: ColorDef::rgb(38, 139, 210),          // blue
 
                 success: ColorDef::rgb(133, 153, 0), // green
-                error: ColorDef::rgb(220, 50, 47), // red
+                error: ColorDef::rgb(220, 50, 47),   // red
                 warning: ColorDef::rgb(181, 137, 0), // yellow
-                info: ColorDef::rgb(38, 139, 210), // blue
+                info: ColorDef::rgb(38, 139, 210),   // blue
 
-                selected: ColorDef::rgb(0, 43, 54), // base03
+                selected: ColorDef::rgb(0, 43, 54),       // base03
                 selected_bg: ColorDef::rgb(38, 139, 210), // blue
-                highlight: ColorDef::rgb(42, 161, 152), // cyan
-                dimmed: ColorDef::rgb(88, 110, 117), // base01
+                highlight: ColorDef::rgb(42, 161, 152),   // cyan
+                dimmed: ColorDef::rgb(88, 110, 117),      // base01
 
-                primary: ColorDef::rgb(38, 139, 210), // blue
+                primary: ColorDef::rgb(38, 139, 210),   // blue
                 secondary: ColorDef::rgb(211, 54, 130), // magenta
-                accent: ColorDef::rgb(203, 75, 22), // orange
+                accent: ColorDef::rgb(203, 75, 22),     // orange
 
                 device_connected: ColorDef::rgb(133, 153, 0), // green
                 device_disconnected: ColorDef::rgb(220, 50, 47), // red
-                packet_header: ColorDef::rgb(42, 161, 152), // cyan
-                packet_data: ColorDef::rgb(131, 148, 150), // base0
-                shortcut: ColorDef::rgb(133, 153, 0), // green
+                packet_header: ColorDef::rgb(42, 161, 152),   // cyan
+                packet_data: ColorDef::rgb(131, 148, 150),    // base0
+                shortcut: ColorDef::rgb(133, 153, 0),         // green
             },
         }
     }
@@ -251,29 +251,29 @@ impl Theme {
             colors: ColorPalette {
                 background: ColorDef::named("black"),
                 foreground: ColorDef::rgb(0, 255, 0), // Bright green
-                border: ColorDef::rgb(0, 200, 0), // Green
+                border: ColorDef::rgb(0, 200, 0),     // Green
                 border_focused: ColorDef::rgb(0, 255, 0), // Bright green
-                title: ColorDef::rgb(0, 255, 0), // Bright green
+                title: ColorDef::rgb(0, 255, 0),      // Bright green
 
-                success: ColorDef::rgb(0, 255, 0), // Bright green
-                error: ColorDef::rgb(255, 0, 0), // Red
+                success: ColorDef::rgb(0, 255, 0),   // Bright green
+                error: ColorDef::rgb(255, 0, 0),     // Red
                 warning: ColorDef::rgb(255, 255, 0), // Yellow
-                info: ColorDef::rgb(0, 200, 0), // Green
+                info: ColorDef::rgb(0, 200, 0),      // Green
 
                 selected: ColorDef::named("black"),
                 selected_bg: ColorDef::rgb(0, 255, 0), // Bright green
                 highlight: ColorDef::rgb(0, 255, 128), // Light green
-                dimmed: ColorDef::rgb(0, 100, 0), // Dark green
+                dimmed: ColorDef::rgb(0, 100, 0),      // Dark green
 
-                primary: ColorDef::rgb(0, 255, 0), // Bright green
+                primary: ColorDef::rgb(0, 255, 0),   // Bright green
                 secondary: ColorDef::rgb(0, 200, 0), // Green
-                accent: ColorDef::rgb(0, 255, 128), // Light green
+                accent: ColorDef::rgb(0, 255, 128),  // Light green
 
                 device_connected: ColorDef::rgb(0, 255, 0), // Bright green
                 device_disconnected: ColorDef::rgb(255, 0, 0), // Red
-                packet_header: ColorDef::rgb(0, 255, 128), // Light green
-                packet_data: ColorDef::rgb(0, 255, 0), // Bright green
-                shortcut: ColorDef::rgb(0, 255, 0), // Bright green
+                packet_header: ColorDef::rgb(0, 255, 128),  // Light green
+                packet_data: ColorDef::rgb(0, 255, 0),      // Bright green
+                shortcut: ColorDef::rgb(0, 255, 0),         // Bright green
             },
         }
     }
@@ -305,8 +305,8 @@ impl Theme {
 
     /// Get theme config directory
     pub fn config_dir() -> anyhow::Result<PathBuf> {
-        let home = dirs::home_dir()
-            .ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
+        let home =
+            dirs::home_dir().ok_or_else(|| anyhow::anyhow!("Could not find home directory"))?;
         let config_dir = home.join(".config").join("ubertooth");
         std::fs::create_dir_all(&config_dir)?;
         Ok(config_dir)

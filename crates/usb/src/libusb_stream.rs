@@ -24,11 +24,7 @@ pub struct LibusbAsyncReader {
 
 impl LibusbAsyncReader {
     /// Start async streaming from raw libusb handles
-    pub fn start(
-        raw_handle: *mut c_void,
-        raw_context: *mut c_void,
-        endpoint: u8,
-    ) -> Result<Self> {
+    pub fn start(raw_handle: *mut c_void, raw_context: *mut c_void, endpoint: u8) -> Result<Self> {
         debug!("Starting libusb async streaming reader");
 
         let (packet_tx, packet_rx) = mpsc::channel(100);
@@ -59,7 +55,11 @@ impl LibusbAsyncReader {
         match self.packet_rx.recv().await {
             Some(packet) => {
                 self.packet_count += 1;
-                trace!("Received packet #{}: {} bytes", self.packet_count, packet.len());
+                trace!(
+                    "Received packet #{}: {} bytes",
+                    self.packet_count,
+                    packet.len()
+                );
                 Some(packet)
             }
             None => {
@@ -213,11 +213,7 @@ fn run_streaming_loop(
                 tv_usec: 100_000, // 100ms
             };
 
-            let ret = libusb_handle_events_timeout_completed(
-                raw_context,
-                &timeout,
-                &mut completed,
-            );
+            let ret = libusb_handle_events_timeout_completed(raw_context, &timeout, &mut completed);
 
             if ret < 0 {
                 warn!("libusb_handle_events error: {}", error_name(ret));

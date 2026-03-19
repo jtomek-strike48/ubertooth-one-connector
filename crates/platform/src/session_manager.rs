@@ -106,7 +106,9 @@ impl SessionState {
 
     /// Get a human-readable session description
     pub fn description(&self) -> String {
-        let tool = self.current_tool.as_ref().map(|t| t.as_str()).unwrap_or("None");
+        let tool = self
+            .current_tool.as_deref()
+            .unwrap_or("None");
         let captures = self.open_captures.len();
         let filters = self.filters.len();
 
@@ -153,8 +155,9 @@ pub struct SessionManager {
 impl SessionManager {
     /// Create a new session manager
     pub fn new() -> Result<Self> {
-        let home = dirs::home_dir()
-            .ok_or_else(|| UbertoothError::BackendError("Could not determine home directory".to_string()))?;
+        let home = dirs::home_dir().ok_or_else(|| {
+            UbertoothError::BackendError("Could not determine home directory".to_string())
+        })?;
 
         let sessions_dir = home.join(".ubertooth").join("sessions");
         fs::create_dir_all(&sessions_dir)?;
@@ -180,7 +183,10 @@ impl SessionManager {
         let path = self.sessions_dir.join(format!("{}.json", session_id));
 
         if !path.exists() {
-            return Err(UbertoothError::BackendError(format!("Session not found: {}", session_id)));
+            return Err(UbertoothError::BackendError(format!(
+                "Session not found: {}",
+                session_id
+            )));
         }
 
         let json = fs::read_to_string(path)?;
@@ -215,7 +221,10 @@ impl SessionManager {
         let path = self.sessions_dir.join(format!("{}.json", session_id));
 
         if !path.exists() {
-            return Err(UbertoothError::BackendError(format!("Session not found: {}", session_id)));
+            return Err(UbertoothError::BackendError(format!(
+                "Session not found: {}",
+                session_id
+            )));
         }
 
         fs::remove_file(path)?;
@@ -290,7 +299,9 @@ mod tests {
     fn create_test_session() -> SessionState {
         let mut session = SessionState::new("Test Session".to_string());
         session.current_tool = Some("bt_decode".to_string());
-        session.parameters.insert("channel".to_string(), serde_json::json!(37));
+        session
+            .parameters
+            .insert("channel".to_string(), serde_json::json!(37));
         session.open_captures.push("cap-123".to_string());
         session
     }

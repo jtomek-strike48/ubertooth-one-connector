@@ -128,7 +128,11 @@ mod tests {
                 let paen = params.get("paen").and_then(|v| v.as_bool()).unwrap_or(true);
                 let hgm = params.get("hgm").and_then(|v| v.as_bool()).unwrap_or(false);
 
-                let estimated_dbm = if paen { 10 + (power_level * 2) as i64 } else { power_level as i64 };
+                let estimated_dbm = if paen {
+                    10 + (power_level * 2) as i64
+                } else {
+                    power_level as i64
+                };
 
                 Ok(json!({
                     "success": true,
@@ -139,7 +143,9 @@ mod tests {
                     "message": format!("Power configured: Level {} with PA {}", power_level, if paen { "enabled" } else { "disabled" })
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 
@@ -161,11 +167,14 @@ mod tests {
         let backend = Arc::new(MockBackend);
         let tool = ConfigurePowerTool::new(backend);
 
-        let result = tool.execute(json!({
-            "power_level": 7,
-            "paen": true,
-            "hgm": false
-        })).await.unwrap();
+        let result = tool
+            .execute(json!({
+                "power_level": 7,
+                "paen": true,
+                "hgm": false
+            }))
+            .await
+            .unwrap();
 
         assert_eq!(result["success"], true);
         assert_eq!(result["power_level"], 7);

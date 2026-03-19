@@ -15,7 +15,16 @@ use super::themes::Theme;
 use super::views::{Category, FieldInputMode, FieldType};
 
 /// Render the entire UI
-pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>, device_status: &DeviceStatus, notification: &Option<Notification>, frame_count: u64, dialog: &Option<TextInputDialog>, theme: &Theme) {
+pub fn render(
+    f: &mut Frame,
+    state: &AppState,
+    registry: &Arc<ToolRegistry>,
+    device_status: &DeviceStatus,
+    notification: &Option<Notification>,
+    frame_count: u64,
+    dialog: &Option<TextInputDialog>,
+    theme: &Theme,
+) {
     // Main layout: header + content + footer
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -27,7 +36,15 @@ pub fn render(f: &mut Frame, state: &AppState, registry: &Arc<ToolRegistry>, dev
         .split(f.size());
 
     render_header(f, chunks[0], device_status, theme);
-    render_content(f, chunks[1], state, registry, device_status, frame_count, theme);
+    render_content(
+        f,
+        chunks[1],
+        state,
+        registry,
+        device_status,
+        frame_count,
+        theme,
+    );
     render_footer(f, chunks[2], state);
 
     // Render notification on top if present
@@ -60,7 +77,11 @@ fn render_header(f: &mut Frame, area: Rect, device_status: &DeviceStatus, theme:
     let title = format!("{} | {} | {}", device_str, backend_str, strike48_str);
 
     let header = Paragraph::new("Ubertooth CLI")
-        .style(Style::default().fg(theme.colors.title.to_color()).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(theme.colors.title.to_color())
+                .add_modifier(Modifier::BOLD),
+        )
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL).title(title));
 
@@ -68,15 +89,30 @@ fn render_header(f: &mut Frame, area: Rect, device_status: &DeviceStatus, theme:
 }
 
 /// Render main content based on state
-fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<ToolRegistry>, device_status: &DeviceStatus, frame_count: u64, theme: &Theme) {
+fn render_content(
+    f: &mut Frame,
+    area: Rect,
+    state: &AppState,
+    registry: &Arc<ToolRegistry>,
+    device_status: &DeviceStatus,
+    frame_count: u64,
+    theme: &Theme,
+) {
     match state {
         AppState::MainMenu { selected_index } => {
             render_main_menu(f, area, *selected_index, device_status);
         }
-        AppState::ToolCategory { category, selected_index } => {
+        AppState::ToolCategory {
+            category,
+            selected_index,
+        } => {
             render_tool_category(f, area, category, *selected_index, registry, device_status);
         }
-        AppState::ToolForm { form, error, hotkey_mode } => {
+        AppState::ToolForm {
+            form,
+            error,
+            hotkey_mode,
+        } => {
             if *hotkey_mode {
                 render_tool_hotkeys(f, area, form.as_ref(), error.as_deref());
             } else {
@@ -86,8 +122,25 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
         AppState::Executing { tool_name, .. } => {
             render_executing(f, area, tool_name, frame_count);
         }
-        AppState::Results { tool_name, output, success, selected_capture, packet_list_state, analysis_view_state, .. } => {
-            render_results(f, area, tool_name, output, *success, *selected_capture, packet_list_state.as_ref(), analysis_view_state.as_ref());
+        AppState::Results {
+            tool_name,
+            output,
+            success,
+            selected_capture,
+            packet_list_state,
+            analysis_view_state,
+            ..
+        } => {
+            render_results(
+                f,
+                area,
+                tool_name,
+                output,
+                *success,
+                *selected_capture,
+                packet_list_state.as_ref(),
+                analysis_view_state.as_ref(),
+            );
         }
         AppState::Settings { selected_index } => {
             render_settings(f, area, *selected_index);
@@ -95,7 +148,12 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
         AppState::Confirmation { message, .. } => {
             render_confirmation(f, area, message);
         }
-        AppState::ExportMenu { selected_index, packets, packet_list_state, .. } => {
+        AppState::ExportMenu {
+            selected_index,
+            packets,
+            packet_list_state,
+            ..
+        } => {
             render_export_menu(f, area, *selected_index, packets.len(), packet_list_state);
         }
         AppState::FilterDialog {
@@ -107,12 +165,24 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
             rssi_max,
             ..
         } => {
-            render_filter_dialog(f, area, *selected_section, *selected_packet_type, packet_type_selections, mac_filter, rssi_min, rssi_max);
+            render_filter_dialog(
+                f,
+                area,
+                *selected_section,
+                *selected_packet_type,
+                packet_type_selections,
+                mac_filter,
+                rssi_min,
+                rssi_max,
+            );
         }
         AppState::HelpOverlay { scroll_offset, .. } => {
             render_help_overlay(f, area, *scroll_offset, theme);
         }
-        AppState::ThemeSelector { selected_index, themes } => {
+        AppState::ThemeSelector {
+            selected_index,
+            themes,
+        } => {
             render_theme_selector(f, area, *selected_index, themes, theme);
         }
         AppState::LiveCapture {
@@ -124,16 +194,36 @@ fn render_content(f: &mut Frame, area: Rect, state: &AppState, registry: &Arc<To
             scroll_offset,
             tool_name,
         } => {
-            render_live_capture(f, area, buffer, stats, *paused, limits, *selected_index, *scroll_offset, tool_name);
+            render_live_capture(
+                f,
+                area,
+                buffer,
+                stats,
+                *paused,
+                limits,
+                *selected_index,
+                *scroll_offset,
+                tool_name,
+            );
         }
-        AppState::SessionManager { selected_index, sessions, mode, session_name } => {
+        AppState::SessionManager {
+            selected_index,
+            sessions,
+            mode,
+            session_name,
+        } => {
             render_session_manager(f, area, *selected_index, sessions, mode, session_name);
         }
     }
 }
 
 /// Render main menu with 7 categories
-fn render_main_menu(f: &mut Frame, area: Rect, selected_index: usize, device_status: &DeviceStatus) {
+fn render_main_menu(
+    f: &mut Frame,
+    area: Rect,
+    selected_index: usize,
+    device_status: &DeviceStatus,
+) {
     // First item is the dynamic connection toggle
     let connection_label = if device_status.connected {
         "[Disconnect from Ubertooth]"
@@ -144,10 +234,22 @@ fn render_main_menu(f: &mut Frame, area: Rect, selected_index: usize, device_sta
     let categories = vec![
         (connection_label, "Toggle device connection"),
         ("1. Captures", "Manage all captures with hotkeys"),
-        ("2. Reconnaissance (7 tools)", "BLE scan, spectrum analysis, follow connections"),
-        ("3. Analysis (5 tools)", "Packet analysis, fingerprinting, comparison"),
-        ("4. Attack Operations (5 tools)", "Injection, jamming, MITM (requires authorization)"),
-        ("5. Configuration (8 tools)", "Channel, power, modulation, presets"),
+        (
+            "2. Reconnaissance (7 tools)",
+            "BLE scan, spectrum analysis, follow connections",
+        ),
+        (
+            "3. Analysis (5 tools)",
+            "Packet analysis, fingerprinting, comparison",
+        ),
+        (
+            "4. Attack Operations (5 tools)",
+            "Injection, jamming, MITM (requires authorization)",
+        ),
+        (
+            "5. Configuration (8 tools)",
+            "Channel, power, modulation, presets",
+        ),
         ("6. Advanced (2 tools)", "Raw USB commands, session context"),
     ];
 
@@ -180,31 +282,42 @@ fn render_main_menu(f: &mut Frame, area: Rect, selected_index: usize, device_sta
                     Span::raw(" "),
                     Span::styled(dot, Style::default().fg(final_dot_color)),
                     Span::raw(" "),
-                    Span::styled(*title, Style::default().fg(final_text_color).add_modifier(final_modifier)),
+                    Span::styled(
+                        *title,
+                        Style::default()
+                            .fg(final_text_color)
+                            .add_modifier(final_modifier),
+                    ),
                 ]);
 
                 content.push(title_line);
             } else {
                 // Regular category items
                 let style = if i == selected_index {
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default()
                 };
                 content.push(Line::from(Span::styled(*title, style)));
             }
 
-            content.push(Line::from(Span::styled(format!("   {}", desc), Style::default().fg(Color::Gray))));
+            content.push(Line::from(Span::styled(
+                format!("   {}", desc),
+                Style::default().fg(Color::Gray),
+            )));
             content.push(Line::from("")); // Standard spacing after each item
 
             ListItem::new(Text::from(content))
         })
         .collect();
 
-    let list = List::new(items)
-        .block(Block::default()
+    let list = List::new(items).block(
+        Block::default()
             .borders(Borders::ALL)
-            .title("Select Tool Category"));
+            .title("Select Tool Category"),
+    );
 
     f.render_widget(list, area);
 }
@@ -231,7 +344,9 @@ fn render_tool_category(
         .enumerate()
         .map(|(i, tool)| {
             let style = if i == selected_index {
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default()
             };
@@ -241,7 +356,10 @@ fn render_tool_category(
 
             let content = vec![
                 Line::from(Span::styled(numbered_name, style)),
-                Line::from(Span::styled(format!("   {}", tool.description()), Style::default().fg(Color::Gray))),
+                Line::from(Span::styled(
+                    format!("   {}", tool.description()),
+                    Style::default().fg(Color::Gray),
+                )),
                 Line::from(""),
             ];
 
@@ -249,34 +367,40 @@ fn render_tool_category(
         })
         .collect();
 
-    let list = List::new(items)
-        .block(Block::default()
+    let list = List::new(items).block(
+        Block::default()
             .borders(Borders::ALL)
-            .title(format!("{:?} - Select Tool", category)));
+            .title(format!("{:?} - Select Tool", category)),
+    );
 
     f.render_widget(list, area);
 }
 
 /// Render tool with hotkey parameter configuration
-fn render_tool_hotkeys(f: &mut Frame, area: Rect, form: &crate::tui::views::ToolForm, error: Option<&str>) {
+fn render_tool_hotkeys(
+    f: &mut Frame,
+    area: Rect,
+    form: &crate::tui::views::ToolForm,
+    error: Option<&str>,
+) {
     // Split into: header, content, hotkey bar
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(5),  // Header
-            Constraint::Min(0),      // Content/description
-            Constraint::Length(5),  // Hotkey parameter bar
+            Constraint::Length(5), // Header
+            Constraint::Min(0),    // Content/description
+            Constraint::Length(5), // Hotkey parameter bar
         ])
         .split(area);
 
     // Header with tool name
-    let header_text = format!(
-        "{}\n\n{}",
-        form.tool_name(),
-        form.tool_description()
-    );
+    let header_text = format!("{}\n\n{}", form.tool_name(), form.tool_description());
     let header = Paragraph::new(header_text)
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::ALL).title("Tool"));
     f.render_widget(header, chunks[0]);
@@ -286,21 +410,31 @@ fn render_tool_hotkeys(f: &mut Frame, area: Rect, form: &crate::tui::views::Tool
     content_lines.push(Line::from(""));
     content_lines.push(Line::from(Span::styled(
         "  Current Configuration:",
-        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD),
     )));
     content_lines.push(Line::from(""));
 
     // Show current parameter values
     for field in form.fields() {
-        let value_str = form.get_field_value(&field.name).unwrap_or_else(|| "<empty>".to_string());
+        let value_str = form
+            .get_field_value(&field.name)
+            .unwrap_or_else(|| "<empty>".to_string());
         content_lines.push(Line::from(vec![
-            Span::styled(format!("    {}: ", field.name), Style::default().fg(Color::Gray)),
+            Span::styled(
+                format!("    {}: ", field.name),
+                Style::default().fg(Color::Gray),
+            ),
             Span::styled(value_str, Style::default().fg(Color::White)),
         ]));
     }
 
-    let content = Paragraph::new(Text::from(content_lines))
-        .block(Block::default().borders(Borders::ALL).title("Configuration"));
+    let content = Paragraph::new(Text::from(content_lines)).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title("Configuration"),
+    );
     f.render_widget(content, chunks[1]);
 
     // Hotkey parameter bar at bottom
@@ -357,13 +491,18 @@ fn render_tool_hotkeys(f: &mut Frame, area: Rect, form: &crate::tui::views::Tool
 }
 
 /// Render tool parameter form
-fn render_tool_form(f: &mut Frame, area: Rect, form: &crate::tui::views::ToolForm, error: Option<&str>) {
+fn render_tool_form(
+    f: &mut Frame,
+    area: Rect,
+    form: &crate::tui::views::ToolForm,
+    error: Option<&str>,
+) {
     // Split into sections: header, fields, footer
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3), // Header
-            Constraint::Min(0),    // Fields
+            Constraint::Length(3),                                   // Header
+            Constraint::Min(0),                                      // Fields
             Constraint::Length(if error.is_some() { 5 } else { 3 }), // Footer/error
         ])
         .split(area);
@@ -372,7 +511,11 @@ fn render_tool_form(f: &mut Frame, area: Rect, form: &crate::tui::views::ToolFor
     let header_text = format!("{}\n{}", form.tool_name(), form.tool_description());
     let header = Paragraph::new(header_text)
         .style(Style::default().fg(Color::Cyan))
-        .block(Block::default().borders(Borders::ALL).title("Tool Parameters"));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Tool Parameters"),
+        );
     f.render_widget(header, chunks[0]);
 
     // Form fields
@@ -382,9 +525,10 @@ fn render_tool_form(f: &mut Frame, area: Rect, form: &crate::tui::views::ToolFor
     let focused = form.focused_index();
 
     if fields.is_empty() {
-        let no_params = Paragraph::new("This tool has no parameters.\n\nPress Ctrl+Enter to execute.")
-            .style(Style::default().fg(Color::Gray))
-            .block(Block::default().borders(Borders::ALL));
+        let no_params =
+            Paragraph::new("This tool has no parameters.\n\nPress Ctrl+Enter to execute.")
+                .style(Style::default().fg(Color::Gray))
+                .block(Block::default().borders(Borders::ALL));
         f.render_widget(no_params, chunks[1]);
     } else {
         // Create layout for each field (label + input)
@@ -417,8 +561,11 @@ fn render_tool_form(f: &mut Frame, area: Rect, form: &crate::tui::views::ToolFor
                 field.name, required_marker, type_hint, field.description
             );
 
-            let label = Paragraph::new(label_text)
-                .style(Style::default().fg(if i == focused { Color::Yellow } else { Color::White }));
+            let label = Paragraph::new(label_text).style(Style::default().fg(if i == focused {
+                Color::Yellow
+            } else {
+                Color::White
+            }));
             f.render_widget(label, field_chunks[label_idx]);
 
             // Input field - render dropdown or text input
@@ -426,18 +573,23 @@ fn render_tool_form(f: &mut Frame, area: Rect, form: &crate::tui::views::ToolFor
                 FieldInputMode::Dropdown { selected_index } => {
                     // Render dropdown
                     if let Some(options) = &field.dropdown_options {
-                        let selected_value = options.get(*selected_index).cloned().unwrap_or_default();
+                        let selected_value =
+                            options.get(*selected_index).cloned().unwrap_or_default();
                         let display = format!("[ {} ]  (use Up/Down to change)", selected_value);
 
                         let dropdown_widget = Paragraph::new(display)
-                            .style(Style::default().fg(if i == focused { Color::Cyan } else { Color::White }))
-                            .block(Block::default()
-                                .borders(Borders::ALL)
-                                .border_style(Style::default().fg(if i == focused {
+                            .style(Style::default().fg(if i == focused {
+                                Color::Cyan
+                            } else {
+                                Color::White
+                            }))
+                            .block(Block::default().borders(Borders::ALL).border_style(
+                                Style::default().fg(if i == focused {
                                     Color::Yellow
                                 } else {
                                     Color::Gray
-                                })));
+                                }),
+                            ));
 
                         f.render_widget(dropdown_widget, field_chunks[input_idx]);
                     }
@@ -445,14 +597,15 @@ fn render_tool_form(f: &mut Frame, area: Rect, form: &crate::tui::views::ToolFor
                 FieldInputMode::Text => {
                     // Render text input
                     let input_text = inputs[i].lines().join("\n");
-                    let input_widget = Paragraph::new(input_text)
-                        .block(Block::default()
+                    let input_widget = Paragraph::new(input_text).block(
+                        Block::default()
                             .borders(Borders::ALL)
                             .border_style(Style::default().fg(if i == focused {
                                 Color::Yellow
                             } else {
                                 Color::Gray
-                            })));
+                            })),
+                    );
 
                     f.render_widget(input_widget, field_chunks[input_idx]);
                 }
@@ -462,7 +615,10 @@ fn render_tool_form(f: &mut Frame, area: Rect, form: &crate::tui::views::ToolFor
 
     // Footer with instructions or error
     if let Some(err) = error {
-        let error_text = format!("Error: {}\n\n[Tab] Next field  [Enter] Execute  [Esc] Back", err);
+        let error_text = format!(
+            "Error: {}\n\n[Tab] Next field  [Enter] Execute  [Esc] Back",
+            err
+        );
         let footer = Paragraph::new(error_text)
             .style(Style::default().fg(Color::Red))
             .block(Block::default().borders(Borders::ALL));
@@ -489,7 +645,12 @@ fn render_tool_form(f: &mut Frame, area: Rect, form: &crate::tui::views::ToolFor
 }
 
 /// Render analysis results in readable format
-fn render_analysis_results(f: &mut Frame, area: Rect, output: &serde_json::Value, state: Option<&crate::tui::app::AnalysisViewState>) {
+fn render_analysis_results(
+    f: &mut Frame,
+    area: Rect,
+    output: &serde_json::Value,
+    state: Option<&crate::tui::app::AnalysisViewState>,
+) {
     use crate::tui::app::AnalysisViewMode;
 
     // Get state or use default
@@ -513,10 +674,7 @@ fn render_comparison_results(f: &mut Frame, area: Rect, output: &serde_json::Val
         // Split into left and right panels
         let chunks = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(50),
-                Constraint::Percentage(50),
-            ])
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(area);
 
         let mut lines_left = Vec::new();
@@ -525,19 +683,29 @@ fn render_comparison_results(f: &mut Frame, area: Rect, output: &serde_json::Val
         // Header
         lines_left.push(Line::from(Span::styled(
             "Capture A",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         )));
         lines_right.push(Line::from(Span::styled(
             "Capture B",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         )));
 
         lines_left.push(Line::from(""));
         lines_right.push(Line::from(""));
 
         // Get capture IDs from output root
-        let capture_a = output.get("capture_id_a").and_then(|v| v.as_str()).unwrap_or("N/A");
-        let capture_b = output.get("capture_id_b").and_then(|v| v.as_str()).unwrap_or("N/A");
+        let capture_a = output
+            .get("capture_id_a")
+            .and_then(|v| v.as_str())
+            .unwrap_or("N/A");
+        let capture_b = output
+            .get("capture_id_b")
+            .and_then(|v| v.as_str())
+            .unwrap_or("N/A");
 
         lines_left.push(Line::from(vec![
             Span::styled("ID: ", Style::default().fg(Color::Gray)),
@@ -552,7 +720,10 @@ fn render_comparison_results(f: &mut Frame, area: Rect, output: &serde_json::Val
         lines_right.push(Line::from(""));
 
         // Similarity score (in both panels for emphasis)
-        if let Some(similarity) = comparison.get("similarity_percent").and_then(|s| s.as_f64()) {
+        if let Some(similarity) = comparison
+            .get("similarity_percent")
+            .and_then(|s| s.as_f64())
+        {
             let similarity_color = if similarity > 80.0 {
                 Color::Green
             } else if similarity > 50.0 {
@@ -563,11 +734,15 @@ fn render_comparison_results(f: &mut Frame, area: Rect, output: &serde_json::Val
 
             lines_left.push(Line::from(Span::styled(
                 format!("Similarity: {:.1}%", similarity),
-                Style::default().fg(similarity_color).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(similarity_color)
+                    .add_modifier(Modifier::BOLD),
             )));
             lines_right.push(Line::from(Span::styled(
                 format!("Similarity: {:.1}%", similarity),
-                Style::default().fg(similarity_color).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(similarity_color)
+                    .add_modifier(Modifier::BOLD),
             )));
         }
 
@@ -615,7 +790,8 @@ fn render_comparison_results(f: &mut Frame, area: Rect, output: &serde_json::Val
                     Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
                 )));
 
-                for diff in diffs.iter().take(10) {  // Show first 10 differences
+                for diff in diffs.iter().take(10) {
+                    // Show first 10 differences
                     if let Some(diff_str) = diff.as_str() {
                         lines_left.push(Line::from(vec![
                             Span::styled("• ", Style::default().fg(Color::Red)),
@@ -624,9 +800,18 @@ fn render_comparison_results(f: &mut Frame, area: Rect, output: &serde_json::Val
                         lines_right.push(Line::from(""));
                     } else if let Some(diff_obj) = diff.as_object() {
                         // Structured difference
-                        let field = diff_obj.get("field").and_then(|f| f.as_str()).unwrap_or("unknown");
-                        let val_a = diff_obj.get("value_a").and_then(|v| v.as_str()).unwrap_or("N/A");
-                        let val_b = diff_obj.get("value_b").and_then(|v| v.as_str()).unwrap_or("N/A");
+                        let field = diff_obj
+                            .get("field")
+                            .and_then(|f| f.as_str())
+                            .unwrap_or("unknown");
+                        let val_a = diff_obj
+                            .get("value_a")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("N/A");
+                        let val_b = diff_obj
+                            .get("value_b")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("N/A");
 
                         lines_left.push(Line::from(vec![
                             Span::styled(format!("{}: ", field), Style::default().fg(Color::Gray)),
@@ -642,7 +827,9 @@ fn render_comparison_results(f: &mut Frame, area: Rect, output: &serde_json::Val
                 if diffs.len() > 10 {
                     lines_left.push(Line::from(Span::styled(
                         format!("... and {} more differences", diffs.len() - 10),
-                        Style::default().fg(Color::Gray).add_modifier(Modifier::ITALIC),
+                        Style::default()
+                            .fg(Color::Gray)
+                            .add_modifier(Modifier::ITALIC),
                     )));
                 }
             } else {
@@ -677,8 +864,11 @@ fn render_comparison_results(f: &mut Frame, area: Rect, output: &serde_json::Val
                 Style::default().fg(Color::Red),
             )),
         ];
-        let content = Paragraph::new(Text::from(error_text))
-            .block(Block::default().borders(Borders::ALL).title(" Comparison Error "));
+        let content = Paragraph::new(Text::from(error_text)).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Comparison Error "),
+        );
         f.render_widget(content, area);
     }
 }
@@ -693,7 +883,9 @@ fn render_analysis_overview(f: &mut Frame, area: Rect, output: &serde_json::Valu
         if let Some(proto) = analysis.get("protocol_summary").and_then(|p| p.as_object()) {
             lines.push(Line::from(Span::styled(
                 "Protocol Summary",
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
             )));
 
             if let Some(ptype) = proto.get("type").and_then(|t| t.as_str()) {
@@ -721,19 +913,38 @@ fn render_analysis_overview(f: &mut Frame, area: Rect, output: &serde_json::Valu
         if let Some(devices) = analysis.get("devices").and_then(|d| d.as_array()) {
             lines.push(Line::from(vec![
                 Span::styled("📱 Devices: ", Style::default().fg(Color::Cyan)),
-                Span::styled(format!("{} found", devices.len()), Style::default().fg(Color::White)),
+                Span::styled(
+                    format!("{} found", devices.len()),
+                    Style::default().fg(Color::White),
+                ),
                 Span::raw("  "),
-                Span::styled("(press 'd' for details)", Style::default().fg(Color::Gray).add_modifier(Modifier::ITALIC)),
+                Span::styled(
+                    "(press 'd' for details)",
+                    Style::default()
+                        .fg(Color::Gray)
+                        .add_modifier(Modifier::ITALIC),
+                ),
             ]));
         }
 
-        if let Some(security) = analysis.get("security_observations").and_then(|s| s.as_array()) {
+        if let Some(security) = analysis
+            .get("security_observations")
+            .and_then(|s| s.as_array())
+        {
             if !security.is_empty() {
                 lines.push(Line::from(vec![
                     Span::styled("🔒 Security: ", Style::default().fg(Color::Red)),
-                    Span::styled(format!("{} observations", security.len()), Style::default().fg(Color::White)),
+                    Span::styled(
+                        format!("{} observations", security.len()),
+                        Style::default().fg(Color::White),
+                    ),
                     Span::raw("  "),
-                    Span::styled("(press 's' for details)", Style::default().fg(Color::Gray).add_modifier(Modifier::ITALIC)),
+                    Span::styled(
+                        "(press 's' for details)",
+                        Style::default()
+                            .fg(Color::Gray)
+                            .add_modifier(Modifier::ITALIC),
+                    ),
                 ]));
             }
         }
@@ -743,9 +954,17 @@ fn render_analysis_overview(f: &mut Frame, area: Rect, output: &serde_json::Valu
                 if avg > 0.0 {
                     lines.push(Line::from(vec![
                         Span::styled("⏱️  Timing: ", Style::default().fg(Color::Blue)),
-                        Span::styled(format!("{:.2}ms avg", avg), Style::default().fg(Color::White)),
+                        Span::styled(
+                            format!("{:.2}ms avg", avg),
+                            Style::default().fg(Color::White),
+                        ),
                         Span::raw("  "),
-                        Span::styled("(press 't' for details)", Style::default().fg(Color::Gray).add_modifier(Modifier::ITALIC)),
+                        Span::styled(
+                            "(press 't' for details)",
+                            Style::default()
+                                .fg(Color::Gray)
+                                .add_modifier(Modifier::ITALIC),
+                        ),
                     ]));
                 }
             }
@@ -768,13 +987,21 @@ fn render_analysis_overview(f: &mut Frame, area: Rect, output: &serde_json::Valu
         ]));
     }
 
-    let content = Paragraph::new(Text::from(lines))
-        .block(Block::default().borders(Borders::ALL).title(" Analysis Overview "));
+    let content = Paragraph::new(Text::from(lines)).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Analysis Overview "),
+    );
     f.render_widget(content, area);
 }
 
 /// Render devices view with interactive list
-fn render_analysis_devices(f: &mut Frame, area: Rect, output: &serde_json::Value, state: &crate::tui::app::AnalysisViewState) {
+fn render_analysis_devices(
+    f: &mut Frame,
+    area: Rect,
+    output: &serde_json::Value,
+    state: &crate::tui::app::AnalysisViewState,
+) {
     let mut lines = Vec::new();
 
     if let Some(analysis) = output.get("analysis").and_then(|a| a.as_object()) {
@@ -791,12 +1018,23 @@ fn render_analysis_devices(f: &mut Frame, area: Rect, output: &serde_json::Value
                     let is_expanded = state.is_expanded(idx);
 
                     let expand_icon = if is_expanded { "▼" } else { "▶" };
-                    let mac = device.get("mac_address").and_then(|m| m.as_str()).unwrap_or("Unknown");
-                    let name = device.get("device_name").and_then(|n| n.as_str()).unwrap_or("Unknown");
-                    let pkts = device.get("packet_count").and_then(|p| p.as_u64()).unwrap_or(0);
+                    let mac = device
+                        .get("mac_address")
+                        .and_then(|m| m.as_str())
+                        .unwrap_or("Unknown");
+                    let name = device
+                        .get("device_name")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or("Unknown");
+                    let pkts = device
+                        .get("packet_count")
+                        .and_then(|p| p.as_u64())
+                        .unwrap_or(0);
 
                     let style = if is_selected {
-                        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD)
                     } else {
                         Style::default().fg(Color::White)
                     };
@@ -807,7 +1045,10 @@ fn render_analysis_devices(f: &mut Frame, area: Rect, output: &serde_json::Value
                         Span::styled(mac, style.fg(Color::Cyan)),
                         Span::raw(" - "),
                         Span::styled(name, style),
-                        Span::styled(format!(" ({} pkts)", pkts), Style::default().fg(Color::Gray)),
+                        Span::styled(
+                            format!(" ({} pkts)", pkts),
+                            Style::default().fg(Color::Gray),
+                        ),
                     ]));
 
                     if is_expanded {
@@ -816,7 +1057,10 @@ fn render_analysis_devices(f: &mut Frame, area: Rect, output: &serde_json::Value
                             lines.push(Line::from(vec![
                                 Span::raw("  │ "),
                                 Span::styled("RSSI: ", Style::default().fg(Color::Gray)),
-                                Span::styled(format!("{} dBm", rssi), Style::default().fg(Color::White)),
+                                Span::styled(
+                                    format!("{} dBm", rssi),
+                                    Style::default().fg(Color::White),
+                                ),
                             ]));
                         }
                         if let Some(pdu) = device.get("pdu_type").and_then(|p| p.as_str()) {
@@ -831,8 +1075,14 @@ fn render_analysis_devices(f: &mut Frame, area: Rect, output: &serde_json::Value
                                 let duration = last - first;
                                 lines.push(Line::from(vec![
                                     Span::raw("  │ "),
-                                    Span::styled("Active Duration: ", Style::default().fg(Color::Gray)),
-                                    Span::styled(format!("{:.2}s", duration), Style::default().fg(Color::White)),
+                                    Span::styled(
+                                        "Active Duration: ",
+                                        Style::default().fg(Color::Gray),
+                                    ),
+                                    Span::styled(
+                                        format!("{:.2}s", duration),
+                                        Style::default().fg(Color::White),
+                                    ),
                                 ]));
                             }
                         }
@@ -854,19 +1104,26 @@ fn render_analysis_devices(f: &mut Frame, area: Rect, output: &serde_json::Value
         }
     }
 
-    let content = Paragraph::new(Text::from(lines))
-        .block(Block::default().borders(Borders::ALL).title(format!(" Devices ({} total) ",
+    let content =
+        Paragraph::new(Text::from(lines)).block(Block::default().borders(Borders::ALL).title(
+            format!(" Devices ({} total) ",
             output.get("analysis")
                 .and_then(|a| a.get("devices"))
                 .and_then(|d| d.as_array())
                 .map(|arr| arr.len())
                 .unwrap_or(0)
-        )));
+        ),
+        ));
     f.render_widget(content, area);
 }
 
 /// Render security observations view
-fn render_analysis_security(f: &mut Frame, area: Rect, output: &serde_json::Value, state: &crate::tui::app::AnalysisViewState) {
+fn render_analysis_security(
+    f: &mut Frame,
+    area: Rect,
+    output: &serde_json::Value,
+    state: &crate::tui::app::AnalysisViewState,
+) {
     let mut lines = Vec::new();
 
     if let Some(analysis) = output.get("analysis").and_then(|a| a.as_object()) {
@@ -874,16 +1131,24 @@ fn render_analysis_security(f: &mut Frame, area: Rect, output: &serde_json::Valu
         if let Some(summary) = analysis.get("security_summary").and_then(|s| s.as_object()) {
             lines.push(Line::from(Span::styled(
                 "Security Summary",
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
             )));
 
-            if let Some(privacy) = summary.get("privacy_enabled_devices").and_then(|p| p.as_u64()) {
+            if let Some(privacy) = summary
+                .get("privacy_enabled_devices")
+                .and_then(|p| p.as_u64())
+            {
                 lines.push(Line::from(vec![
                     Span::raw("  Privacy-enabled devices: "),
                     Span::styled(privacy.to_string(), Style::default().fg(Color::Green)),
                 ]));
             }
-            if let Some(public) = summary.get("public_address_devices").and_then(|p| p.as_u64()) {
+            if let Some(public) = summary
+                .get("public_address_devices")
+                .and_then(|p| p.as_u64())
+            {
                 lines.push(Line::from(vec![
                     Span::raw("  Public address devices: "),
                     Span::styled(public.to_string(), Style::default().fg(Color::Yellow)),
@@ -905,7 +1170,10 @@ fn render_analysis_security(f: &mut Frame, area: Rect, output: &serde_json::Valu
         }
 
         // Detailed observations
-        if let Some(observations) = analysis.get("security_observations").and_then(|s| s.as_array()) {
+        if let Some(observations) = analysis
+            .get("security_observations")
+            .and_then(|s| s.as_array())
+        {
             if observations.is_empty() {
                 lines.push(Line::from(Span::styled(
                     "No security observations",
@@ -926,9 +1194,15 @@ fn render_analysis_security(f: &mut Frame, area: Rect, output: &serde_json::Valu
                     // Handle both string and object observations
                     let (obs_type, description, severity) = if let Some(obj) = obs.as_object() {
                         (
-                            obj.get("type").and_then(|t| t.as_str()).unwrap_or("Unknown"),
-                            obj.get("description").and_then(|d| d.as_str()).unwrap_or(""),
-                            obj.get("severity").and_then(|s| s.as_str()).unwrap_or("info"),
+                            obj.get("type")
+                                .and_then(|t| t.as_str())
+                                .unwrap_or("Unknown"),
+                            obj.get("description")
+                                .and_then(|d| d.as_str())
+                                .unwrap_or(""),
+                            obj.get("severity")
+                                .and_then(|s| s.as_str())
+                                .unwrap_or("info"),
                         )
                     } else if let Some(text) = obs.as_str() {
                         ("Observation", text, "info")
@@ -945,7 +1219,9 @@ fn render_analysis_security(f: &mut Frame, area: Rect, output: &serde_json::Valu
                     };
 
                     let style = if is_selected {
-                        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                        Style::default()
+                            .fg(Color::Yellow)
+                            .add_modifier(Modifier::BOLD)
                     } else {
                         Style::default().fg(Color::White)
                     };
@@ -953,7 +1229,12 @@ fn render_analysis_security(f: &mut Frame, area: Rect, output: &serde_json::Valu
                     lines.push(Line::from(vec![
                         Span::styled(expand_icon, style),
                         Span::raw(" "),
-                        Span::styled(format!("[{}] ", severity.to_uppercase()), Style::default().fg(severity_color).add_modifier(Modifier::BOLD)),
+                        Span::styled(
+                            format!("[{}] ", severity.to_uppercase()),
+                            Style::default()
+                                .fg(severity_color)
+                                .add_modifier(Modifier::BOLD),
+                        ),
                         Span::styled(obs_type, style),
                     ]));
 
@@ -963,7 +1244,9 @@ fn render_analysis_security(f: &mut Frame, area: Rect, output: &serde_json::Valu
                             Span::styled(description, Style::default().fg(Color::White)),
                         ]));
                         if let Some(obj) = obs.as_object() {
-                            if let Some(device) = obj.get("affected_device").and_then(|d| d.as_str()) {
+                            if let Some(device) =
+                                obj.get("affected_device").and_then(|d| d.as_str())
+                            {
                                 lines.push(Line::from(vec![
                                     Span::raw("  │ "),
                                     Span::styled("Affected: ", Style::default().fg(Color::Gray)),
@@ -986,8 +1269,11 @@ fn render_analysis_security(f: &mut Frame, area: Rect, output: &serde_json::Valu
         }
     }
 
-    let content = Paragraph::new(Text::from(lines))
-        .block(Block::default().borders(Borders::ALL).title(" Security Analysis "));
+    let content = Paragraph::new(Text::from(lines)).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Security Analysis "),
+    );
     f.render_widget(content, area);
 }
 
@@ -1000,14 +1286,19 @@ fn render_analysis_timing(f: &mut Frame, area: Rect, output: &serde_json::Value)
         if let Some(timing) = analysis.get("timing_analysis").and_then(|t| t.as_object()) {
             lines.push(Line::from(Span::styled(
                 "Timing Analysis",
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
             )));
             lines.push(Line::from(""));
 
             if let Some(duration) = timing.get("duration_sec").and_then(|d| d.as_f64()) {
                 lines.push(Line::from(vec![
                     Span::styled("Capture Duration: ", Style::default().fg(Color::Cyan)),
-                    Span::styled(format!("{:.2}s", duration), Style::default().fg(Color::White)),
+                    Span::styled(
+                        format!("{:.2}s", duration),
+                        Style::default().fg(Color::White),
+                    ),
                 ]));
             }
 
@@ -1021,7 +1312,9 @@ fn render_analysis_timing(f: &mut Frame, area: Rect, output: &serde_json::Value)
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
                 "Inter-Packet Intervals",
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
             )));
 
             if let Some(avg) = timing.get("avg_interval_ms").and_then(|a| a.as_f64()) {
@@ -1063,8 +1356,11 @@ fn render_analysis_timing(f: &mut Frame, area: Rect, output: &serde_json::Value)
         }
     }
 
-    let content = Paragraph::new(Text::from(lines))
-        .block(Block::default().borders(Borders::ALL).title(" Timing Analysis "));
+    let content = Paragraph::new(Text::from(lines)).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Timing Analysis "),
+    );
     f.render_widget(content, area);
 }
 
@@ -1077,7 +1373,12 @@ fn render_capture_details(f: &mut Frame, area: Rect, output: &serde_json::Value)
         // Capture ID
         if let Some(id) = obj.get("capture_id").and_then(|v| v.as_str()) {
             lines.push(Line::from(vec![
-                Span::styled("  Capture ID: ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "  Capture ID: ",
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::styled(id, Style::default().fg(Color::Cyan)),
             ]));
         }
@@ -1102,7 +1403,9 @@ fn render_capture_details(f: &mut Frame, area: Rect, output: &serde_json::Value)
         // Stats
         lines.push(Line::from(Span::styled(
             "  Statistics",
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
         )));
 
         if let Some(packets) = obj.get("packet_count").and_then(|v| v.as_u64()) {
@@ -1123,7 +1426,10 @@ fn render_capture_details(f: &mut Frame, area: Rect, output: &serde_json::Value)
             let size_kb = size as f64 / 1024.0;
             lines.push(Line::from(vec![
                 Span::raw("    File Size: "),
-                Span::styled(format!("{:.2} KB", size_kb), Style::default().fg(Color::Magenta)),
+                Span::styled(
+                    format!("{:.2} KB", size_kb),
+                    Style::default().fg(Color::Magenta),
+                ),
             ]));
         }
         lines.push(Line::from(""));
@@ -1133,9 +1439,12 @@ fn render_capture_details(f: &mut Frame, area: Rect, output: &serde_json::Value)
             if !tags.is_empty() {
                 lines.push(Line::from(Span::styled(
                     "  Tags",
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
                 )));
-                let tag_str = tags.iter()
+                let tag_str = tags
+                    .iter()
                     .filter_map(|t| t.as_str())
                     .collect::<Vec<_>>()
                     .join(", ");
@@ -1149,7 +1458,9 @@ fn render_capture_details(f: &mut Frame, area: Rect, output: &serde_json::Value)
             if !desc.is_empty() {
                 lines.push(Line::from(Span::styled(
                     "  Description",
-                    Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                    Style::default()
+                        .fg(Color::Yellow)
+                        .add_modifier(Modifier::BOLD),
                 )));
                 lines.push(Line::from(format!("    {}", desc)));
                 lines.push(Line::from(""));
@@ -1165,20 +1476,30 @@ fn render_capture_details(f: &mut Frame, area: Rect, output: &serde_json::Value)
         }
     }
 
-    let content = Paragraph::new(Text::from(lines))
-        .block(Block::default().borders(Borders::ALL).title("Capture Details"));
+    let content = Paragraph::new(Text::from(lines)).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title("Capture Details"),
+    );
     f.render_widget(content, area);
 }
 
 /// Render capture list as a formatted table
-fn render_capture_list_table(f: &mut Frame, area: Rect, captures: &[serde_json::Value], selected_index: Option<usize>) {
+fn render_capture_list_table(
+    f: &mut Frame,
+    area: Rect,
+    captures: &[serde_json::Value],
+    selected_index: Option<usize>,
+) {
     let mut lines = Vec::new();
 
     // Header line
     lines.push(Line::from(""));
     lines.push(Line::from(Span::styled(
         format!("  Found {} capture(s)", captures.len()),
-        Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
     )));
 
     // Show navigation hint if captures available
@@ -1199,19 +1520,50 @@ fn render_capture_list_table(f: &mut Frame, area: Rect, captures: &[serde_json::
     } else {
         // Table header
         lines.push(Line::from(vec![
-            Span::styled("  ID                  ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-            Span::styled("Type           ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-            Span::styled("Pkts    ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-            Span::styled("Duration    ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-            Span::styled("Timestamp              ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-            Span::styled("Description", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "  ID                  ",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "Type           ",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "Pkts    ",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "Duration    ",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "Timestamp              ",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                "Description",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ]));
         lines.push(Line::from(Span::raw(format!("  {}", "-".repeat(120)))));
 
         // Table rows
         for (idx, capture) in captures.iter().enumerate() {
             let is_selected = selected_index == Some(idx);
-            let id = capture.get("capture_id")
+            let id = capture
+                .get("capture_id")
                 .and_then(|v| v.as_str())
                 .unwrap_or("?")
                 .split('-')
@@ -1221,32 +1573,35 @@ fn render_capture_list_table(f: &mut Frame, area: Rect, captures: &[serde_json::
                 .take(16)
                 .collect::<String>();
 
-            let cap_type = capture.get("type")
-                .and_then(|v| v.as_str())
-                .unwrap_or("?");
+            let cap_type = capture.get("type").and_then(|v| v.as_str()).unwrap_or("?");
 
-            let packet_count = capture.get("packet_count")
+            let packet_count = capture
+                .get("packet_count")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0);
 
-            let duration = capture.get("duration_sec")
+            let duration = capture
+                .get("duration_sec")
                 .and_then(|v| v.as_u64())
                 .map(|d| format!("{}s", d))
                 .unwrap_or_else(|| "N/A".to_string());
 
-            let timestamp = capture.get("timestamp")
+            let timestamp = capture
+                .get("timestamp")
                 .and_then(|v| v.as_str())
                 .unwrap_or("?")
                 .chars()
                 .take(19)
                 .collect::<String>();
 
-            let description = capture.get("description")
+            let description = capture
+                .get("description")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
 
-            let tags = capture.get("tags")
+            let tags = capture
+                .get("tags")
                 .and_then(|v| v.as_array())
                 .map(|arr| {
                     arr.iter()
@@ -1293,11 +1648,12 @@ fn render_capture_list_table(f: &mut Frame, area: Rect, captures: &[serde_json::
         Style::default().fg(Color::DarkGray),
     )));
 
-    let content = Paragraph::new(Text::from(lines))
-        .block(Block::default()
+    let content = Paragraph::new(Text::from(lines)).block(
+        Block::default()
             .borders(Borders::ALL)
             .title("Capture List")
-            .title_style(Style::default().fg(Color::Cyan)));
+            .title_style(Style::default().fg(Color::Cyan)),
+    );
 
     f.render_widget(content, area);
 }
@@ -1315,12 +1671,23 @@ fn render_executing(f: &mut Frame, area: Rect, tool_name: &str, frame_count: u64
             Span::styled(spinner, Style::default().fg(Color::Cyan)),
             Span::raw(" "),
             Span::styled("Executing: ", Style::default().fg(Color::Yellow)),
-            Span::styled(tool_name, Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                tool_name,
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ]),
         Line::from(""),
-        Line::from(Span::styled("Please wait...", Style::default().fg(Color::Gray))),
+        Line::from(Span::styled(
+            "Please wait...",
+            Style::default().fg(Color::Gray),
+        )),
         Line::from(""),
-        Line::from(Span::styled("This may take a few seconds depending on the tool.", Style::default().fg(Color::DarkGray))),
+        Line::from(Span::styled(
+            "This may take a few seconds depending on the tool.",
+            Style::default().fg(Color::DarkGray),
+        )),
     ];
 
     let paragraph = Paragraph::new(text)
@@ -1332,7 +1699,16 @@ fn render_executing(f: &mut Frame, area: Rect, tool_name: &str, frame_count: u64
 }
 
 /// Render tool results
-fn render_results(f: &mut Frame, area: Rect, tool_name: &str, output: &serde_json::Value, success: bool, selected_capture: Option<usize>, packet_list_state: Option<&crate::tui::app::PacketListState>, analysis_view_state: Option<&crate::tui::app::AnalysisViewState>) {
+fn render_results(
+    f: &mut Frame,
+    area: Rect,
+    tool_name: &str,
+    output: &serde_json::Value,
+    success: bool,
+    selected_capture: Option<usize>,
+    packet_list_state: Option<&crate::tui::app::PacketListState>,
+    analysis_view_state: Option<&crate::tui::app::AnalysisViewState>,
+) {
     // Split into header and content
     let chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -1347,14 +1723,19 @@ fn render_results(f: &mut Frame, area: Rect, tool_name: &str, output: &serde_jso
     let status_text = if success { "Success" } else { "Failed" };
     let status_color = if success { Color::Green } else { Color::Red };
 
-    let header_text = format!(
-        "{} {}\n\nTool: {}",
-        status_symbol, status_text, tool_name
-    );
+    let header_text = format!("{} {}\n\nTool: {}", status_symbol, status_text, tool_name);
     let header = Paragraph::new(header_text)
-        .style(Style::default().fg(status_color).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(status_color)
+                .add_modifier(Modifier::BOLD),
+        )
         .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL).title("Execution Result"));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Execution Result"),
+        );
     f.render_widget(header, chunks[0]);
 
     // Special formatting for capture_list - show as table
@@ -1398,8 +1779,7 @@ fn render_results(f: &mut Frame, area: Rect, tool_name: &str, output: &serde_jso
     }
 
     // Content - format JSON nicely
-    let result_json = serde_json::to_string_pretty(output)
-        .unwrap_or_else(|_| "{}".to_string());
+    let result_json = serde_json::to_string_pretty(output).unwrap_or_else(|_| "{}".to_string());
 
     // Highlight specific fields for better readability
     let formatted_output = if let Some(obj) = output.as_object() {
@@ -1430,12 +1810,18 @@ fn render_results(f: &mut Frame, area: Rect, tool_name: &str, output: &serde_jso
         if let Some(duration) = obj.get("duration").and_then(|v| v.as_f64()) {
             lines.push(Line::from(vec![
                 Span::styled("Duration: ", Style::default().fg(Color::Cyan)),
-                Span::styled(format!("{:.1}s", duration), Style::default().fg(Color::White)),
+                Span::styled(
+                    format!("{:.1}s", duration),
+                    Style::default().fg(Color::White),
+                ),
             ]));
         }
 
         lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled("Full Output:", Style::default().fg(Color::Gray))));
+        lines.push(Line::from(Span::styled(
+            "Full Output:",
+            Style::default().fg(Color::Gray),
+        )));
         lines.push(Line::from(""));
 
         // Add full JSON
@@ -1448,11 +1834,12 @@ fn render_results(f: &mut Frame, area: Rect, tool_name: &str, output: &serde_jso
         Text::from(result_json)
     };
 
-    let content = Paragraph::new(formatted_output)
-        .block(Block::default()
+    let content = Paragraph::new(formatted_output).block(
+        Block::default()
             .borders(Borders::ALL)
             .title("Output")
-            .title_style(Style::default().fg(Color::Gray)));
+            .title_style(Style::default().fg(Color::Gray)),
+    );
 
     f.render_widget(content, chunks[1]);
 }
@@ -1462,7 +1849,10 @@ fn render_settings(f: &mut Frame, area: Rect, selected_index: usize) {
     let settings_items = vec![
         ("View Tool History", "Show recently used tools"),
         ("View Favorites", "Show bookmarked tools"),
-        ("View Recent MAC Addresses", "MAC filter helper for analysis"),
+        (
+            "View Recent MAC Addresses",
+            "MAC filter helper for analysis",
+        ),
         ("Backend Info", "View backend configuration"),
         ("Strike48 Connection", "Configure cloud connection"),
         ("About", "Version and system information"),
@@ -1473,14 +1863,19 @@ fn render_settings(f: &mut Frame, area: Rect, selected_index: usize) {
         .enumerate()
         .map(|(i, (title, desc))| {
             let style = if i == selected_index {
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default()
             };
 
             let content = vec![
                 Line::from(Span::styled(format!("{}. {}", i + 1, title), style)),
-                Line::from(Span::styled(format!("   {}", desc), Style::default().fg(Color::Gray))),
+                Line::from(Span::styled(
+                    format!("   {}", desc),
+                    Style::default().fg(Color::Gray),
+                )),
                 Line::from(""),
             ];
 
@@ -1488,11 +1883,12 @@ fn render_settings(f: &mut Frame, area: Rect, selected_index: usize) {
         })
         .collect();
 
-    let settings_list = List::new(items)
-        .block(Block::default()
+    let settings_list = List::new(items).block(
+        Block::default()
             .borders(Borders::ALL)
             .title("Settings")
-            .title_style(Style::default().fg(Color::Cyan)));
+            .title_style(Style::default().fg(Color::Cyan)),
+    );
 
     f.render_widget(settings_list, area);
 }
@@ -1621,8 +2017,7 @@ fn render_confirmation(f: &mut Frame, area: Rect, message: &str) {
     };
 
     // Clear the background
-    let clear_widget = Block::default()
-        .style(Style::default().bg(Color::Black));
+    let clear_widget = Block::default().style(Style::default().bg(Color::Black));
     f.render_widget(clear_widget, area);
 
     // Build dialog content
@@ -1630,17 +2025,20 @@ fn render_confirmation(f: &mut Frame, area: Rect, message: &str) {
         Line::from(""),
         Line::from(Span::styled(message, Style::default().fg(Color::Yellow))),
         Line::from(""),
-        Line::from(Span::styled("Press [Y] to confirm or [N] to cancel", Style::default().fg(Color::Gray))),
+        Line::from(Span::styled(
+            "Press [Y] to confirm or [N] to cancel",
+            Style::default().fg(Color::Gray),
+        )),
         Line::from(""),
     ];
 
-    let dialog = Paragraph::new(text)
-        .alignment(Alignment::Center)
-        .block(Block::default()
+    let dialog = Paragraph::new(text).alignment(Alignment::Center).block(
+        Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(Color::Red))
             .title("Confirmation")
-            .title_style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)));
+            .title_style(Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+    );
 
     f.render_widget(dialog, dialog_area);
 }
@@ -1654,7 +2052,10 @@ fn render_error_message(f: &mut Frame, area: Rect, tool_name: &str, error_msg: &
         Line::from(""),
         Line::from(vec![
             Span::styled("Error Category: ", Style::default().fg(Color::DarkGray)),
-            Span::styled(category, Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                category,
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ),
         ]),
         Line::from(""),
         Line::from(Span::styled("Details:", Style::default().fg(Color::Yellow))),
@@ -1676,7 +2077,9 @@ fn render_error_message(f: &mut Frame, area: Rect, tool_name: &str, error_msg: &
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             "Suggestion:",
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
         )));
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
@@ -1694,10 +2097,12 @@ fn render_error_message(f: &mut Frame, area: Rect, tool_name: &str, error_msg: &
 
     let paragraph = Paragraph::new(Text::from(lines))
         .alignment(Alignment::Left)
-        .block(Block::default()
-            .borders(Borders::ALL)
-            .title(format!("Error: {}", tool_name))
-            .title_style(Style::default().fg(Color::Red)));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(format!("Error: {}", tool_name))
+                .title_style(Style::default().fg(Color::Red)),
+        );
 
     f.render_widget(paragraph, area);
 }
@@ -1719,7 +2124,7 @@ fn categorize_error(error_msg: &str) -> (&'static str, &str, Option<&'static str
             Some("Try running with sudo or check USB device permissions"),
         )
     } else if lower.contains("timeout") {
-            (
+        (
             "Timeout",
             error_msg,
             Some("The operation took too long. Try increasing the duration or checking device connection"),
@@ -1737,15 +2142,16 @@ fn categorize_error(error_msg: &str) -> (&'static str, &str, Option<&'static str
             Some("Check the parameter values and format"),
         )
     } else {
-        (
-            "General Error",
-            error_msg,
-            None,
-        )
+        ("General Error", error_msg, None)
     }
 }
 /// Render decoded packet list for bt_decode
-fn render_decoded_packets(f: &mut Frame, area: Rect, output: &serde_json::Value, packet_list_state: Option<&crate::tui::app::PacketListState>) {
+fn render_decoded_packets(
+    f: &mut Frame,
+    area: Rect,
+    output: &serde_json::Value,
+    packet_list_state: Option<&crate::tui::app::PacketListState>,
+) {
     use ratatui::{
         layout::{Constraint, Direction, Layout},
         style::{Color, Modifier, Style},
@@ -1766,7 +2172,11 @@ fn render_decoded_packets(f: &mut Frame, area: Rect, output: &serde_json::Value,
                 )),
             ];
             let paragraph = Paragraph::new(text)
-                .block(Block::default().borders(Borders::ALL).title("Decoded Packets"))
+                .block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .title("Decoded Packets"),
+                )
                 .alignment(ratatui::layout::Alignment::Center);
             f.render_widget(paragraph, area);
             return;
@@ -1785,7 +2195,11 @@ fn render_decoded_packets(f: &mut Frame, area: Rect, output: &serde_json::Value,
             )),
         ];
         let paragraph = Paragraph::new(text)
-            .block(Block::default().borders(Borders::ALL).title("Decoded Packets"))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Decoded Packets"),
+            )
             .alignment(ratatui::layout::Alignment::Center);
         f.render_widget(paragraph, area);
         return;
@@ -1812,7 +2226,12 @@ fn render_decoded_packets(f: &mut Frame, area: Rect, output: &serde_json::Value,
 }
 
 /// Render packet list view (original table view)
-fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], state: &crate::tui::app::PacketListState) {
+fn render_packet_list(
+    f: &mut Frame,
+    area: Rect,
+    packets: &[serde_json::Value],
+    state: &crate::tui::app::PacketListState,
+) {
     use ratatui::{
         style::{Color, Modifier, Style},
         text::{Line, Span},
@@ -1822,7 +2241,9 @@ fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], 
     let packet_count = packets.len();
 
     // Apply all active filters
-    let filtered_packets: Vec<(usize, &serde_json::Value)> = packets.iter().enumerate()
+    let filtered_packets: Vec<(usize, &serde_json::Value)> = packets
+        .iter()
+        .enumerate()
         .filter(|(_, pkt)| {
             // Follow stream filter (legacy, keeping for compatibility)
             if let Some(ref mac) = state.follow_mac {
@@ -1852,7 +2273,11 @@ fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], 
             )),
         ];
         let paragraph = Paragraph::new(text)
-            .block(Block::default().borders(Borders::ALL).title("Decoded Packets (Filtered)"))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title("Decoded Packets (Filtered)"),
+            )
             .alignment(ratatui::layout::Alignment::Center);
         f.render_widget(paragraph, area);
         return;
@@ -1868,14 +2293,54 @@ fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], 
     // Header line with indicators
     lines.push(Line::from(vec![
         Span::styled("  ", Style::default()), // Space for bookmark/mark indicators
-        Span::styled(" # ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        Span::styled("Time          ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        Span::styled("Ch ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        Span::styled("RSSI ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        Span::styled("Type          ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        Span::styled("MAC Address             ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        Span::styled("Proto ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-        Span::styled("Summary", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            " # ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            "Time          ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            "Ch ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            "RSSI ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            "Type          ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            "MAC Address             ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            "Proto ",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(
+            "Summary",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
     ]));
 
     lines.push(Line::from(Span::styled(
@@ -1892,8 +2357,14 @@ fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], 
             let is_marked = state.is_marked_for_comparison(*original_idx);
 
             // Extract packet fields
-            let frame_num = packet.get("frame_number").and_then(|v| v.as_str()).unwrap_or("?");
-            let timestamp = packet.get("timestamp").and_then(|v| v.as_str()).unwrap_or("Unknown");
+            let frame_num = packet
+                .get("frame_number")
+                .and_then(|v| v.as_str())
+                .unwrap_or("?");
+            let timestamp = packet
+                .get("timestamp")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Unknown");
             let time_short = timestamp.split(',').last().unwrap_or(timestamp).trim();
             let time_display = if time_short.len() > 12 {
                 &time_short[time_short.len() - 12..]
@@ -1901,11 +2372,23 @@ fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], 
                 time_short
             };
 
-            let channel = packet.get("channel").and_then(|v| v.as_str()).unwrap_or("?");
+            let channel = packet
+                .get("channel")
+                .and_then(|v| v.as_str())
+                .unwrap_or("?");
             let rssi = packet.get("rssi").and_then(|v| v.as_str()).unwrap_or("?");
-            let packet_type = packet.get("packet_type").and_then(|v| v.as_str()).unwrap_or("?");
-            let mac_address = packet.get("mac_address").and_then(|v| v.as_str()).unwrap_or("N/A");
-            let protocol = packet.get("protocol").and_then(|v| v.as_str()).unwrap_or("?");
+            let packet_type = packet
+                .get("packet_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("?");
+            let mac_address = packet
+                .get("mac_address")
+                .and_then(|v| v.as_str())
+                .unwrap_or("N/A");
+            let protocol = packet
+                .get("protocol")
+                .and_then(|v| v.as_str())
+                .unwrap_or("?");
             let summary = packet.get("summary").and_then(|v| v.as_str()).unwrap_or("");
 
             // Color based on packet type
@@ -1923,7 +2406,11 @@ fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], 
             let has_annotation = state.has_annotation(*original_idx);
             let annotation_indicator = if has_annotation { "📝" } else { " " };
             let expand_indicator = if is_selected {
-                if is_expanded { "▼" } else { "▶" }
+                if is_expanded {
+                    "▼"
+                } else {
+                    "▶"
+                }
             } else {
                 " "
             };
@@ -1936,22 +2423,55 @@ fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], 
 
             // Main packet row
             lines.push(Line::from(vec![
-                Span::styled(bookmark_indicator, Style::default().fg(Color::Yellow).bg(bg_color)),
-                Span::styled(mark_indicator, Style::default().fg(Color::Magenta).bg(bg_color)),
-                Span::styled(expand_indicator, Style::default().fg(Color::Cyan).bg(bg_color)),
-                Span::styled(format!("{:3} ", frame_num), Style::default().fg(Color::Gray).bg(bg_color)),
-                Span::styled(format!("{:12} ", time_display), Style::default().fg(Color::White).bg(bg_color)),
-                Span::styled(format!("{:2} ", channel), Style::default().fg(Color::Magenta).bg(bg_color)),
-                Span::styled(format!("{:4} ", rssi), Style::default().fg(Color::Red).bg(bg_color)),
-                Span::styled(format!("{:13} ", packet_type), Style::default().fg(type_color).bg(bg_color)),
-                Span::styled(format!("{:23} ", mac_address), Style::default().fg(Color::Cyan).bg(bg_color)),
-                Span::styled(format!("{:5} ", protocol), Style::default().fg(Color::Blue).bg(bg_color)),
+                Span::styled(
+                    bookmark_indicator,
+                    Style::default().fg(Color::Yellow).bg(bg_color),
+                ),
+                Span::styled(
+                    mark_indicator,
+                    Style::default().fg(Color::Magenta).bg(bg_color),
+                ),
+                Span::styled(
+                    expand_indicator,
+                    Style::default().fg(Color::Cyan).bg(bg_color),
+                ),
+                Span::styled(
+                    format!("{:3} ", frame_num),
+                    Style::default().fg(Color::Gray).bg(bg_color),
+                ),
+                Span::styled(
+                    format!("{:12} ", time_display),
+                    Style::default().fg(Color::White).bg(bg_color),
+                ),
+                Span::styled(
+                    format!("{:2} ", channel),
+                    Style::default().fg(Color::Magenta).bg(bg_color),
+                ),
+                Span::styled(
+                    format!("{:4} ", rssi),
+                    Style::default().fg(Color::Red).bg(bg_color),
+                ),
+                Span::styled(
+                    format!("{:13} ", packet_type),
+                    Style::default().fg(type_color).bg(bg_color),
+                ),
+                Span::styled(
+                    format!("{:23} ", mac_address),
+                    Style::default().fg(Color::Cyan).bg(bg_color),
+                ),
+                Span::styled(
+                    format!("{:5} ", protocol),
+                    Style::default().fg(Color::Blue).bg(bg_color),
+                ),
                 Span::styled(summary, Style::default().fg(Color::White).bg(bg_color)),
             ]));
 
             // Expanded view
             if is_expanded {
-                let access_addr = packet.get("access_addr").and_then(|v| v.as_str()).unwrap_or("Unknown");
+                let access_addr = packet
+                    .get("access_addr")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Unknown");
 
                 lines.push(Line::from(vec![
                     Span::raw("  │ "),
@@ -1978,7 +2498,10 @@ fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], 
                             lines.push(Line::from(vec![
                                 Span::raw("  │ "),
                                 Span::styled("Layers: ", Style::default().fg(Color::Gray)),
-                                Span::styled(layer_names.join(" → "), Style::default().fg(Color::Cyan)),
+                                Span::styled(
+                                    layer_names.join(" → "),
+                                    Style::default().fg(Color::Cyan),
+                                ),
                             ]));
                         }
                     }
@@ -1988,14 +2511,29 @@ fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], 
                 if let Some(note) = state.get_annotation(*original_idx) {
                     lines.push(Line::from(vec![
                         Span::raw("  │ "),
-                        Span::styled("Note: ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-                        Span::styled(note.clone(), Style::default().fg(Color::White).add_modifier(Modifier::ITALIC)),
+                        Span::styled(
+                            "Note: ",
+                            Style::default()
+                                .fg(Color::Yellow)
+                                .add_modifier(Modifier::BOLD),
+                        ),
+                        Span::styled(
+                            note.clone(),
+                            Style::default()
+                                .fg(Color::White)
+                                .add_modifier(Modifier::ITALIC),
+                        ),
                     ]));
                 }
 
                 lines.push(Line::from(vec![
                     Span::raw("  │ "),
-                    Span::styled("[Enter: collapse | n: add note | Del: remove note]", Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC)),
+                    Span::styled(
+                        "[Enter: collapse | n: add note | Del: remove note]",
+                        Style::default()
+                            .fg(Color::DarkGray)
+                            .add_modifier(Modifier::ITALIC),
+                    ),
                 ]));
 
                 lines.push(Line::from("  │"));
@@ -2039,9 +2577,20 @@ fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], 
         Span::styled("e", Style::default().fg(Color::Cyan)),
         Span::raw(" export  "),
         Span::raw(" │ "),
-        Span::styled(format!("Showing {}-{} of {}", start_idx + 1, end_idx, displayed_count), Style::default().fg(Color::Gray)),
+        Span::styled(
+            format!(
+                "Showing {}-{} of {}",
+                start_idx + 1,
+                end_idx,
+                displayed_count
+            ),
+            Style::default().fg(Color::Gray),
+        ),
         if displayed_count < packet_count {
-            Span::styled(format!(" (filtered from {})", packet_count), Style::default().fg(Color::Yellow))
+            Span::styled(
+                format!(" (filtered from {})", packet_count),
+                Style::default().fg(Color::Yellow),
+            )
         } else {
             Span::raw("")
         },
@@ -2051,9 +2600,19 @@ fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], 
     if let Some(ref mac) = state.follow_mac {
         lines.push(Line::from(vec![
             Span::styled("Following: ", Style::default().fg(Color::Yellow)),
-            Span::styled(mac.clone(), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                mac.clone(),
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw("  "),
-            Span::styled("(press 'f' to clear)", Style::default().fg(Color::Gray).add_modifier(Modifier::ITALIC)),
+            Span::styled(
+                "(press 'f' to clear)",
+                Style::default()
+                    .fg(Color::Gray)
+                    .add_modifier(Modifier::ITALIC),
+            ),
         ]));
     }
 
@@ -2062,7 +2621,14 @@ fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], 
     if bookmark_count > 0 {
         lines.push(Line::from(vec![
             Span::styled("★ ", Style::default().fg(Color::Yellow)),
-            Span::styled(format!("{} bookmarked packet{}", bookmark_count, if bookmark_count == 1 { "" } else { "s" }), Style::default().fg(Color::White)),
+            Span::styled(
+                format!(
+                    "{} bookmarked packet{}",
+                    bookmark_count,
+                    if bookmark_count == 1 { "" } else { "s" }
+                ),
+                Style::default().fg(Color::White),
+            ),
         ]));
     }
 
@@ -2077,16 +2643,34 @@ fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], 
             filter_parts.push(format!("MAC: {}", mac));
         }
         if state.filters.rssi_min.is_some() || state.filters.rssi_max.is_some() {
-            let min = state.filters.rssi_min.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
-            let max = state.filters.rssi_max.map(|v| v.to_string()).unwrap_or_else(|| "?".to_string());
+            let min = state
+                .filters
+                .rssi_min
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "?".to_string());
+            let max = state
+                .filters
+                .rssi_max
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "?".to_string());
             filter_parts.push(format!("RSSI: {} to {} dBm", min, max));
         }
 
         lines.push(Line::from(vec![
-            Span::styled("🔍 Active Filters: ", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "🔍 Active Filters: ",
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled(filter_parts.join(" | "), Style::default().fg(Color::White)),
             Span::raw("  "),
-            Span::styled("(press '/' to modify)", Style::default().fg(Color::Gray).add_modifier(Modifier::ITALIC)),
+            Span::styled(
+                "(press '/' to modify)",
+                Style::default()
+                    .fg(Color::Gray)
+                    .add_modifier(Modifier::ITALIC),
+            ),
         ]));
     }
 
@@ -2098,7 +2682,12 @@ fn render_packet_list(f: &mut Frame, area: Rect, packets: &[serde_json::Value], 
     f.render_widget(paragraph, area);
 }
 /// Render packet statistics view
-fn render_packet_statistics(f: &mut Frame, area: Rect, packets: &[serde_json::Value], state: &crate::tui::app::PacketListState) {
+fn render_packet_statistics(
+    f: &mut Frame,
+    area: Rect,
+    packets: &[serde_json::Value],
+    state: &crate::tui::app::PacketListState,
+) {
     use ratatui::{
         layout::{Constraint, Direction, Layout},
         style::{Color, Modifier, Style},
@@ -2171,7 +2760,9 @@ fn render_packet_statistics(f: &mut Frame, area: Rect, packets: &[serde_json::Va
     let mut type_lines = vec![
         Line::from(Span::styled(
             "Packet Type Distribution",
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
     ];
@@ -2195,12 +2786,19 @@ fn render_packet_statistics(f: &mut Frame, area: Rect, packets: &[serde_json::Va
         type_lines.push(Line::from(vec![
             Span::styled(format!("{:15}", ptype), Style::default().fg(Color::White)),
             Span::styled(bar, Style::default().fg(color)),
-            Span::styled(format!(" {} ({:.1}%)", count, percentage), Style::default().fg(Color::Gray)),
+            Span::styled(
+                format!(" {} ({:.1}%)", count, percentage),
+                Style::default().fg(Color::Gray),
+            ),
         ]));
     }
 
     let type_block = Paragraph::new(type_lines)
-        .block(Block::default().borders(Borders::ALL).title(" Packet Types "))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Packet Types "),
+        )
         .wrap(Wrap { trim: false });
     f.render_widget(type_block, chunks[0]);
 
@@ -2208,20 +2806,39 @@ fn render_packet_statistics(f: &mut Frame, area: Rect, packets: &[serde_json::Va
     let mut stats_lines = vec![
         Line::from(vec![
             Span::styled("Total Packets: ", Style::default().fg(Color::Yellow)),
-            Span::styled(packet_count.to_string(), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                packet_count.to_string(),
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ]),
         Line::from(vec![
             Span::styled("Unique MACs:   ", Style::default().fg(Color::Yellow)),
-            Span::styled(mac_addresses.len().to_string(), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                mac_addresses.len().to_string(),
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ]),
         Line::from(""),
         Line::from(vec![
             Span::styled("RSSI Stats:    ", Style::default().fg(Color::Yellow)),
-            Span::styled(format!("Avg: {:.1} dBm", avg_rssi), Style::default().fg(Color::White)),
+            Span::styled(
+                format!("Avg: {:.1} dBm", avg_rssi),
+                Style::default().fg(Color::White),
+            ),
             Span::raw("  "),
-            Span::styled(format!("Min: {} dBm", min_rssi), Style::default().fg(Color::Red)),
+            Span::styled(
+                format!("Min: {} dBm", min_rssi),
+                Style::default().fg(Color::Red),
+            ),
             Span::raw("  "),
-            Span::styled(format!("Max: {} dBm", max_rssi), Style::default().fg(Color::Green)),
+            Span::styled(
+                format!("Max: {} dBm", max_rssi),
+                Style::default().fg(Color::Green),
+            ),
         ]),
         Line::from(""),
     ];
@@ -2238,8 +2855,14 @@ fn render_packet_statistics(f: &mut Frame, area: Rect, packets: &[serde_json::Va
     for (ch, count) in sorted_channels {
         let percentage = (*count as f32 / packet_count as f32) * 100.0;
         stats_lines.push(Line::from(vec![
-            Span::styled(format!("  Ch {:2}:", ch), Style::default().fg(Color::Magenta)),
-            Span::styled(format!(" {} packets ({:.1}%)", count, percentage), Style::default().fg(Color::White)),
+            Span::styled(
+                format!("  Ch {:2}:", ch),
+                Style::default().fg(Color::Magenta),
+            ),
+            Span::styled(
+                format!(" {} packets ({:.1}%)", count, percentage),
+                Style::default().fg(Color::White),
+            ),
         ]));
     }
 
@@ -2252,7 +2875,9 @@ fn render_packet_statistics(f: &mut Frame, area: Rect, packets: &[serde_json::Va
     let mut mac_lines = vec![
         Line::from(Span::styled(
             format!("Unique MAC Addresses ({})", mac_addresses.len()),
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
     ];
@@ -2270,7 +2895,9 @@ fn render_packet_statistics(f: &mut Frame, area: Rect, packets: &[serde_json::Va
     if sorted_macs.len() > 15 {
         mac_lines.push(Line::from(Span::styled(
             format!("... and {} more", sorted_macs.len() - 15),
-            Style::default().fg(Color::Gray).add_modifier(Modifier::ITALIC),
+            Style::default()
+                .fg(Color::Gray)
+                .add_modifier(Modifier::ITALIC),
         )));
     }
 
@@ -2278,7 +2905,10 @@ fn render_packet_statistics(f: &mut Frame, area: Rect, packets: &[serde_json::Va
     mac_lines.push(Line::from(vec![
         Span::styled("Press ", Style::default().fg(Color::Gray)),
         Span::styled("l", Style::default().fg(Color::Cyan)),
-        Span::styled(" to return to packet list view", Style::default().fg(Color::Gray)),
+        Span::styled(
+            " to return to packet list view",
+            Style::default().fg(Color::Gray),
+        ),
     ]));
 
     let mac_block = Paragraph::new(mac_lines)
@@ -2287,7 +2917,12 @@ fn render_packet_statistics(f: &mut Frame, area: Rect, packets: &[serde_json::Va
     f.render_widget(mac_block, chunks[2]);
 }
 /// Render packet timeline view
-fn render_packet_timeline(f: &mut Frame, area: Rect, packets: &[serde_json::Value], state: &crate::tui::app::PacketListState) {
+fn render_packet_timeline(
+    f: &mut Frame,
+    area: Rect,
+    packets: &[serde_json::Value],
+    state: &crate::tui::app::PacketListState,
+) {
     use ratatui::{
         layout::{Constraint, Direction, Layout},
         style::{Color, Modifier, Style},
@@ -2304,8 +2939,8 @@ fn render_packet_timeline(f: &mut Frame, area: Rect, packets: &[serde_json::Valu
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Min(10),    // Timeline
-            Constraint::Length(8),  // Legend and stats
+            Constraint::Min(10),   // Timeline
+            Constraint::Length(8), // Legend and stats
         ])
         .split(area);
 
@@ -2350,9 +2985,17 @@ fn render_packet_timeline(f: &mut Frame, area: Rect, packets: &[serde_json::Valu
 
     // Title
     timeline_lines.push(Line::from(vec![
-        Span::styled("Packet Activity Over Time", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
+        Span::styled(
+            "Packet Activity Over Time",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        ),
         Span::raw("  "),
-        Span::styled(format!("({} packets)", packet_count), Style::default().fg(Color::Gray)),
+        Span::styled(
+            format!("({} packets)", packet_count),
+            Style::default().fg(Color::Gray),
+        ),
     ]));
     timeline_lines.push(Line::from(""));
 
@@ -2367,12 +3010,14 @@ fn render_packet_timeline(f: &mut Frame, area: Rect, packets: &[serde_json::Valu
     ];
 
     for (type_name, color) in packet_types.iter().zip(type_colors.iter()) {
-        let mut line_spans = vec![
-            Span::styled(format!("{:12} ", type_name), Style::default().fg(*color)),
-        ];
+        let mut line_spans = vec![Span::styled(
+            format!("{:12} ", type_name),
+            Style::default().fg(*color),
+        )];
 
         for bucket in &buckets {
-            let count_of_type = bucket.iter()
+            let count_of_type = bucket
+                .iter()
                 .filter(|(_, pkt)| {
                     pkt.get("packet_type")
                         .and_then(|v| v.as_str())
@@ -2410,7 +3055,9 @@ fn render_packet_timeline(f: &mut Frame, area: Rect, packets: &[serde_json::Valu
     timeline_lines.push(Line::from(""));
     timeline_lines.push(Line::from(Span::styled(
         "All Packets  ",
-        Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
+        Style::default()
+            .fg(Color::White)
+            .add_modifier(Modifier::BOLD),
     )));
 
     let mut density_line = vec![Span::raw("             ")];
@@ -2444,11 +3091,17 @@ fn render_packet_timeline(f: &mut Frame, area: Rect, packets: &[serde_json::Valu
     timeline_lines.push(Line::from(axis_line));
 
     // Time labels
-    let mut label_line = vec![Span::styled("Time -->     ", Style::default().fg(Color::Gray))];
+    let mut label_line = vec![Span::styled(
+        "Time -->     ",
+        Style::default().fg(Color::Gray),
+    )];
     for i in 0..bucket_count {
         if i % 20 == 0 && i > 0 {
             let packet_num = ((i as f64 / bucket_count as f64) * packet_count as f64) as usize;
-            label_line.push(Span::styled(format!("{}", packet_num), Style::default().fg(Color::Gray)));
+            label_line.push(Span::styled(
+                format!("{}", packet_num),
+                Style::default().fg(Color::Gray),
+            ));
             // Add spacing
             for _ in 0..format!("{}", packet_num).len() {
                 if i + 1 < bucket_count {
@@ -2460,7 +3113,11 @@ fn render_packet_timeline(f: &mut Frame, area: Rect, packets: &[serde_json::Valu
     timeline_lines.push(Line::from(label_line));
 
     let timeline_block = Paragraph::new(timeline_lines)
-        .block(Block::default().borders(Borders::ALL).title(" Timeline View "))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Timeline View "),
+        )
         .wrap(Wrap { trim: false });
     f.render_widget(timeline_block, chunks[0]);
 
@@ -2511,7 +3168,12 @@ fn render_packet_timeline(f: &mut Frame, area: Rect, packets: &[serde_json::Valu
     f.render_widget(legend_block, chunks[1]);
 }
 /// Render side-by-side packet comparison view
-fn render_packet_comparison(f: &mut Frame, area: Rect, packets: &[serde_json::Value], state: &crate::tui::app::PacketListState) {
+fn render_packet_comparison(
+    f: &mut Frame,
+    area: Rect,
+    packets: &[serde_json::Value],
+    state: &crate::tui::app::PacketListState,
+) {
     use ratatui::{
         layout::{Constraint, Direction, Layout},
         style::{Color, Modifier, Style},
@@ -2525,31 +3187,51 @@ fn render_packet_comparison(f: &mut Frame, area: Rect, packets: &[serde_json::Va
             Line::from(""),
             Line::from(Span::styled(
                 "Please mark exactly 2 packets for comparison",
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
             )),
             Line::from(""),
             Line::from(vec![
                 Span::styled("1. ", Style::default().fg(Color::Gray)),
                 Span::raw("Select a packet and press "),
-                Span::styled("m", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "m",
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw(" to mark it"),
             ]),
             Line::from(vec![
                 Span::styled("2. ", Style::default().fg(Color::Gray)),
                 Span::raw("Select another packet and press "),
-                Span::styled("m", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "m",
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw(" again"),
             ]),
             Line::from(vec![
                 Span::styled("3. ", Style::default().fg(Color::Gray)),
                 Span::raw("Press "),
-                Span::styled("c", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                Span::styled(
+                    "c",
+                    Style::default()
+                        .fg(Color::Cyan)
+                        .add_modifier(Modifier::BOLD),
+                ),
                 Span::raw(" to open comparison view"),
             ]),
             Line::from(""),
             Line::from(vec![
                 Span::styled("Currently marked: ", Style::default().fg(Color::Yellow)),
-                Span::styled(format!("{} packet(s)", state.comparison_marks.len()), Style::default().fg(Color::White)),
+                Span::styled(
+                    format!("{} packet(s)", state.comparison_marks.len()),
+                    Style::default().fg(Color::White),
+                ),
             ]),
             Line::from(""),
             Line::from(vec![
@@ -2560,7 +3242,11 @@ fn render_packet_comparison(f: &mut Frame, area: Rect, packets: &[serde_json::Va
         ];
 
         let paragraph = Paragraph::new(text)
-            .block(Block::default().borders(Borders::ALL).title(" Packet Comparison "))
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(" Packet Comparison "),
+            )
             .alignment(ratatui::layout::Alignment::Center);
         f.render_widget(paragraph, area);
         return;
@@ -2592,15 +3278,15 @@ fn render_packet_comparison(f: &mut Frame, area: Rect, packets: &[serde_json::Va
     // Split screen into two columns
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(50),
-            Constraint::Percentage(50),
-        ])
+        .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
         .split(area);
 
     // Helper function to extract field with default
     let get_field = |pkt: &serde_json::Value, field: &str, default: &str| {
-        pkt.get(field).and_then(|v| v.as_str()).unwrap_or(default).to_string()
+        pkt.get(field)
+            .and_then(|v| v.as_str())
+            .unwrap_or(default)
+            .to_string()
     };
 
     // Helper function to render one packet
@@ -2638,13 +3324,17 @@ fn render_packet_comparison(f: &mut Frame, area: Rect, packets: &[serde_json::Va
         let differ_protocol = p1_protocol != p2_protocol;
         let differ_access = p1_access != p2_access;
 
-        let diff_style = Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD);
+        let diff_style = Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD);
         let same_style = Style::default().fg(Color::White);
 
         let mut lines = vec![
             Line::from(Span::styled(
                 format!("Packet #{} (Index: {})", frame_num, idx),
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             )),
             Line::from(""),
             Line::from(vec![
@@ -2654,52 +3344,97 @@ fn render_packet_comparison(f: &mut Frame, area: Rect, packets: &[serde_json::Va
             Line::from(""),
             Line::from(vec![
                 Span::styled("Channel:      ", Style::default().fg(Color::Gray)),
-                Span::styled(channel, if differ_channel { diff_style } else { same_style }),
+                Span::styled(
+                    channel,
+                    if differ_channel {
+                        diff_style
+                    } else {
+                        same_style
+                    },
+                ),
             ]),
             Line::from(vec![
                 Span::styled("RSSI:         ", Style::default().fg(Color::Gray)),
-                Span::styled(format!("{} dBm", rssi), if differ_rssi { diff_style } else { same_style }),
+                Span::styled(
+                    format!("{} dBm", rssi),
+                    if differ_rssi { diff_style } else { same_style },
+                ),
             ]),
             Line::from(vec![
                 Span::styled("Type:         ", Style::default().fg(Color::Gray)),
-                Span::styled(packet_type.clone(), if differ_type { diff_style } else { same_style }),
+                Span::styled(
+                    packet_type.clone(),
+                    if differ_type { diff_style } else { same_style },
+                ),
             ]),
             Line::from(vec![
                 Span::styled("Protocol:     ", Style::default().fg(Color::Gray)),
-                Span::styled(protocol, if differ_protocol { diff_style } else { same_style }),
+                Span::styled(
+                    protocol,
+                    if differ_protocol {
+                        diff_style
+                    } else {
+                        same_style
+                    },
+                ),
             ]),
             Line::from(""),
-            Line::from(vec![
-                Span::styled("MAC Address:  ", Style::default().fg(Color::Gray)),
-            ]),
+            Line::from(vec![Span::styled(
+                "MAC Address:  ",
+                Style::default().fg(Color::Gray),
+            )]),
             Line::from(vec![
                 Span::raw("  "),
-                Span::styled(mac_address, if differ_mac { diff_style } else { same_style }),
+                Span::styled(
+                    mac_address,
+                    if differ_mac { diff_style } else { same_style },
+                ),
             ]),
             Line::from(""),
             Line::from(vec![
                 Span::styled("Access Addr:  ", Style::default().fg(Color::Gray)),
-                Span::styled(access_addr, if differ_access { diff_style } else { same_style }),
+                Span::styled(
+                    access_addr,
+                    if differ_access {
+                        diff_style
+                    } else {
+                        same_style
+                    },
+                ),
             ]),
             Line::from(""),
-            Line::from(vec![
-                Span::styled("Summary:      ", Style::default().fg(Color::Gray)),
-            ]),
+            Line::from(vec![Span::styled(
+                "Summary:      ",
+                Style::default().fg(Color::Gray),
+            )]),
             Line::from(vec![
                 Span::raw("  "),
-                Span::styled(summary, Style::default().fg(Color::White).add_modifier(Modifier::ITALIC)),
+                Span::styled(
+                    summary,
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::ITALIC),
+                ),
             ]),
         ];
 
         // Add annotation if present
         if let Some(note) = state.get_annotation(idx) {
             lines.push(Line::from(""));
-            lines.push(Line::from(vec![
-                Span::styled("Note:         ", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)),
-            ]));
+            lines.push(Line::from(vec![Span::styled(
+                "Note:         ",
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            )]));
             lines.push(Line::from(vec![
                 Span::raw("  "),
-                Span::styled(note.clone(), Style::default().fg(Color::White).add_modifier(Modifier::ITALIC)),
+                Span::styled(
+                    note.clone(),
+                    Style::default()
+                        .fg(Color::White)
+                        .add_modifier(Modifier::ITALIC),
+                ),
             ]));
         }
 
@@ -2707,7 +3442,9 @@ fn render_packet_comparison(f: &mut Frame, area: Rect, packets: &[serde_json::Va
         lines.push(Line::from(""));
         lines.push(Line::from(Span::styled(
             "Differences highlighted in yellow",
-            Style::default().fg(Color::DarkGray).add_modifier(Modifier::ITALIC),
+            Style::default()
+                .fg(Color::DarkGray)
+                .add_modifier(Modifier::ITALIC),
         )));
 
         let title = format!(" Packet {} ", if idx == idx1 { "A" } else { "B" });
@@ -2746,16 +3483,20 @@ fn render_dialog(f: &mut Frame, area: Rect, dialog: &TextInputDialog) {
     let dialog_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Title
-            Constraint::Min(4),     // Text input
-            Constraint::Length(2),  // Help text
+            Constraint::Length(3), // Title
+            Constraint::Min(4),    // Text input
+            Constraint::Length(2), // Help text
         ])
         .split(dialog_area);
 
     // Render title
     let title_text = format!(" {} ", dialog.title);
     let title = Paragraph::new(title_text)
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
         .alignment(Alignment::Center)
         .block(Block::default().borders(Borders::TOP | Borders::LEFT | Borders::RIGHT));
     f.render_widget(title, dialog_chunks[0]);
@@ -2765,14 +3506,20 @@ fn render_dialog(f: &mut Frame, area: Rect, dialog: &TextInputDialog) {
     f.render_widget(widget, dialog_chunks[1]);
 
     // Render help text
-    let help_text = vec![
-        Line::from(vec![
-            Span::styled("Enter", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw(" to submit  |  "),
-            Span::styled("Esc", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
-            Span::raw(" to cancel"),
-        ]),
-    ];
+    let help_text = vec![Line::from(vec![
+        Span::styled(
+            "Enter",
+            Style::default()
+                .fg(Color::Green)
+                .add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(" to submit  |  "),
+        Span::styled(
+            "Esc",
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(" to cancel"),
+    ])];
     let help = Paragraph::new(help_text)
         .style(Style::default().fg(Color::Gray))
         .alignment(Alignment::Center)
@@ -2781,66 +3528,88 @@ fn render_dialog(f: &mut Frame, area: Rect, dialog: &TextInputDialog) {
 }
 
 /// Render export menu
-fn render_export_menu(f: &mut Frame, area: Rect, selected_index: usize, packet_count: usize, state: &crate::tui::app::PacketListState) {
+fn render_export_menu(
+    f: &mut Frame,
+    area: Rect,
+    selected_index: usize,
+    packet_count: usize,
+    state: &crate::tui::app::PacketListState,
+) {
     use crate::tui::app::ExportOption;
 
     let options = ExportOption::all();
 
     // Build menu items with availability info
-    let items: Vec<ListItem> = options.iter().enumerate().map(|(idx, opt)| {
-        let is_available = match opt {
-            ExportOption::BookmarkedPackets => !state.bookmarks.is_empty(),
-            ExportOption::FilteredPackets => state.follow_mac.is_some(),
-            ExportOption::ComparisonReport => state.comparison_marks.len() == 2,
-            _ => true,
-        };
+    let items: Vec<ListItem> = options
+        .iter()
+        .enumerate()
+        .map(|(idx, opt)| {
+            let is_available = match opt {
+                ExportOption::BookmarkedPackets => !state.bookmarks.is_empty(),
+                ExportOption::FilteredPackets => state.follow_mac.is_some(),
+                ExportOption::ComparisonReport => state.comparison_marks.len() == 2,
+                _ => true,
+            };
 
-        let count_info = match opt {
-            ExportOption::BookmarkedPackets => format!(" ({} bookmarks)", state.bookmarks.len()),
-            ExportOption::FilteredPackets => {
-                if let Some(ref mac) = state.follow_mac {
-                    format!(" (following {})", mac)
-                } else {
-                    " (no filter active)".to_string()
+            let count_info = match opt {
+                ExportOption::BookmarkedPackets => {
+                    format!(" ({} bookmarks)", state.bookmarks.len())
                 }
-            }
-            ExportOption::ComparisonReport => format!(" ({}/2 marked)", state.comparison_marks.len()),
-            _ => format!(" ({} packets)", packet_count),
-        };
+                ExportOption::FilteredPackets => {
+                    if let Some(ref mac) = state.follow_mac {
+                        format!(" (following {})", mac)
+                    } else {
+                        " (no filter active)".to_string()
+                    }
+                }
+                ExportOption::ComparisonReport => {
+                    format!(" ({}/2 marked)", state.comparison_marks.len())
+                }
+                _ => format!(" ({} packets)", packet_count),
+            };
 
-        let label = format!("{}  {}", opt.label(), count_info);
-        let description = opt.description();
+            let label = format!("{}  {}", opt.label(), count_info);
+            let description = opt.description();
 
-        let style = if idx == selected_index {
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
-        } else if !is_available {
-            Style::default().fg(Color::DarkGray)
-        } else {
-            Style::default().fg(Color::White)
-        };
+            let style = if idx == selected_index {
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
+            } else if !is_available {
+                Style::default().fg(Color::DarkGray)
+            } else {
+                Style::default().fg(Color::White)
+            };
 
-        let content = vec![
-            Line::from(Span::styled(label, style)),
-            Line::from(Span::styled(
-                format!("  {}", description),
-                Style::default().fg(Color::Gray).add_modifier(Modifier::ITALIC),
-            )),
-            Line::from(""),
-        ];
+            let content = vec![
+                Line::from(Span::styled(label, style)),
+                Line::from(Span::styled(
+                    format!("  {}", description),
+                    Style::default()
+                        .fg(Color::Gray)
+                        .add_modifier(Modifier::ITALIC),
+                )),
+                Line::from(""),
+            ];
 
-        ListItem::new(content)
-    }).collect();
+            ListItem::new(content)
+        })
+        .collect();
 
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(" Export Menu "))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Export Menu "),
+        )
         .highlight_style(Style::default().add_modifier(Modifier::BOLD));
 
     // Split into list and help
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Min(20),     // Export options list
-            Constraint::Length(5),   // Help
+            Constraint::Min(20),   // Export options list
+            Constraint::Length(5), // Help
         ])
         .split(area);
 
@@ -2859,7 +3628,9 @@ fn render_export_menu(f: &mut Frame, area: Rect, selected_index: usize, packet_c
         Line::from(""),
         Line::from(Span::styled(
             "Exports are saved to ~/.ubertooth/exports/",
-            Style::default().fg(Color::Gray).add_modifier(Modifier::ITALIC),
+            Style::default()
+                .fg(Color::Gray)
+                .add_modifier(Modifier::ITALIC),
         )),
     ];
 
@@ -2887,11 +3658,11 @@ fn render_filter_dialog(
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(8),   // Packet types
-            Constraint::Length(5),   // MAC filter
-            Constraint::Length(5),   // RSSI range
-            Constraint::Length(5),   // Actions
-            Constraint::Min(1),      // Spacer
+            Constraint::Length(8), // Packet types
+            Constraint::Length(5), // MAC filter
+            Constraint::Length(5), // RSSI range
+            Constraint::Length(5), // Actions
+            Constraint::Min(1),    // Spacer
         ])
         .split(area);
 
@@ -2900,7 +3671,9 @@ fn render_filter_dialog(
         Line::from(Span::styled(
             "Filter by Packet Type:",
             if selected_section == 0 {
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::White)
             },
@@ -2914,7 +3687,9 @@ fn render_filter_dialog(
 
         let checkbox = if is_checked { "[✓]" } else { "[ ]" };
         let style = if is_selected {
-            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD)
         } else if is_checked {
             Style::default().fg(Color::Green)
         } else {
@@ -2927,8 +3702,11 @@ fn render_filter_dialog(
         )));
     }
 
-    let packet_type_widget = Paragraph::new(packet_type_lines)
-        .block(Block::default().borders(Borders::ALL).title(" Packet Types (Space to toggle) "));
+    let packet_type_widget = Paragraph::new(packet_type_lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Packet Types (Space to toggle) "),
+    );
     f.render_widget(packet_type_widget, chunks[0]);
 
     // Section 2: MAC Address Filter
@@ -2936,7 +3714,9 @@ fn render_filter_dialog(
         Line::from(Span::styled(
             "Filter by MAC Address:",
             if selected_section == 1 {
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::White)
             },
@@ -2956,8 +3736,11 @@ fn render_filter_dialog(
         )),
     ];
 
-    let mac_widget = Paragraph::new(mac_lines)
-        .block(Block::default().borders(Borders::ALL).title(" MAC Address Filter "));
+    let mac_widget = Paragraph::new(mac_lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" MAC Address Filter "),
+    );
     f.render_widget(mac_widget, chunks[1]);
 
     // Section 3: RSSI Range
@@ -2965,7 +3748,9 @@ fn render_filter_dialog(
         Line::from(Span::styled(
             "Filter by RSSI Range:",
             if selected_section == 2 {
-                Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD)
+                Style::default()
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD)
             } else {
                 Style::default().fg(Color::White)
             },
@@ -2974,8 +3759,16 @@ fn render_filter_dialog(
         Line::from(Span::styled(
             format!(
                 "  Min: {} dBm | Max: {} dBm",
-                if rssi_min.is_empty() { "(none)" } else { rssi_min },
-                if rssi_max.is_empty() { "(none)" } else { rssi_max }
+                if rssi_min.is_empty() {
+                    "(none)"
+                } else {
+                    rssi_min
+                },
+                if rssi_max.is_empty() {
+                    "(none)"
+                } else {
+                    rssi_max
+                }
             ),
             if selected_section == 2 {
                 Style::default().fg(Color::Cyan)
@@ -2996,16 +3789,15 @@ fn render_filter_dialog(
             Span::styled(
                 "  [Enter] ",
                 if selected_section == 3 {
-                    Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                    Style::default()
+                        .fg(Color::Green)
+                        .add_modifier(Modifier::BOLD)
                 } else {
                     Style::default().fg(Color::Gray)
                 },
             ),
             Span::raw("Apply Filters    "),
-            Span::styled(
-                "[C] ",
-                Style::default().fg(Color::Red),
-            ),
+            Span::styled("[C] ", Style::default().fg(Color::Red)),
             Span::raw("Clear All"),
         ]),
     ];
@@ -3032,289 +3824,576 @@ fn render_help_overlay(f: &mut Frame, area: Rect, scroll_offset: usize, theme: &
 
     // Create help text with comprehensive keyboard shortcuts
     let help_lines = vec![
-        Line::from(vec![
-            Span::styled("Ubertooth CLI - Keyboard Reference",
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
-        ]),
+        Line::from(vec![Span::styled(
+            "Ubertooth CLI - Keyboard Reference",
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(""),
-
         // Global shortcuts
-        Line::from(vec![
-            Span::styled("GLOBAL SHORTCUTS", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
-        ]),
+        Line::from(vec![Span::styled(
+            "GLOBAL SHORTCUTS",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("  ?  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Show this help overlay")
+            Span::styled(
+                "  ?  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Show this help overlay"),
         ]),
         Line::from(vec![
-            Span::styled("  q  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Quit application")
+            Span::styled(
+                "  q  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Quit application"),
         ]),
         Line::from(vec![
-            Span::styled(" Esc ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Go back / Cancel current action")
+            Span::styled(
+                " Esc ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Go back / Cancel current action"),
         ]),
         Line::from(vec![
-            Span::styled("  s  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Open settings")
+            Span::styled(
+                "  s  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Open settings"),
         ]),
         Line::from(vec![
-            Span::styled(" 1-9 ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Quick select menu item")
+            Span::styled(
+                " 1-9 ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Quick select menu item"),
         ]),
         Line::from(""),
-
         // Navigation
-        Line::from(vec![
-            Span::styled("NAVIGATION", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
-        ]),
+        Line::from(vec![Span::styled(
+            "NAVIGATION",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(""),
         Line::from(vec![
-            Span::styled(" ↑/↓ ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Navigate up/down in menus and lists")
+            Span::styled(
+                " ↑/↓ ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Navigate up/down in menus and lists"),
         ]),
         Line::from(vec![
-            Span::styled("Enter", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw(" Select item / Confirm action")
+            Span::styled(
+                "Enter",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" Select item / Confirm action"),
         ]),
         Line::from(vec![
-            Span::styled(" Tab ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Switch between form fields")
+            Span::styled(
+                " Tab ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Switch between form fields"),
         ]),
         Line::from(vec![
-            Span::styled("PgUp ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "PgUp ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw("/ "),
-            Span::styled("PgDn", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw(" Page up/down in lists")
+            Span::styled(
+                "PgDn",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" Page up/down in lists"),
         ]),
         Line::from(vec![
-            Span::styled("Home ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Home ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw("/ "),
-            Span::styled(" End", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw(" Jump to start/end of list")
+            Span::styled(
+                " End",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" Jump to start/end of list"),
         ]),
         Line::from(""),
-
         // Capture management
-        Line::from(vec![
-            Span::styled("CAPTURE MANAGEMENT (capture_list view)", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
-        ]),
+        Line::from(vec![Span::styled(
+            "CAPTURE MANAGEMENT (capture_list view)",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("Enter", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw(" Analyze selected capture")
+            Span::styled(
+                "Enter",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" Analyze selected capture"),
         ]),
         Line::from(vec![
-            Span::styled("  V  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("View capture details")
+            Span::styled(
+                "  V  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("View capture details"),
         ]),
         Line::from(vec![
-            Span::styled("  D  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Delete capture (with confirmation)")
+            Span::styled(
+                "  D  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Delete capture (with confirmation)"),
         ]),
         Line::from(vec![
-            Span::styled("  E  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Export capture to file")
+            Span::styled(
+                "  E  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Export capture to file"),
         ]),
         Line::from(vec![
-            Span::styled("  T  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Add/edit tags for capture")
+            Span::styled(
+                "  T  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Add/edit tags for capture"),
         ]),
         Line::from(""),
-
         // Packet analysis
-        Line::from(vec![
-            Span::styled("PACKET ANALYSIS (bt_decode view)", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
-        ]),
+        Line::from(vec![Span::styled(
+            "PACKET ANALYSIS (bt_decode view)",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(""),
         Line::from(vec![
-            Span::styled(" ↑/↓ ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Navigate packet list")
+            Span::styled(
+                " ↑/↓ ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Navigate packet list"),
         ]),
         Line::from(vec![
-            Span::styled("Enter", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Enter",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw(" / "),
-            Span::styled("Space", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw(" Expand/collapse packet details")
+            Span::styled(
+                "Space",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" Expand/collapse packet details"),
         ]),
         Line::from(vec![
-            Span::styled("  b  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Bookmark packet (mark with ★)")
+            Span::styled(
+                "  b  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Bookmark packet (mark with ★)"),
         ]),
         Line::from(vec![
-            Span::styled("  m  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Mark packet for comparison")
+            Span::styled(
+                "  m  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Mark packet for comparison"),
         ]),
         Line::from(vec![
-            Span::styled("  f  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Follow stream (filter by MAC address)")
+            Span::styled(
+                "  f  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Follow stream (filter by MAC address)"),
         ]),
         Line::from(vec![
-            Span::styled("  /  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Open filter dialog")
+            Span::styled(
+                "  /  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Open filter dialog"),
         ]),
         Line::from(vec![
-            Span::styled("  e  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Open export menu")
+            Span::styled(
+                "  e  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Open export menu"),
         ]),
         Line::from(vec![
-            Span::styled("  n  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Add/edit annotation for packet")
+            Span::styled(
+                "  n  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Add/edit annotation for packet"),
         ]),
         Line::from(vec![
-            Span::styled("Del  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Delete annotation from packet")
+            Span::styled(
+                "Del  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Delete annotation from packet"),
         ]),
         Line::from(""),
-
         // View modes
-        Line::from(vec![
-            Span::styled("VIEW MODES (bt_decode)", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
-        ]),
+        Line::from(vec![Span::styled(
+            "VIEW MODES (bt_decode)",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("  l  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Switch to List view")
+            Span::styled(
+                "  l  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Switch to List view"),
         ]),
         Line::from(vec![
-            Span::styled("  s  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Switch to Statistics view")
+            Span::styled(
+                "  s  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Switch to Statistics view"),
         ]),
         Line::from(vec![
-            Span::styled("  t  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Switch to Timeline view")
+            Span::styled(
+                "  t  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Switch to Timeline view"),
         ]),
         Line::from(vec![
-            Span::styled("  c  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Switch to Comparison view (side-by-side)")
+            Span::styled(
+                "  c  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Switch to Comparison view (side-by-side)"),
         ]),
         Line::from(""),
-
         // Analysis results
-        Line::from(vec![
-            Span::styled("ANALYSIS RESULTS (bt_analyze view)", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
-        ]),
+        Line::from(vec![Span::styled(
+            "ANALYSIS RESULTS (bt_analyze view)",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(""),
         Line::from(vec![
-            Span::styled("  o  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Overview mode - show summary")
+            Span::styled(
+                "  o  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Overview mode - show summary"),
         ]),
         Line::from(vec![
-            Span::styled("  d  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Devices mode - interactive device list")
+            Span::styled(
+                "  d  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Devices mode - interactive device list"),
         ]),
         Line::from(vec![
-            Span::styled("  s  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Security observations mode")
+            Span::styled(
+                "  s  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Security observations mode"),
         ]),
         Line::from(vec![
-            Span::styled("  t  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Timing analysis mode")
+            Span::styled(
+                "  t  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Timing analysis mode"),
         ]),
         Line::from(vec![
-            Span::styled(" ↑/↓ ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Navigate items in devices/security modes")
+            Span::styled(
+                " ↑/↓ ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Navigate items in devices/security modes"),
         ]),
         Line::from(vec![
-            Span::styled("Enter", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw(" Expand/collapse item details")
+            Span::styled(
+                "Enter",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" Expand/collapse item details"),
         ]),
         Line::from(""),
-
         // Filter dialog
-        Line::from(vec![
-            Span::styled("FILTER DIALOG", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
-        ]),
+        Line::from(vec![Span::styled(
+            "FILTER DIALOG",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(""),
         Line::from(vec![
-            Span::styled(" ↑/↓ ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Navigate between filter sections")
+            Span::styled(
+                " ↑/↓ ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Navigate between filter sections"),
         ]),
         Line::from(vec![
-            Span::styled("←/→ ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Navigate packet types")
+            Span::styled(
+                "←/→ ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Navigate packet types"),
         ]),
         Line::from(vec![
-            Span::styled("Space", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw(" Toggle packet type selection")
+            Span::styled(
+                "Space",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" Toggle packet type selection"),
         ]),
         Line::from(vec![
-            Span::styled("Enter", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw(" Apply filters")
+            Span::styled(
+                "Enter",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" Apply filters"),
         ]),
         Line::from(vec![
-            Span::styled("  C  ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Clear all filters")
+            Span::styled(
+                "  C  ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Clear all filters"),
         ]),
         Line::from(""),
-
         // Export menu
-        Line::from(vec![
-            Span::styled("EXPORT MENU", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
-        ]),
+        Line::from(vec![Span::styled(
+            "EXPORT MENU",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(""),
         Line::from(vec![
-            Span::styled(" ↑/↓ ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Select export option")
+            Span::styled(
+                " ↑/↓ ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Select export option"),
         ]),
         Line::from(vec![
-            Span::styled("Enter", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw(" Execute export")
+            Span::styled(
+                "Enter",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" Execute export"),
         ]),
         Line::from(""),
-
         // Form input
-        Line::from(vec![
-            Span::styled("TOOL PARAMETER FORMS", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
-        ]),
+        Line::from(vec![Span::styled(
+            "TOOL PARAMETER FORMS",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(""),
         Line::from(vec![
-            Span::styled(" Tab ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Move to next field")
+            Span::styled(
+                " Tab ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Move to next field"),
         ]),
         Line::from(vec![
-            Span::styled(" ↑/↓ ", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw("Change dropdown selection")
+            Span::styled(
+                " ↑/↓ ",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw("Change dropdown selection"),
         ]),
         Line::from(vec![
-            Span::styled("Enter", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw(" Submit form and execute tool")
+            Span::styled(
+                "Enter",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" Submit form and execute tool"),
         ]),
         Line::from(""),
-
         // Tips
-        Line::from(vec![
-            Span::styled("TIPS", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))
-        ]),
+        Line::from(vec![Span::styled(
+            "TIPS",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )]),
         Line::from(""),
         Line::from(vec![
             Span::raw("• Press "),
-            Span::styled("?", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw(" anytime to see this help overlay")
+            Span::styled(
+                "?",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" anytime to see this help overlay"),
         ]),
         Line::from(vec![
             Span::raw("• Use "),
-            Span::styled("Esc", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw(" to go back or cancel dialogs")
+            Span::styled(
+                "Esc",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" to go back or cancel dialogs"),
         ]),
         Line::from(vec![
             Span::raw("• Number keys "),
-            Span::styled("1-9", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw(" provide quick navigation shortcuts")
+            Span::styled(
+                "1-9",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" provide quick navigation shortcuts"),
         ]),
         Line::from(vec![
             Span::raw("• Most views support "),
-            Span::styled("PgUp/PgDn", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
-            Span::raw(" for fast scrolling")
+            Span::styled(
+                "PgUp/PgDn",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::raw(" for fast scrolling"),
         ]),
         Line::from(""),
         Line::from(""),
         Line::from(vec![
             Span::styled("Press ", Style::default().fg(Color::Gray)),
-            Span::styled("Esc", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "Esc",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" or ", Style::default().fg(Color::Gray)),
-            Span::styled("?", Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "?",
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::styled(" to close this help", Style::default().fg(Color::Gray)),
         ]),
     ];
@@ -3348,19 +4427,23 @@ fn render_help_overlay(f: &mut Frame, area: Rect, scroll_offset: usize, theme: &
                 .border_style(Style::default().fg(Color::Cyan))
                 .title(vec![
                     Span::raw(" "),
-                    Span::styled("Keyboard Reference", Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                    Span::styled(
+                        "Keyboard Reference",
+                        Style::default()
+                            .fg(Color::Cyan)
+                            .add_modifier(Modifier::BOLD),
+                    ),
                     Span::raw(" "),
                 ])
                 .title_bottom(vec![
                     Span::raw(" "),
                     Span::styled(scroll_indicator, Style::default().fg(Color::Gray)),
                     Span::raw(" "),
-                ])
+                ]),
         );
 
     // Clear background
-    let clear_widget = Block::default()
-        .style(Style::default().bg(Color::Black));
+    let clear_widget = Block::default().style(Style::default().bg(Color::Black));
     f.render_widget(clear_widget, area);
 
     // Render help overlay
@@ -3368,7 +4451,13 @@ fn render_help_overlay(f: &mut Frame, area: Rect, scroll_offset: usize, theme: &
 }
 
 /// Render theme selector dialog
-fn render_theme_selector(f: &mut Frame, area: Rect, selected_index: usize, themes: &[Theme], current_theme: &Theme) {
+fn render_theme_selector(
+    f: &mut Frame,
+    area: Rect,
+    selected_index: usize,
+    themes: &[Theme],
+    current_theme: &Theme,
+) {
     // Create centered dialog area (60% width, 70% height)
     let dialog_width = (area.width * 60) / 100;
     let dialog_height = (area.height * 70) / 100;
@@ -3402,11 +4491,9 @@ fn render_theme_selector(f: &mut Frame, area: Rect, selected_index: usize, theme
                     .bg(current_theme.colors.selected_bg.to_color())
                     .add_modifier(Modifier::BOLD)
             } else if is_current {
-                Style::default()
-                    .fg(current_theme.colors.success.to_color())
+                Style::default().fg(current_theme.colors.success.to_color())
             } else {
-                Style::default()
-                    .fg(current_theme.colors.foreground.to_color())
+                Style::default().fg(current_theme.colors.foreground.to_color())
             };
 
             ListItem::new(content).style(style)
@@ -3444,8 +4531,8 @@ fn render_theme_selector(f: &mut Frame, area: Rect, selected_index: usize, theme
         );
 
     // Clear background with semi-transparent effect
-    let clear_widget = Block::default()
-        .style(Style::default().bg(current_theme.colors.background.to_color()));
+    let clear_widget =
+        Block::default().style(Style::default().bg(current_theme.colors.background.to_color()));
     f.render_widget(clear_widget, area);
 
     // Render theme list
@@ -3468,9 +4555,9 @@ fn render_live_capture(
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(4),  // Header with stats
-            Constraint::Min(10),    // Packet list
-            Constraint::Length(8),  // Statistics panel
+            Constraint::Length(4), // Header with stats
+            Constraint::Min(10),   // Packet list
+            Constraint::Length(8), // Statistics panel
         ])
         .split(area);
 
@@ -3502,21 +4589,49 @@ fn render_live_capture_header(
     let header_text = vec![
         Line::from(vec![
             Span::styled("Status: ", Style::default().fg(Color::White)),
-            Span::styled(status_text, Style::default().fg(status_color).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                status_text,
+                Style::default()
+                    .fg(status_color)
+                    .add_modifier(Modifier::BOLD),
+            ),
             Span::raw("  "),
-            Span::styled(format!("Tool: {}", tool_name), Style::default().fg(Color::Cyan)),
+            Span::styled(
+                format!("Tool: {}", tool_name),
+                Style::default().fg(Color::Cyan),
+            ),
         ]),
         Line::from(vec![
-            Span::styled(format!("Packets: {} ", stats.total_packets), Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
-            Span::styled(format!("| Buffered: {} ", stats.buffered_packets), Style::default().fg(Color::White)),
-            Span::styled(format!("| Dropped: {} ", stats.dropped_packets), Style::default().fg(Color::Red)),
-            Span::styled(format!("| Rate: {:.1} p/s ", pps), Style::default().fg(Color::Green)),
-            Span::styled(format!("| Duration: {:.1}s", duration), Style::default().fg(Color::Gray)),
+            Span::styled(
+                format!("Packets: {} ", stats.total_packets),
+                Style::default()
+                    .fg(Color::White)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
+                format!("| Buffered: {} ", stats.buffered_packets),
+                Style::default().fg(Color::White),
+            ),
+            Span::styled(
+                format!("| Dropped: {} ", stats.dropped_packets),
+                Style::default().fg(Color::Red),
+            ),
+            Span::styled(
+                format!("| Rate: {:.1} p/s ", pps),
+                Style::default().fg(Color::Green),
+            ),
+            Span::styled(
+                format!("| Duration: {:.1}s", duration),
+                Style::default().fg(Color::Gray),
+            ),
         ]),
     ];
 
-    let header = Paragraph::new(header_text)
-        .block(Block::default().borders(Borders::ALL).title(" Live Capture "));
+    let header = Paragraph::new(header_text).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(" Live Capture "),
+    );
     f.render_widget(header, area);
 }
 
@@ -3550,12 +4665,27 @@ fn render_live_packet_list(
             let rssi_str = pkt.rssi.map_or("N/A".to_string(), |r| format!("{:3}", r));
 
             let line = Line::from(vec![
-                Span::styled(format!("{:8} ", pkt.sequence), Style::default().fg(Color::Gray)),
+                Span::styled(
+                    format!("{:8} ", pkt.sequence),
+                    Style::default().fg(Color::Gray),
+                ),
                 Span::styled(format!("{} ", timestamp), Style::default().fg(Color::Cyan)),
-                Span::styled(format!("Ch{:2} ", pkt.channel), Style::default().fg(Color::Yellow)),
-                Span::styled(format!("RSSI:{} ", rssi_str), Style::default().fg(Color::Magenta)),
-                Span::styled(format!("{:12} ", pkt.packet_type), Style::default().fg(Color::Green)),
-                Span::styled(format!("{} bytes", pkt.data.len()), Style::default().fg(Color::White)),
+                Span::styled(
+                    format!("Ch{:2} ", pkt.channel),
+                    Style::default().fg(Color::Yellow),
+                ),
+                Span::styled(
+                    format!("RSSI:{} ", rssi_str),
+                    Style::default().fg(Color::Magenta),
+                ),
+                Span::styled(
+                    format!("{:12} ", pkt.packet_type),
+                    Style::default().fg(Color::Green),
+                ),
+                Span::styled(
+                    format!("{} bytes", pkt.data.len()),
+                    Style::default().fg(Color::White),
+                ),
             ]);
 
             ListItem::new(line)
@@ -3563,8 +4693,16 @@ fn render_live_packet_list(
         .collect();
 
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title(format!(" Packets ({} total) ", packets.len())))
-        .highlight_style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(format!(" Packets ({} total) ", packets.len())),
+        )
+        .highlight_style(
+            Style::default()
+                .bg(Color::DarkGray)
+                .add_modifier(Modifier::BOLD),
+        )
         .highlight_symbol("▶ ");
 
     f.render_widget(list, area);
@@ -3584,19 +4722,35 @@ fn render_live_statistics(
 
     // Left side: Throughput stats
     let throughput_text = vec![
-        Line::from(Span::styled("Throughput", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "Throughput",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
         Line::from(""),
         Line::from(vec![
             Span::styled("Packets/sec: ", Style::default().fg(Color::White)),
-            Span::styled(format!("{:.1}", stats.packets_per_second), Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                format!("{:.1}", stats.packets_per_second),
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ]),
         Line::from(vec![
             Span::styled("Avg bytes/pkt: ", Style::default().fg(Color::White)),
-            Span::styled(format!("{:.0}", stats.avg_bytes_per_packet()), Style::default().fg(Color::Cyan)),
+            Span::styled(
+                format!("{:.0}", stats.avg_bytes_per_packet()),
+                Style::default().fg(Color::Cyan),
+            ),
         ]),
         Line::from(vec![
             Span::styled("Total data: ", Style::default().fg(Color::White)),
-            Span::styled(format!("{:.2} MB", stats.total_bytes as f64 / 1_048_576.0), Style::default().fg(Color::White)),
+            Span::styled(
+                format!("{:.2} MB", stats.total_bytes as f64 / 1_048_576.0),
+                Style::default().fg(Color::White),
+            ),
         ]),
     ];
 
@@ -3625,28 +4779,46 @@ fn render_live_statistics(
     };
 
     let buffer_text = vec![
-        Line::from(Span::styled("Buffer Usage", Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD))),
+        Line::from(Span::styled(
+            "Buffer Usage",
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
+        )),
         Line::from(""),
         Line::from(vec![
             Span::styled("Packets: ", Style::default().fg(Color::White)),
-            Span::styled(format!("{}/{} ({:.1}%)", stats.buffered_packets, limits.max_packets, buffer_percent), Style::default().fg(buffer_color)),
+            Span::styled(
+                format!(
+                    "{}/{} ({:.1}%)",
+                    stats.buffered_packets, limits.max_packets, buffer_percent
+                ),
+                Style::default().fg(buffer_color),
+            ),
         ]),
         Line::from(vec![
             Span::styled("Memory: ", Style::default().fg(Color::White)),
-            Span::styled(format!("{:.1}/{:.1} MB ({:.1}%)", 
-                stats.memory_usage as f64 / 1_048_576.0,
-                limits.max_memory_bytes as f64 / 1_048_576.0,
-                memory_percent
-            ), Style::default().fg(memory_color)),
+            Span::styled(
+                format!(
+                    "{:.1}/{:.1} MB ({:.1}%)",
+                    stats.memory_usage as f64 / 1_048_576.0,
+                    limits.max_memory_bytes as f64 / 1_048_576.0,
+                    memory_percent
+                ),
+                Style::default().fg(memory_color),
+            ),
         ]),
         Line::from(vec![
             Span::styled("Dropped: ", Style::default().fg(Color::White)),
-            Span::styled(format!("{}", stats.dropped_packets), Style::default().fg(Color::Red)),
+            Span::styled(
+                format!("{}", stats.dropped_packets),
+                Style::default().fg(Color::Red),
+            ),
         ]),
     ];
 
-    let buffer_panel = Paragraph::new(buffer_text)
-        .block(Block::default().borders(Borders::ALL).title(" Buffer "));
+    let buffer_panel =
+        Paragraph::new(buffer_text).block(Block::default().borders(Borders::ALL).title(" Buffer "));
     f.render_widget(buffer_panel, chunks[1]);
 }
 
@@ -3694,7 +4866,11 @@ fn render_session_list(
                 Style::default().fg(Color::Yellow),
             )),
         ])
-        .block(Block::default().borders(Borders::ALL).title(" Session Manager "))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Session Manager "),
+        )
         .alignment(Alignment::Center);
 
         f.render_widget(empty, area);
@@ -3708,23 +4884,32 @@ fn render_session_list(
         .map(|(i, session)| {
             let is_selected = i == selected_index;
 
-            let tool_str = session.current_tool.as_ref().map(|t| t.as_str()).unwrap_or("None");
+            let tool_str = session
+                .current_tool
+                .as_ref()
+                .map(|t| t.as_str())
+                .unwrap_or("None");
             let updated = session.updated_at.format("%Y-%m-%d %H:%M:%S");
 
             let lines = vec![
-                Line::from(vec![
-                    Span::styled(
-                        format!("  {}", session.name),
-                        Style::default()
-                            .fg(if is_selected { Color::Yellow } else { Color::White })
-                            .add_modifier(Modifier::BOLD),
-                    ),
-                ]),
+                Line::from(vec![Span::styled(
+                    format!("  {}", session.name),
+                    Style::default()
+                        .fg(if is_selected {
+                            Color::Yellow
+                        } else {
+                            Color::White
+                        })
+                        .add_modifier(Modifier::BOLD),
+                )]),
                 Line::from(vec![
                     Span::styled("    Tool: ", Style::default().fg(Color::Gray)),
                     Span::styled(tool_str, Style::default().fg(Color::Cyan)),
                     Span::raw("  "),
-                    Span::styled(format!("{} capture(s)", session.captures_count), Style::default().fg(Color::Green)),
+                    Span::styled(
+                        format!("{} capture(s)", session.captures_count),
+                        Style::default().fg(Color::Green),
+                    ),
                 ]),
                 Line::from(vec![
                     Span::styled("    Updated: ", Style::default().fg(Color::Gray)),
@@ -3762,10 +4947,15 @@ fn render_session_save(f: &mut Frame, area: Rect, session_name: &str) {
         Line::from(""),
         Line::from(Span::styled(
             "Save Current Session",
-            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+            Style::default()
+                .fg(Color::Yellow)
+                .add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
-        Line::from(Span::styled("Session Name:", Style::default().fg(Color::White))),
+        Line::from(Span::styled(
+            "Session Name:",
+            Style::default().fg(Color::White),
+        )),
         Line::from(""),
         Line::from(Span::styled(
             format!("> {}_", session_name),
@@ -3780,7 +4970,11 @@ fn render_session_save(f: &mut Frame, area: Rect, session_name: &str) {
     ];
 
     let dialog = Paragraph::new(text)
-        .block(Block::default().borders(Borders::ALL).title(" Save Session "))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Save Session "),
+        )
         .alignment(Alignment::Center);
 
     // Clear background
@@ -3795,7 +4989,11 @@ fn render_session_loading(f: &mut Frame, area: Rect) {
     let text = Paragraph::new("Loading session...")
         .style(Style::default().fg(Color::Yellow))
         .alignment(Alignment::Center)
-        .block(Block::default().borders(Borders::ALL).title(" Session Manager "));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" Session Manager "),
+        );
 
     f.render_widget(text, area);
 }

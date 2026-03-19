@@ -39,7 +39,9 @@ impl CaptureStore {
     }
 
     pub fn save_metadata(&self, metadata: &CaptureMetadata) -> Result<(), std::io::Error> {
-        let path = self.captures_dir().join(format!("{}.json", metadata.capture_id));
+        let path = self
+            .captures_dir()
+            .join(format!("{}.json", metadata.capture_id));
         let json = serde_json::to_string_pretty(metadata)?;
         std::fs::write(path, json)?;
         Ok(())
@@ -150,7 +152,11 @@ impl CaptureStoreFixture {
     }
 
     /// Create a sample capture metadata for testing.
-    pub fn create_sample_metadata(&self, capture_type: &str, packet_count: usize) -> CaptureMetadata {
+    pub fn create_sample_metadata(
+        &self,
+        capture_type: &str,
+        packet_count: usize,
+    ) -> CaptureMetadata {
         CaptureMetadata {
             capture_id: CaptureStore::generate_capture_id(capture_type),
             timestamp: Utc::now(),
@@ -170,7 +176,9 @@ impl CaptureStoreFixture {
 
         for i in 0..count {
             let metadata = self.create_sample_metadata(&format!("ble-scan-{}", i), 10 + i * 5);
-            self.store.save_metadata(&metadata).expect("Failed to save metadata");
+            self.store
+                .save_metadata(&metadata)
+                .expect("Failed to save metadata");
             captures.push(metadata);
         }
 

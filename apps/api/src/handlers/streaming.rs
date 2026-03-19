@@ -31,10 +31,7 @@ pub struct StreamConfig {
         (status = 400, description = "Invalid request")
     )
 )]
-pub async fn stream_packets(
-    ws: WebSocketUpgrade,
-    State(state): State<AppState>,
-) -> Response {
+pub async fn stream_packets(ws: WebSocketUpgrade, State(state): State<AppState>) -> Response {
     ws.on_upgrade(|socket| handle_socket(socket, state))
 }
 

@@ -1,6 +1,8 @@
 //! Plugin registry for managing loaded plugins.
 
-use crate::{Plugin, PluginCapability, PluginContext, PluginError, PluginResult, loader::PluginLoader};
+use crate::{
+    loader::PluginLoader, Plugin, PluginCapability, PluginContext, PluginError, PluginResult,
+};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -58,13 +60,15 @@ impl PluginRegistry {
             PluginError::InitError(format!("Failed to initialize plugin '{}': {}", name, e))
         })?;
 
-        tracing::info!("Loaded plugin: {} v{}", plugin.metadata().name, plugin.metadata().version);
+        tracing::info!(
+            "Loaded plugin: {} v{}",
+            plugin.metadata().name,
+            plugin.metadata().version
+        );
 
         // Store plugin
-        self.plugins.insert(
-            name.clone(),
-            PluginEntry { plugin, loader },
-        );
+        self.plugins
+            .insert(name.clone(), PluginEntry { plugin, loader });
 
         Ok(name)
     }

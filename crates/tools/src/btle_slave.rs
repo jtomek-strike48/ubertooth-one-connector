@@ -20,9 +20,15 @@ impl BtleSlaveTool {
 
 #[async_trait]
 impl PentestTool for BtleSlaveTool {
-    fn name(&self) -> &str { "btle_slave" }
-    fn category(&self) -> &str { "bt-attack" }
-    fn description(&self) -> &str { "Act as a BLE peripheral/slave device" }
+    fn name(&self) -> &str {
+        "btle_slave"
+    }
+    fn category(&self) -> &str {
+        "bt-attack"
+    }
+    fn description(&self) -> &str {
+        "Act as a BLE peripheral/slave device"
+    }
 
     fn input_schema(&self) -> Value {
         json!({"type": "object", "properties": {
@@ -47,8 +53,12 @@ impl PentestTool for BtleSlaveTool {
         self.backend.call("btle_slave", params).await
     }
 
-    fn requires_authorization(&self) -> bool { true }
-    fn authorization_category(&self) -> &str { "bt-attack-spoof" }
+    fn requires_authorization(&self) -> bool {
+        true
+    }
+    fn authorization_category(&self) -> &str {
+        "bt-attack-spoof"
+    }
 }
 
 #[cfg(test)]
@@ -61,17 +71,31 @@ mod tests {
     #[async_trait]
     impl UbertoothBackendProvider for MockBackend {
         async fn call(&self, method: &str, _params: Value) -> Result<Value> {
-            if method == "btle_slave" { Ok(json!({"success": true, "mac_address": "AA:BB:CC:DD:EE:FF", "advertising": true, "connections_received": 0, "message": "Active"})) }
-            else { Err(UbertoothError::BackendError("Unexpected".to_string())) }
+            if method == "btle_slave" {
+                Ok(
+                    json!({"success": true, "mac_address": "AA:BB:CC:DD:EE:FF", "advertising": true, "connections_received": 0, "message": "Active"}),
+                )
+            } else {
+                Err(UbertoothError::BackendError("Unexpected".to_string()))
+            }
         }
-        async fn is_alive(&self) -> bool { true }
-        async fn restart(&self) -> Result<()> { Ok(()) }
-        fn backend_type(&self) -> &str { "mock" }
+        async fn is_alive(&self) -> bool {
+            true
+        }
+        async fn restart(&self) -> Result<()> {
+            Ok(())
+        }
+        fn backend_type(&self) -> &str {
+            "mock"
+        }
     }
     #[tokio::test]
     async fn test_btle_slave() {
         let tool = BtleSlaveTool::new(Arc::new(MockBackend));
-        let result = tool.execute(json!({"mac_address": "AA:BB:CC:DD:EE:FF", "adv_data": "02010"})).await.unwrap();
+        let result = tool
+            .execute(json!({"mac_address": "AA:BB:CC:DD:EE:FF", "adv_data": "02010"}))
+            .await
+            .unwrap();
         assert_eq!(result["success"], true);
     }
     #[test]

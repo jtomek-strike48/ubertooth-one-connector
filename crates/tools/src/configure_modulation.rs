@@ -99,7 +99,9 @@ mod tests {
                     "message": format!("Modulation set to {}", modulation)
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 
@@ -121,7 +123,10 @@ mod tests {
         let backend = Arc::new(MockBackend);
         let tool = ConfigureModulationTool::new(backend);
 
-        let result = tool.execute(json!({ "modulation": "BT_LOW_ENERGY" })).await.unwrap();
+        let result = tool
+            .execute(json!({ "modulation": "BT_LOW_ENERGY" }))
+            .await
+            .unwrap();
 
         assert_eq!(result["success"], true);
         assert_eq!(result["modulation"], "BT_LOW_ENERGY");

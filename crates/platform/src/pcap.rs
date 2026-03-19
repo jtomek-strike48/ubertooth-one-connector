@@ -96,7 +96,10 @@ impl PcapManager {
             pcap_path: dest_pcap.to_string_lossy().to_string(),
             tags: vec!["imported".to_string()],
             description: description.unwrap_or_else(|| {
-                format!("Imported from {}", pcap_path.file_name().unwrap_or_default().to_string_lossy())
+                format!(
+                    "Imported from {}",
+                    pcap_path.file_name().unwrap_or_default().to_string_lossy()
+                )
             }),
             category: None,
             notes: None,
@@ -113,11 +116,7 @@ impl PcapManager {
     }
 
     /// Export capture to PCAP file
-    pub fn export_pcap(
-        &self,
-        capture_id: &str,
-        output_path: &Path,
-    ) -> Result<()> {
+    pub fn export_pcap(&self, capture_id: &str, output_path: &Path) -> Result<()> {
         // Get capture metadata
         let captures_dir = self.capture_store.captures_dir();
         let metadata_path = captures_dir.join(capture_id).join("metadata.json");
@@ -176,7 +175,7 @@ impl PcapManager {
             match block {
                 Ok(pcap_file::pcapng::Block::EnhancedPacket(_)) => count += 1,
                 Ok(pcap_file::pcapng::Block::SimplePacket(_)) => count += 1,
-                Ok(_) => {}, // Other block types
+                Ok(_) => {} // Other block types
                 Err(PcapError::IncompleteBuffer) => break,
                 Err(e) => {
                     tracing::warn!("Error reading block: {}", e);
@@ -254,7 +253,7 @@ impl PcapManager {
             match block {
                 Ok(pcap_file::pcapng::Block::EnhancedPacket(_)) => packet_count += 1,
                 Ok(pcap_file::pcapng::Block::SimplePacket(_)) => packet_count += 1,
-                Ok(_) => {},
+                Ok(_) => {}
                 Err(PcapError::IncompleteBuffer) => break,
                 Err(e) => {
                     errors.push(format!("Block: {}", e));
@@ -334,10 +333,7 @@ mod tests {
         let manager = PcapManager::new(store);
 
         let temp_out = tempfile::NamedTempFile::new().unwrap();
-        let result = manager.export_pcap(
-            "nonexistent-id",
-            temp_out.path(),
-        );
+        let result = manager.export_pcap("nonexistent-id", temp_out.path());
         assert!(result.is_err());
     }
 }

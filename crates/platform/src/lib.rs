@@ -21,7 +21,10 @@ pub use comparison::{
     SimilarityLevel, TrafficPatternComparison,
 };
 pub use config_store::ConfigStore;
-pub use fingerprint::{DeviceFingerprint, DeviceSignature, FingerprintEngine, MatchRule, PacketData as FingerprintPacketData};
+pub use fingerprint::{
+    DeviceFingerprint, DeviceSignature, FingerprintEngine, MatchRule,
+    PacketData as FingerprintPacketData,
+};
 pub use pcap::{PcapFormat, PcapManager, PcapValidation};
 pub use session_manager::{PacketFilter, SessionManager, SessionMetadata, SessionState, ViewState};
 pub use sidecar::SidecarManager;

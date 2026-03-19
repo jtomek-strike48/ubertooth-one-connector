@@ -1,4 +1,8 @@
 //! Packet timeline visualization.
+//!
+//! Built as part of Phase 3.2 - Ready for future TUI integration.
+
+#![allow(dead_code)]
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -140,11 +144,7 @@ impl TimelineData {
             .collect();
 
         let avg_rssi = {
-            let rssi_values: Vec<f32> = self
-                .bins
-                .iter()
-                .filter_map(|b| b.avg_rssi)
-                .collect();
+            let rssi_values: Vec<f32> = self.bins.iter().filter_map(|b| b.avg_rssi).collect();
 
             if !rssi_values.is_empty() {
                 Some(rssi_values.iter().sum::<f32>() / rssi_values.len() as f32)
@@ -205,9 +205,10 @@ pub fn render_timeline(
 /// Render timeline header
 fn render_timeline_header(frame: &mut Frame, area: Rect, title: &str, timeline: &TimelineData) {
     let header_text = vec![
-        Line::from(vec![
-            Span::styled(title, Style::default().add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(vec![Span::styled(
+            title,
+            Style::default().add_modifier(Modifier::BOLD),
+        )]),
         Line::from(vec![
             Span::raw("Period: "),
             Span::styled(
@@ -222,8 +223,8 @@ fn render_timeline_header(frame: &mut Frame, area: Rect, title: &str, timeline: 
         ]),
     ];
 
-    let header = Paragraph::new(header_text)
-        .block(Block::default().borders(Borders::ALL).title("Timeline"));
+    let header =
+        Paragraph::new(header_text).block(Block::default().borders(Borders::ALL).title("Timeline"));
 
     frame.render_widget(header, area);
 }
@@ -241,7 +242,8 @@ fn render_timeline_chart(
         timeline.bins.len() / bins_to_display
     } else {
         1
-    }.max(1);
+    }
+    .max(1);
 
     // Prepare bar chart data
     let bars: Vec<(&str, u64)> = timeline
@@ -275,7 +277,11 @@ fn render_timeline_chart(
         .collect();
 
     let chart = BarChart::default()
-        .block(Block::default().borders(Borders::ALL).title("Packets Over Time"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Packets Over Time"),
+        )
         .bar_width(2)
         .bar_gap(1)
         .data(BarGroup::default().bars(&bar_data))
@@ -293,7 +299,9 @@ fn render_timeline_stats(frame: &mut Frame, area: Rect, timeline: &TimelineData)
             Span::raw("Total Packets: "),
             Span::styled(
                 stats.total_packets.to_string(),
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Cyan)
+                    .add_modifier(Modifier::BOLD),
             ),
         ]),
         Line::from(vec![
@@ -328,11 +336,8 @@ fn render_timeline_stats(frame: &mut Frame, area: Rect, timeline: &TimelineData)
         ]),
     ];
 
-    let stats_widget = Paragraph::new(stats_text).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title("Statistics"),
-    );
+    let stats_widget = Paragraph::new(stats_text)
+        .block(Block::default().borders(Borders::ALL).title("Statistics"));
 
     frame.render_widget(stats_widget, area);
 }
@@ -364,10 +369,7 @@ pub fn render_packet_details(
 
             let line = Line::from(vec![
                 Span::styled(format!("{:5} ", packet.sequence), style),
-                Span::styled(
-                    packet.timestamp.format("%H:%M:%S.%3f").to_string(),
-                    style,
-                ),
+                Span::styled(packet.timestamp.format("%H:%M:%S.%3f").to_string(), style),
                 Span::styled(format!(" Ch{:3} ", packet.channel), style),
                 Span::styled(rssi_str, style),
                 Span::styled(format!(" {}", packet.packet_type), style),

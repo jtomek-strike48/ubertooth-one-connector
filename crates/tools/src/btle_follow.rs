@@ -140,7 +140,9 @@ mod tests {
                     "pcap_path": "/home/user/.ubertooth/captures/cap-btle-follow-test123.pcap"
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 
@@ -162,11 +164,14 @@ mod tests {
         let backend = Arc::new(MockBackend);
         let tool = BtleFollowTool::new(backend);
 
-        let result = tool.execute(json!({
-            "access_address": "0x8E89BED6",
-            "duration_sec": 60,
-            "crc_verify": true
-        })).await.unwrap();
+        let result = tool
+            .execute(json!({
+                "access_address": "0x8E89BED6",
+                "duration_sec": 60,
+                "crc_verify": true
+            }))
+            .await
+            .unwrap();
 
         assert_eq!(result["success"], true);
         assert_eq!(result["access_address"], "0x8E89BED6");

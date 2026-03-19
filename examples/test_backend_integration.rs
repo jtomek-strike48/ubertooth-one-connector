@@ -1,14 +1,12 @@
 //! Test platform backend integration with fixed USB layer
 
-use ubertooth_platform::RustUsbBackend;
-use ubertooth_platform::backend::UbertoothBackendProvider;
 use serde_json::json;
+use ubertooth_platform::backend::UbertoothBackendProvider;
+use ubertooth_platform::RustUsbBackend;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt()
-        .with_env_filter("info")
-        .init();
+    tracing_subscriber::fmt().with_env_filter("info").init();
 
     println!("========================================");
     println!("Backend Integration Test");
@@ -21,7 +19,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test 1: Device connection
     println!("[1/4] Testing device_connect...");
-    let result = backend.call("device_connect", json!({"device_index": 0})).await?;
+    let result = backend
+        .call("device_connect", json!({"device_index": 0}))
+        .await?;
     println!("✅ Connected: {}\n", result);
 
     // Test 2: Check backend is alive
@@ -31,22 +31,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test 3: BLE scan (with fixed command sequence!)
     println!("[3/4] Testing btle_scan (5 seconds)...");
-    let result = backend.call("btle_scan", json!({
-        "duration_sec": 5,
-        "channel": 37,
-        "save_pcap": false
-    })).await?;
+    let result = backend
+        .call(
+            "btle_scan",
+            json!({
+                "duration_sec": 5,
+                "channel": 37,
+                "save_pcap": false
+            }),
+        )
+        .await?;
 
     println!("✅ Scan completed:");
     println!("   Duration: {} sec", result["scan_duration_sec"]);
     println!("   Channel: {}", result["channel"]);
     println!("   Total packets: {}", result["total_packets"]);
-    println!("   Devices found: {}", result["devices_found"].as_array().unwrap_or(&vec![]).len());
+    println!(
+        "   Devices found: {}",
+        result["devices_found"].as_array().unwrap_or(&vec![]).len()
+    );
 
     if let Some(devices) = result["devices_found"].as_array() {
         println!("\n   Sample devices:");
         for (i, device) in devices.iter().take(5).enumerate() {
-            println!("     {}. {} - {} (RSSI: {})",
+            println!(
+                "     {}. {} - {} (RSSI: {})",
                 i + 1,
                 device["mac_address"].as_str().unwrap_or("Unknown"),
                 device["device_name"].as_str().unwrap_or("Unknown"),

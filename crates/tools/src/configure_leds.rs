@@ -103,9 +103,18 @@ mod tests {
     impl UbertoothBackendProvider for MockBackend {
         async fn call(&self, method: &str, params: Value) -> Result<Value> {
             if method == "configure_leds" {
-                let usr = params.get("usr_led").and_then(|v| v.as_bool()).unwrap_or(true);
-                let rx = params.get("rx_led").and_then(|v| v.as_bool()).unwrap_or(false);
-                let tx = params.get("tx_led").and_then(|v| v.as_bool()).unwrap_or(false);
+                let usr = params
+                    .get("usr_led")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true);
+                let rx = params
+                    .get("rx_led")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                let tx = params
+                    .get("tx_led")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
 
                 Ok(json!({
                     "success": true,
@@ -116,7 +125,9 @@ mod tests {
                     }
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 
@@ -138,11 +149,14 @@ mod tests {
         let backend = Arc::new(MockBackend);
         let tool = ConfigureLedsTool::new(backend);
 
-        let result = tool.execute(json!({
-            "usr_led": true,
-            "rx_led": false,
-            "tx_led": false
-        })).await.unwrap();
+        let result = tool
+            .execute(json!({
+                "usr_led": true,
+                "rx_led": false,
+                "tx_led": false
+            }))
+            .await
+            .unwrap();
 
         assert_eq!(result["success"], true);
         assert_eq!(result["leds"]["usr"], true);

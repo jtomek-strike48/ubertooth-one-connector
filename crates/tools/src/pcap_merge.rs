@@ -117,7 +117,9 @@ mod tests {
                     "pcap_path": "/home/user/.ubertooth/captures/cap-merged-test.pcap"
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 
@@ -139,11 +141,14 @@ mod tests {
         let backend = Arc::new(MockBackend);
         let tool = PcapMergeTool::new(backend);
 
-        let result = tool.execute(json!({
-            "capture_ids": ["cap-1", "cap-2", "cap-3"],
-            "output_name": "merged",
-            "sort_by_timestamp": true
-        })).await.unwrap();
+        let result = tool
+            .execute(json!({
+                "capture_ids": ["cap-1", "cap-2", "cap-3"],
+                "output_name": "merged",
+                "sort_by_timestamp": true
+            }))
+            .await
+            .unwrap();
 
         assert_eq!(result["success"], true);
         assert_eq!(result["source_captures"], 3);

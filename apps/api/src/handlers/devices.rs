@@ -51,10 +51,7 @@ pub async fn list_devices(
     // For now, return empty list
     let devices = vec![];
 
-    Ok(Json(DeviceListResponse {
-        devices,
-        total: 0,
-    }))
+    Ok(Json(DeviceListResponse { devices, total: 0 }))
 }
 
 /// Get device by MAC address

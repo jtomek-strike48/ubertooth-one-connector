@@ -20,9 +20,15 @@ impl BtSpoofTool {
 
 #[async_trait]
 impl PentestTool for BtSpoofTool {
-    fn name(&self) -> &str { "bt_spoof" }
-    fn category(&self) -> &str { "bt-attack" }
-    fn description(&self) -> &str { "Spoof a Bluetooth device identity" }
+    fn name(&self) -> &str {
+        "bt_spoof"
+    }
+    fn category(&self) -> &str {
+        "bt-attack"
+    }
+    fn description(&self) -> &str {
+        "Spoof a Bluetooth device identity"
+    }
 
     fn input_schema(&self) -> Value {
         json!({"type": "object", "properties": {
@@ -46,8 +52,12 @@ impl PentestTool for BtSpoofTool {
         self.backend.call("bt_spoof", params).await
     }
 
-    fn requires_authorization(&self) -> bool { true }
-    fn authorization_category(&self) -> &str { "bt-attack-spoof" }
+    fn requires_authorization(&self) -> bool {
+        true
+    }
+    fn authorization_category(&self) -> &str {
+        "bt-attack-spoof"
+    }
 }
 
 #[cfg(test)]
@@ -60,17 +70,31 @@ mod tests {
     #[async_trait]
     impl UbertoothBackendProvider for MockBackend {
         async fn call(&self, method: &str, _params: Value) -> Result<Value> {
-            if method == "bt_spoof" { Ok(json!({"success": true, "spoof_mac": "AA:BB:CC:DD:EE:FF", "duration_sec": 60, "message": "Device identity spoofed"})) }
-            else { Err(UbertoothError::BackendError("Unexpected".to_string())) }
+            if method == "bt_spoof" {
+                Ok(
+                    json!({"success": true, "spoof_mac": "AA:BB:CC:DD:EE:FF", "duration_sec": 60, "message": "Device identity spoofed"}),
+                )
+            } else {
+                Err(UbertoothError::BackendError("Unexpected".to_string()))
+            }
         }
-        async fn is_alive(&self) -> bool { true }
-        async fn restart(&self) -> Result<()> { Ok(()) }
-        fn backend_type(&self) -> &str { "mock" }
+        async fn is_alive(&self) -> bool {
+            true
+        }
+        async fn restart(&self) -> Result<()> {
+            Ok(())
+        }
+        fn backend_type(&self) -> &str {
+            "mock"
+        }
     }
     #[tokio::test]
     async fn test_bt_spoof() {
         let tool = BtSpoofTool::new(Arc::new(MockBackend));
-        let result = tool.execute(json!({"spoof_mac": "AA:BB:CC:DD:EE:FF"})).await.unwrap();
+        let result = tool
+            .execute(json!({"spoof_mac": "AA:BB:CC:DD:EE:FF"}))
+            .await
+            .unwrap();
         assert_eq!(result["success"], true);
     }
     #[test]

@@ -1,13 +1,11 @@
 //! Test libusb-1.0 FFI async transfers
 
-use ubertooth_usb::{UbertoothDevice, constants::*};
 use std::time::Duration;
+use ubertooth_usb::{constants::*, UbertoothDevice};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt()
-        .with_env_filter("info")
-        .init();
+    tracing_subscriber::fmt().with_env_filter("info").init();
 
     println!("========================================");
     println!("libusb-1.0 FFI Async Transfer Test");
@@ -48,13 +46,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     while start.elapsed() < duration {
         // Try to read with timeout
-        match tokio::time::timeout(
-            Duration::from_millis(100),
-            reader.read_packet()
-        ).await {
+        match tokio::time::timeout(Duration::from_millis(100), reader.read_packet()).await {
             Ok(Some(packet)) => {
                 packet_count += 1;
-                println!("✅ Packet #{}: {} bytes - {:02X?}",
+                println!(
+                    "✅ Packet #{}: {} bytes - {:02X?}",
                     packet_count,
                     packet.len(),
                     &packet[..packet.len().min(16)]

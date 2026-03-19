@@ -1,4 +1,8 @@
 //! Channel activity heatmap visualization.
+//!
+//! Built as part of Phase 3.2 - Ready for future TUI integration.
+
+#![allow(dead_code)]
 
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
@@ -296,9 +300,10 @@ fn render_heatmap_header(frame: &mut Frame, area: Rect, title: &str, heatmap: &H
     let summary = heatmap.summary();
 
     let header_text = vec![
-        Line::from(vec![
-            Span::styled(title, Style::default().add_modifier(Modifier::BOLD)),
-        ]),
+        Line::from(vec![Span::styled(
+            title,
+            Style::default().add_modifier(Modifier::BOLD),
+        )]),
         Line::from(vec![
             Span::raw("Packets: "),
             Span::styled(
@@ -318,8 +323,8 @@ fn render_heatmap_header(frame: &mut Frame, area: Rect, title: &str, heatmap: &H
         ]),
     ];
 
-    let header = Paragraph::new(header_text)
-        .block(Block::default().borders(Borders::ALL).title("Heatmap"));
+    let header =
+        Paragraph::new(header_text).block(Block::default().borders(Borders::ALL).title("Heatmap"));
 
     frame.render_widget(header, area);
 }
@@ -408,11 +413,17 @@ fn render_heatmap_legend(
             Span::raw("Busiest Channel: "),
             Span::styled(
                 if let Some((ch, count)) = summary.busiest_channel {
-                    format!("Ch {} ({} packets)", ch + config.channel_range.0 as usize, count)
+                    format!(
+                        "Ch {} ({} packets)",
+                        ch + config.channel_range.0 as usize,
+                        count
+                    )
                 } else {
                     "N/A".to_string()
                 },
-                Style::default().fg(Color::Green).add_modifier(Modifier::BOLD),
+                Style::default()
+                    .fg(Color::Green)
+                    .add_modifier(Modifier::BOLD),
             ),
         ]),
     ];

@@ -101,7 +101,11 @@ impl FingerprintEngine {
     }
 
     /// Match a single signature against packet data.
-    fn match_signature(&self, signature: &DeviceSignature, data: &PacketData) -> Option<DeviceFingerprint> {
+    fn match_signature(
+        &self,
+        signature: &DeviceSignature,
+        data: &PacketData,
+    ) -> Option<DeviceFingerprint> {
         let mut matches = 0;
         let mut indicators = Vec::new();
         let total_rules = signature.rules.len();
@@ -133,7 +137,12 @@ impl FingerprintEngine {
     }
 
     /// Match a single rule.
-    fn match_rule(&self, rule: &MatchRule, data: &PacketData, indicators: &mut Vec<String>) -> bool {
+    fn match_rule(
+        &self,
+        rule: &MatchRule,
+        data: &PacketData,
+        indicators: &mut Vec<String>,
+    ) -> bool {
         match rule {
             MatchRule::Oui { prefix } => {
                 if let Some(ref mac) = data.mac_address {
@@ -213,7 +222,9 @@ impl FingerprintEngine {
                 os_family: Some("iOS".to_string()),
                 rules: vec![
                     MatchRule::ManufacturerData { company_id: 0x004C }, // Apple company ID
-                    MatchRule::Oui { prefix: "00:17:F2".to_string() }, // Apple OUI
+                    MatchRule::Oui {
+                        prefix: "00:17:F2".to_string(),
+                    }, // Apple OUI
                 ],
             },
             DeviceSignature {
@@ -223,7 +234,9 @@ impl FingerprintEngine {
                 os_family: None,
                 rules: vec![
                     MatchRule::ManufacturerData { company_id: 0x004C },
-                    MatchRule::DeviceName { pattern: "AirPods".to_string() },
+                    MatchRule::DeviceName {
+                        pattern: "AirPods".to_string(),
+                    },
                 ],
             },
             DeviceSignature {
@@ -233,7 +246,9 @@ impl FingerprintEngine {
                 os_family: Some("watchOS".to_string()),
                 rules: vec![
                     MatchRule::ManufacturerData { company_id: 0x004C },
-                    MatchRule::DeviceName { pattern: "Watch".to_string() },
+                    MatchRule::DeviceName {
+                        pattern: "Watch".to_string(),
+                    },
                 ],
             },
             // Google/Android devices
@@ -243,8 +258,12 @@ impl FingerprintEngine {
                 device_type: "Pixel Phone".to_string(),
                 os_family: Some("Android".to_string()),
                 rules: vec![
-                    MatchRule::Oui { prefix: "F4:F5:E8".to_string() }, // Google OUI
-                    MatchRule::DeviceName { pattern: "Pixel".to_string() },
+                    MatchRule::Oui {
+                        prefix: "F4:F5:E8".to_string(),
+                    }, // Google OUI
+                    MatchRule::DeviceName {
+                        pattern: "Pixel".to_string(),
+                    },
                 ],
             },
             // Samsung devices
@@ -254,7 +273,9 @@ impl FingerprintEngine {
                 device_type: "Galaxy Phone".to_string(),
                 os_family: Some("Android".to_string()),
                 rules: vec![
-                    MatchRule::Oui { prefix: "C8:F2:30".to_string() }, // Samsung OUI
+                    MatchRule::Oui {
+                        prefix: "C8:F2:30".to_string(),
+                    }, // Samsung OUI
                 ],
             },
             DeviceSignature {
@@ -263,8 +284,12 @@ impl FingerprintEngine {
                 device_type: "Galaxy Watch".to_string(),
                 os_family: Some("Wear OS".to_string()),
                 rules: vec![
-                    MatchRule::Oui { prefix: "C8:F2:30".to_string() },
-                    MatchRule::DeviceName { pattern: "Galaxy Watch".to_string() },
+                    MatchRule::Oui {
+                        prefix: "C8:F2:30".to_string(),
+                    },
+                    MatchRule::DeviceName {
+                        pattern: "Galaxy Watch".to_string(),
+                    },
                 ],
             },
             // Fitness trackers
@@ -274,8 +299,12 @@ impl FingerprintEngine {
                 device_type: "Fitness Tracker".to_string(),
                 os_family: None,
                 rules: vec![
-                    MatchRule::Oui { prefix: "D4:E8:B2".to_string() }, // Fitbit OUI
-                    MatchRule::DeviceName { pattern: "Fitbit".to_string() },
+                    MatchRule::Oui {
+                        prefix: "D4:E8:B2".to_string(),
+                    }, // Fitbit OUI
+                    MatchRule::DeviceName {
+                        pattern: "Fitbit".to_string(),
+                    },
                 ],
             },
             // Xiaomi devices
@@ -285,8 +314,12 @@ impl FingerprintEngine {
                 device_type: "Mi Band".to_string(),
                 os_family: None,
                 rules: vec![
-                    MatchRule::Oui { prefix: "C8:0F:10".to_string() }, // Xiaomi OUI
-                    MatchRule::DeviceName { pattern: "Mi Band".to_string() },
+                    MatchRule::Oui {
+                        prefix: "C8:0F:10".to_string(),
+                    }, // Xiaomi OUI
+                    MatchRule::DeviceName {
+                        pattern: "Mi Band".to_string(),
+                    },
                 ],
             },
         ]
@@ -315,7 +348,8 @@ impl FingerprintEngine {
             return None;
         }
 
-        let oui = format!("{}:{}:{}",
+        let oui = format!(
+            "{}:{}:{}",
             &mac_clean[0..2],
             &mac_clean[2..4],
             &mac_clean[4..6]

@@ -173,7 +173,10 @@ mod tool_execution_tests {
 
         for param in bt_decode_params {
             assert!(!param.name.is_empty(), "Parameter name should not be empty");
-            assert!(!param.param_type.is_empty(), "Parameter type should not be empty");
+            assert!(
+                !param.param_type.is_empty(),
+                "Parameter type should not be empty"
+            );
         }
     }
 }
@@ -242,7 +245,10 @@ mod packet_list_tests {
         let total_packets = 10;
         let selected_index = 3;
 
-        assert!(selected_index < total_packets, "Selected index should be within bounds");
+        assert!(
+            selected_index < total_packets,
+            "Selected index should be within bounds"
+        );
     }
 
     #[test]
@@ -251,7 +257,10 @@ mod packet_list_tests {
         let page_size = 10;
         let total_items = 50;
 
-        assert!(scroll_offset + page_size <= total_items, "Scroll should not exceed bounds");
+        assert!(
+            scroll_offset + page_size <= total_items,
+            "Scroll should not exceed bounds"
+        );
     }
 
     #[test]

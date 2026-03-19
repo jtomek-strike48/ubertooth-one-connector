@@ -166,7 +166,9 @@ mod tests {
                     }
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 
@@ -188,10 +190,13 @@ mod tests {
         let backend = Arc::new(MockBackend);
         let tool = BtAnalyzeTool::new(backend);
 
-        let result = tool.execute(json!({
-            "capture_id": "cap-test-123",
-            "analysis_type": "auto"
-        })).await.unwrap();
+        let result = tool
+            .execute(json!({
+                "capture_id": "cap-test-123",
+                "analysis_type": "auto"
+            }))
+            .await
+            .unwrap();
 
         assert_eq!(result["success"], true);
         assert_eq!(result["capture_id"], "cap-test-123");

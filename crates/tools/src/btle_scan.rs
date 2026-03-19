@@ -160,7 +160,9 @@ mod tests {
                     "pcap_path": "/home/user/.ubertooth/captures/cap-btle-test123.pcap"
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 
@@ -182,10 +184,13 @@ mod tests {
         let backend = Arc::new(MockBackend);
         let tool = BtleScanTool::new(backend);
 
-        let result = tool.execute(json!({
-            "duration_sec": 30,
-            "channel": 37
-        })).await.unwrap();
+        let result = tool
+            .execute(json!({
+                "duration_sec": 30,
+                "channel": 37
+            }))
+            .await
+            .unwrap();
 
         assert_eq!(result["success"], true);
         assert_eq!(result["capture_id"], "cap-btle-test123");

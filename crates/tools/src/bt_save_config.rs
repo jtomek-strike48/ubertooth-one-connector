@@ -128,7 +128,9 @@ mod tests {
                     }
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 
@@ -150,11 +152,14 @@ mod tests {
         let backend = Arc::new(MockBackend);
         let tool = BtSaveConfigTool::new(backend);
 
-        let result = tool.execute(json!({
-            "config_name": "ble_ch37",
-            "description": "BLE channel 37",
-            "overwrite": false
-        })).await.unwrap();
+        let result = tool
+            .execute(json!({
+                "config_name": "ble_ch37",
+                "description": "BLE channel 37",
+                "overwrite": false
+            }))
+            .await
+            .unwrap();
 
         assert_eq!(result["success"], true);
         assert_eq!(result["config_name"], "ble_ch37");

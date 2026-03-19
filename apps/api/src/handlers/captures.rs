@@ -6,8 +6,8 @@ use axum::{
     Json,
 };
 use serde::{Deserialize, Serialize};
+use ubertooth_platform::{comparison, CaptureData, CaptureMetadata, ComparisonEngine};
 use utoipa::ToSchema;
-use ubertooth_platform::{CaptureMetadata, ComparisonEngine, CaptureData, comparison};
 
 use crate::state::AppState;
 

@@ -91,7 +91,9 @@ mod tests {
                     "message": format!("Capture '{}' deleted", capture_id)
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 
@@ -113,7 +115,10 @@ mod tests {
         let backend = Arc::new(MockBackend);
         let tool = CaptureDeleteTool::new(backend);
 
-        let result = tool.execute(json!({ "capture_id": "cap-test-123" })).await.unwrap();
+        let result = tool
+            .execute(json!({ "capture_id": "cap-test-123" }))
+            .await
+            .unwrap();
 
         assert_eq!(result["success"], true);
     }

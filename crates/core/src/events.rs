@@ -14,10 +14,7 @@ pub enum ToolEvent {
     },
 
     /// Progress update during tool execution.
-    Progress {
-        tool_name: String,
-        data: Value,
-    },
+    Progress { tool_name: String, data: Value },
 
     /// Tool execution completed successfully.
     Completed {

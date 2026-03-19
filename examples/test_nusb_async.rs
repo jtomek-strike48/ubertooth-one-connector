@@ -16,9 +16,7 @@ const MOD_BT_LOW_ENERGY: u8 = 1;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt()
-        .with_env_filter("info")
-        .init();
+    tracing_subscriber::fmt().with_env_filter("info").init();
 
     println!("========================================");
     println!("nusb Async Transfer Test");
@@ -26,7 +24,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Find device
     println!("[1] Finding Ubertooth device...");
-    let device_info = nusb::list_devices().await?
+    let device_info = nusb::list_devices()
+        .await?
         .find(|d| d.vendor_id() == USB_VENDOR_ID && d.product_id() == USB_PRODUCT_ID)
         .ok_or("Ubertooth not found")?;
 
@@ -93,15 +92,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut buffer = vec![0u8; 64];
 
         // Submit read with 100ms timeout
-        match tokio::time::timeout(
-            Duration::from_millis(100),
-            queue.submit(buffer.clone())
-        ).await {
+        match tokio::time::timeout(Duration::from_millis(100), queue.submit(buffer.clone())).await {
             Ok(Ok(completion)) => {
                 let data = completion.data;
                 if data.len() > 0 {
                     packet_count += 1;
-                    println!("✅ Packet #{}: {} bytes - {:02X?}",
+                    println!(
+                        "✅ Packet #{}: {} bytes - {:02X?}",
                         packet_count,
                         data.len(),
                         &data[..data.len().min(16)]

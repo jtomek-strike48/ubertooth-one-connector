@@ -20,9 +20,15 @@ impl BtleMitmTool {
 
 #[async_trait]
 impl PentestTool for BtleMitmTool {
-    fn name(&self) -> &str { "btle_mitm" }
-    fn category(&self) -> &str { "bt-attack" }
-    fn description(&self) -> &str { "Perform Man-in-the-Middle attack on BLE connection" }
+    fn name(&self) -> &str {
+        "btle_mitm"
+    }
+    fn category(&self) -> &str {
+        "bt-attack"
+    }
+    fn description(&self) -> &str {
+        "Perform Man-in-the-Middle attack on BLE connection"
+    }
 
     fn input_schema(&self) -> Value {
         json!({"type": "object", "properties": {
@@ -49,8 +55,12 @@ impl PentestTool for BtleMitmTool {
         self.backend.call("btle_mitm", params).await
     }
 
-    fn requires_authorization(&self) -> bool { true }
-    fn authorization_category(&self) -> &str { "bt-attack-mitm" }
+    fn requires_authorization(&self) -> bool {
+        true
+    }
+    fn authorization_category(&self) -> &str {
+        "bt-attack-mitm"
+    }
 }
 
 #[cfg(test)]
@@ -63,17 +73,31 @@ mod tests {
     #[async_trait]
     impl UbertoothBackendProvider for MockBackend {
         async fn call(&self, method: &str, _params: Value) -> Result<Value> {
-            if method == "btle_mitm" { Ok(json!({"success": true, "capture_id": "cap-mitm-test", "target_mac": "AA:BB:CC:DD:EE:FF", "packets_intercepted": 350, "packets_injected": 0, "connection_disrupted": false})) }
-            else { Err(UbertoothError::BackendError("Unexpected".to_string())) }
+            if method == "btle_mitm" {
+                Ok(
+                    json!({"success": true, "capture_id": "cap-mitm-test", "target_mac": "AA:BB:CC:DD:EE:FF", "packets_intercepted": 350, "packets_injected": 0, "connection_disrupted": false}),
+                )
+            } else {
+                Err(UbertoothError::BackendError("Unexpected".to_string()))
+            }
         }
-        async fn is_alive(&self) -> bool { true }
-        async fn restart(&self) -> Result<()> { Ok(()) }
-        fn backend_type(&self) -> &str { "mock" }
+        async fn is_alive(&self) -> bool {
+            true
+        }
+        async fn restart(&self) -> Result<()> {
+            Ok(())
+        }
+        fn backend_type(&self) -> &str {
+            "mock"
+        }
     }
     #[tokio::test]
     async fn test_btle_mitm() {
         let tool = BtleMitmTool::new(Arc::new(MockBackend));
-        let result = tool.execute(json!({"target_mac": "AA:BB:CC:DD:EE:FF", "access_address": "0x8E89BED6"})).await.unwrap();
+        let result = tool
+            .execute(json!({"target_mac": "AA:BB:CC:DD:EE:FF", "access_address": "0x8E89BED6"}))
+            .await
+            .unwrap();
         assert_eq!(result["success"], true);
     }
     #[test]

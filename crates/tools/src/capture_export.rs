@@ -115,7 +115,9 @@ mod tests {
                     "file_size_bytes": 45320
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 
@@ -137,10 +139,13 @@ mod tests {
         let backend = Arc::new(MockBackend);
         let tool = CaptureExportTool::new(backend);
 
-        let result = tool.execute(json!({
-            "capture_id": "cap-test-123",
-            "format": "pcap"
-        })).await.unwrap();
+        let result = tool
+            .execute(json!({
+                "capture_id": "cap-test-123",
+                "format": "pcap"
+            }))
+            .await
+            .unwrap();
 
         assert_eq!(result["success"], true);
         assert_eq!(result["format"], "pcap");

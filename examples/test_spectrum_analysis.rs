@@ -1,16 +1,14 @@
 //! Test spectrum analysis mode
 
-use ubertooth_usb::device_libusb::UbertoothDeviceLibusb;
-use ubertooth_usb::protocol::{UsbPacket, SpectrumPoint};
-use ubertooth_usb::constants::*;
-use std::time::Duration;
 use std::collections::HashMap;
+use std::time::Duration;
+use ubertooth_usb::constants::*;
+use ubertooth_usb::device_libusb::UbertoothDeviceLibusb;
+use ubertooth_usb::protocol::{SpectrumPoint, UsbPacket};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt()
-        .with_env_filter("info")
-        .init();
+    tracing_subscriber::fmt().with_env_filter("info").init();
 
     println!("========================================");
     println!("Spectrum Analysis Test");
@@ -68,12 +66,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
 
                 // Parse USB packet
-                if let Ok(usb_pkt) = UsbPacket::from_bytes(&buffer.to_vec()) {
+                if let Ok(usb_pkt) = UsbPacket::from_bytes(buffer.as_ref()) {
                     if read_count <= 3 {
-                        println!("     Parsed: pkt_type={}, channel={}, payload_len={}",
+                        println!(
+                            "     Parsed: pkt_type={}, channel={}, payload_len={}",
                             usb_pkt.header.pkt_type,
                             usb_pkt.header.channel,
-                            usb_pkt.payload.len());
+                            usb_pkt.payload.len()
+                        );
                     }
                     if usb_pkt.is_specan() {
                         // Parse spectrum points
@@ -97,8 +97,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                                 // Show progress
                                 if sweep_count % 100 == 0 {
-                                    println!("  Sweep #{}: {} channels, {} total samples",
-                                        sweep_count, point_count, total_samples);
+                                    println!(
+                                        "  Sweep #{}: {} channels, {} total samples",
+                                        sweep_count, point_count, total_samples
+                                    );
                                 }
                             }
                             Err(e) => {
@@ -107,15 +109,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 }
                             }
                         }
-                    } else {
-                        if read_count <= 5 {
-                            println!("  ⚠️  Packet type: {} (expected SPECAN=1)", usb_pkt.header.pkt_type);
-                        }
+                    } else if read_count <= 5 {
+                        println!(
+                            "  ⚠️  Packet type: {} (expected SPECAN=1)",
+                            usb_pkt.header.pkt_type
+                        );
                     }
-                } else {
-                    if read_count <= 5 {
-                        println!("  ⚠️  Failed to parse USB packet");
-                    }
+                } else if read_count <= 5 {
+                    println!("  ⚠️  Failed to parse USB packet");
                 }
             }
             Ok(size) if size == 0 => {
@@ -163,7 +164,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("  Ch  Freq(MHz)  Min    Max    Avg    Samples");
         println!("  ─────────────────────────────────────────────");
 
-        let mut sorted_by_avg: Vec<_> = channels.iter()
+        let mut sorted_by_avg: Vec<_> = channels
+            .iter()
             .map(|(ch, (min, max, sum, count))| {
                 let avg = *sum / *count as i32;
                 (*ch, 2402 + **ch as u16, *min, *max, avg, *count)
@@ -172,15 +174,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         sorted_by_avg.sort_by_key(|(_, _, _, _, avg, _)| -avg);
 
         for (ch, freq, min, max, avg, count) in sorted_by_avg.iter().take(20) {
-            println!("  {:3}  {:4}      {:4}   {:4}   {:4}   {}",
-                ch, freq, min, max, avg, count);
+            println!(
+                "  {:3}  {:4}      {:4}   {:4}   {:4}   {}",
+                ch, freq, min, max, avg, count
+            );
         }
 
         println!();
 
         // Show channels with strongest signals (likely active)
         println!("Active Channels (avg RSSI > -80 dBm):");
-        let active: Vec<_> = sorted_by_avg.iter()
+        let active: Vec<_> = sorted_by_avg
+            .iter()
             .filter(|(_, _, _, _, avg, _)| *avg > -80)
             .collect();
 
@@ -194,7 +199,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!();
 
         println!("✅ Spectrum analysis completed successfully!");
-        println!("   Analyzed {} channels with {} sweeps", channel_stats.len(), sweep_count);
+        println!(
+            "   Analyzed {} channels with {} sweeps",
+            channel_stats.len(),
+            sweep_count
+        );
     } else {
         println!("⚠️  No spectrum data received");
         println!("   Device may not be in spectrum analysis mode");

@@ -127,7 +127,9 @@ mod tests {
                     "interpretation": "Avoiding WiFi interference on channels 2-4 (2404-2406 MHz)"
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 
@@ -149,10 +151,13 @@ mod tests {
         let backend = Arc::new(MockBackend);
         let tool = AfhAnalyzeTool::new(backend);
 
-        let result = tool.execute(json!({
-            "bd_addr": "AA:BB:CC:DD:EE:FF",
-            "duration_sec": 30
-        })).await.unwrap();
+        let result = tool
+            .execute(json!({
+                "bd_addr": "AA:BB:CC:DD:EE:FF",
+                "duration_sec": 30
+            }))
+            .await
+            .unwrap();
 
         assert_eq!(result["success"], true);
         assert!(result["channels_used"].is_array());

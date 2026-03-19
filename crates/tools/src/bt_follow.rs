@@ -140,7 +140,9 @@ mod tests {
                     "pcap_path": "/home/user/.ubertooth/captures/cap-follow-test123.pcap"
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 
@@ -162,11 +164,14 @@ mod tests {
         let backend = Arc::new(MockBackend);
         let tool = BtFollowTool::new(backend);
 
-        let result = tool.execute(json!({
-            "bd_addr": "AA:BB:CC:DD:EE:FF",
-            "duration_sec": 60,
-            "channel_hopping": true
-        })).await.unwrap();
+        let result = tool
+            .execute(json!({
+                "bd_addr": "AA:BB:CC:DD:EE:FF",
+                "duration_sec": 60,
+                "channel_hopping": true
+            }))
+            .await
+            .unwrap();
 
         assert_eq!(result["success"], true);
         assert_eq!(result["bd_addr"], "AA:BB:CC:DD:EE:FF");

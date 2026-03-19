@@ -1,12 +1,10 @@
 //! USB diagnostics test - trying different read approaches
 
-use ubertooth_usb::{UbertoothDevice, constants::*};
 use std::time::Duration;
+use ubertooth_usb::{constants::*, UbertoothDevice};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt()
-        .with_env_filter("trace")
-        .init();
+    tracing_subscriber::fmt().with_env_filter("trace").init();
 
     println!("========================================");
     println!("USB Diagnostics Test");
@@ -54,8 +52,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     for i in 1..=5 {
                         match device.bulk_read(&mut buffer, timeout_ms) {
                             Ok(len2) => {
-                                println!("      Read #{}: {} bytes: {:02X?}",
-                                    i, len2, &buffer[..len2.min(16)]);
+                                println!(
+                                    "      Read #{}: {} bytes: {:02X?}",
+                                    i,
+                                    len2,
+                                    &buffer[..len2.min(16)]
+                                );
                             }
                             Err(e) => {
                                 println!("      Read #{}: Error: {}", i, e);

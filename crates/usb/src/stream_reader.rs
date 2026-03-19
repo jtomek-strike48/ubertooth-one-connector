@@ -72,10 +72,7 @@ impl StreamingPacketReader {
 }
 
 /// Background task that handles the streaming.
-async fn stream_packets(
-    interface: nusb::Interface,
-    tx: mpsc::Sender<Vec<u8>>,
-) -> Result<()> {
+async fn stream_packets(interface: nusb::Interface, tx: mpsc::Sender<Vec<u8>>) -> Result<()> {
     debug!("Starting packet stream");
 
     // Open the bulk IN endpoint
@@ -83,7 +80,10 @@ async fn stream_packets(
         .endpoint::<nusb::transfer::Bulk, nusb::transfer::In>(ENDPOINT_DATA_IN)
         .map_err(UsbError::from_nusb)?;
 
-    debug!("Endpoint opened, submitting {} initial transfers", NUM_CONCURRENT_TRANSFERS);
+    debug!(
+        "Endpoint opened, submitting {} initial transfers",
+        NUM_CONCURRENT_TRANSFERS
+    );
 
     // Submit initial transfers
     for i in 0..NUM_CONCURRENT_TRANSFERS {
@@ -106,9 +106,7 @@ async fn stream_packets(
 
         debug!(
             "Transfer #{} completed: {} bytes, status: {:?}",
-            loop_count,
-            completion.actual_len,
-            completion.status
+            loop_count, completion.actual_len, completion.status
         );
 
         // Check for errors
@@ -143,6 +141,7 @@ async fn stream_packets(
 
 #[cfg(test)]
 mod tests {
+    #[allow(unused_imports)]
     use super::*;
 
     #[tokio::test]

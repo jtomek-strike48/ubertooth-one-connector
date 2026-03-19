@@ -20,9 +20,15 @@ impl UbertoothRawTool {
 
 #[async_trait]
 impl PentestTool for UbertoothRawTool {
-    fn name(&self) -> &str { "ubertooth_raw" }
-    fn category(&self) -> &str { "bt-advanced" }
-    fn description(&self) -> &str { "Send raw USB commands to Ubertooth (escape hatch for advanced users)" }
+    fn name(&self) -> &str {
+        "ubertooth_raw"
+    }
+    fn category(&self) -> &str {
+        "bt-advanced"
+    }
+    fn description(&self) -> &str {
+        "Send raw USB commands to Ubertooth (escape hatch for advanced users)"
+    }
 
     fn input_schema(&self) -> Value {
         json!({"type": "object", "properties": {
@@ -47,8 +53,12 @@ impl PentestTool for UbertoothRawTool {
         self.backend.call("ubertooth_raw", params).await
     }
 
-    fn requires_authorization(&self) -> bool { true }
-    fn authorization_category(&self) -> &str { "bt-advanced-raw" }
+    fn requires_authorization(&self) -> bool {
+        true
+    }
+    fn authorization_category(&self) -> &str {
+        "bt-advanced-raw"
+    }
 }
 
 #[cfg(test)]
@@ -61,17 +71,31 @@ mod tests {
     #[async_trait]
     impl UbertoothBackendProvider for MockBackend {
         async fn call(&self, method: &str, _params: Value) -> Result<Value> {
-            if method == "ubertooth_raw" { Ok(json!({"success": true, "command": "UBERTOOTH_PING", "response_hex": "00", "response_length": 1})) }
-            else { Err(UbertoothError::BackendError("Unexpected".to_string())) }
+            if method == "ubertooth_raw" {
+                Ok(
+                    json!({"success": true, "command": "UBERTOOTH_PING", "response_hex": "00", "response_length": 1}),
+                )
+            } else {
+                Err(UbertoothError::BackendError("Unexpected".to_string()))
+            }
         }
-        async fn is_alive(&self) -> bool { true }
-        async fn restart(&self) -> Result<()> { Ok(()) }
-        fn backend_type(&self) -> &str { "mock" }
+        async fn is_alive(&self) -> bool {
+            true
+        }
+        async fn restart(&self) -> Result<()> {
+            Ok(())
+        }
+        fn backend_type(&self) -> &str {
+            "mock"
+        }
     }
     #[tokio::test]
     async fn test_ubertooth_raw() {
         let tool = UbertoothRawTool::new(Arc::new(MockBackend));
-        let result = tool.execute(json!({"command": "UBERTOOTH_PING"})).await.unwrap();
+        let result = tool
+            .execute(json!({"command": "UBERTOOTH_PING"}))
+            .await
+            .unwrap();
         assert_eq!(result["success"], true);
     }
     #[test]

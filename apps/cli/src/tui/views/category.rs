@@ -31,7 +31,11 @@ impl Category {
     }
 
     /// Get tools in this category, optionally filtered by device connection state
-    pub fn get_tools_filtered(&self, registry: &Arc<ToolRegistry>, device_connected: Option<bool>) -> Vec<Arc<dyn PentestTool>> {
+    pub fn get_tools_filtered(
+        &self,
+        registry: &Arc<ToolRegistry>,
+        device_connected: Option<bool>,
+    ) -> Vec<Arc<dyn PentestTool>> {
         let category_prefix = self.category_prefix();
         let mut tools: Vec<Arc<dyn PentestTool>> = registry
             .tools()
@@ -56,7 +60,7 @@ impl Category {
                             || name.starts_with("bt_compare")
                             || name.starts_with("pcap_merge")
                     }
-                    "capture_" => name == "capture_list",  // Only show capture_list (other ops are hotkeys)
+                    "capture_" => name == "capture_list", // Only show capture_list (other ops are hotkeys)
                     "config" => {
                         name.starts_with("configure_")
                             || name.starts_with("bt_save_config")
@@ -100,7 +104,7 @@ impl Category {
                 tools.sort_by_key(|tool| {
                     match tool.name() {
                         "device_connect" => 0,
-                        "device_disconnect" => 0,  // Same priority as connect
+                        "device_disconnect" => 0, // Same priority as connect
                         "device_status" => 1,
                         _ => 999,
                     }
@@ -108,15 +112,13 @@ impl Category {
             }
             Category::CaptureManagement => {
                 // Order: capture_list, capture_tag, capture_get, capture_export, capture_delete
-                tools.sort_by_key(|tool| {
-                    match tool.name() {
-                        "capture_list" => 0,
-                        "capture_tag" => 1,
-                        "capture_get" => 2,
-                        "capture_export" => 3,
-                        "capture_delete" => 4,
-                        _ => 999,
-                    }
+                tools.sort_by_key(|tool| match tool.name() {
+                    "capture_list" => 0,
+                    "capture_tag" => 1,
+                    "capture_get" => 2,
+                    "capture_export" => 3,
+                    "capture_delete" => 4,
+                    _ => 999,
                 });
             }
             _ => {
@@ -139,7 +141,11 @@ impl Category {
     }
 
     /// Get tool count with optional device connection filter
-    pub fn tool_count_filtered(&self, registry: &Arc<ToolRegistry>, device_connected: Option<bool>) -> usize {
+    pub fn tool_count_filtered(
+        &self,
+        registry: &Arc<ToolRegistry>,
+        device_connected: Option<bool>,
+    ) -> usize {
         self.get_tools_filtered(registry, device_connected).len()
     }
 
@@ -163,4 +169,3 @@ impl Category {
         }
     }
 }
-

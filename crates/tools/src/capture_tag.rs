@@ -107,9 +107,15 @@ mod tests {
         async fn call(&self, method: &str, params: Value) -> Result<Value> {
             if method == "capture_tag" {
                 let capture_id = params["capture_id"].as_str().unwrap_or("unknown");
-                let tags = params.get("tags")
+                let tags = params
+                    .get("tags")
                     .and_then(|v| v.as_array())
-                    .map(|arr| arr.iter().filter_map(|v| v.as_str()).map(|s| s.to_string()).collect::<Vec<_>>())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str())
+                            .map(|s| s.to_string())
+                            .collect::<Vec<_>>()
+                    })
                     .unwrap_or_default();
 
                 Ok(json!({
@@ -119,7 +125,9 @@ mod tests {
                     "description": "Test capture"
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 
@@ -141,11 +149,14 @@ mod tests {
         let backend = Arc::new(MockBackend);
         let tool = CaptureTagTool::new(backend);
 
-        let result = tool.execute(json!({
-            "capture_id": "cap-test-123",
-            "tags": ["ble", "scan"],
-            "description": "Test capture"
-        })).await.unwrap();
+        let result = tool
+            .execute(json!({
+                "capture_id": "cap-test-123",
+                "tags": ["ble", "scan"],
+                "description": "Test capture"
+            }))
+            .await
+            .unwrap();
 
         assert_eq!(result["success"], true);
         assert_eq!(result["capture_id"], "cap-test-123");

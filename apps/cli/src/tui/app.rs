@@ -123,7 +123,7 @@ pub enum AppState {
 
     /// Filter dialog for packet data
     FilterDialog {
-        selected_section: usize,  // 0=packet types, 1=MAC, 2=RSSI, 3=actions
+        selected_section: usize, // 0=packet types, 1=MAC, 2=RSSI, 3=actions
         selected_packet_type: usize,
         packet_type_selections: std::collections::HashSet<String>,
         mac_filter: String,
@@ -361,7 +361,7 @@ pub enum PacketViewMode {
 /// Filters for packet list
 #[derive(Debug, Clone, Default)]
 pub struct PacketFilters {
-    pub packet_types: Vec<String>,  // Multi-select packet types
+    pub packet_types: Vec<String>, // Multi-select packet types
     pub mac_address: Option<String>,
     pub rssi_min: Option<i32>,
     pub rssi_max: Option<i32>,
@@ -599,13 +599,29 @@ impl App {
                 self.frame_count = self.frame_count.wrapping_add(1);
 
                 // Render UI (catch and log any render errors)
-                if let Err(e) = terminal.draw(|f| ui::render(f, &self.state, &self.registry, &self.device_status, &self.notification, self.frame_count, &self.dialog, &self.theme)) {
+                if let Err(e) = terminal.draw(|f| {
+                    ui::render(
+                        f,
+                        &self.state,
+                        &self.registry,
+                        &self.device_status,
+                        &self.notification,
+                        self.frame_count,
+                        &self.dialog,
+                        &self.theme,
+                    )
+                }) {
                     tracing::error!("Render error: {}", e);
                     // Continue anyway - might be transient
                 }
 
                 // Check for tool execution results
-                if let AppState::Executing { tool_name, result_rx, show_as_notification } = &mut self.state {
+                if let AppState::Executing {
+                    tool_name,
+                    result_rx,
+                    show_as_notification,
+                } = &mut self.state
+                {
                     if let Some(rx) = result_rx {
                         match rx.try_recv() {
                             Ok(result) => {
@@ -617,9 +633,13 @@ impl App {
                                     ExecutionResult::Success(output) => {
                                         // Update device status if this was a device_connect command
                                         if tool_name == "device_connect" {
-                                            if let Some(firmware) = output.get("firmware_version").and_then(|v| v.as_str()) {
+                                            if let Some(firmware) = output
+                                                .get("firmware_version")
+                                                .and_then(|v| v.as_str())
+                                            {
                                                 self.device_status.connected = true;
-                                                self.device_status.firmware = Some(firmware.to_string());
+                                                self.device_status.firmware =
+                                                    Some(firmware.to_string());
                                             }
                                         } else if tool_name == "device_disconnect" {
                                             self.device_status.connected = false;
@@ -627,9 +647,10 @@ impl App {
                                         }
 
                                         // Extract MAC addresses from analysis/scan results
-                                        if tool_name.starts_with("bt_analyze") ||
-                                           tool_name.starts_with("btle_scan") ||
-                                           tool_name == "capture_list" {
+                                        if tool_name.starts_with("bt_analyze")
+                                            || tool_name.starts_with("btle_scan")
+                                            || tool_name == "capture_list"
+                                        {
                                             self.extract_macs_from_output(&output);
                                         }
 
@@ -638,7 +659,8 @@ impl App {
                                             let message = if tool_name == "device_connect" {
                                                 "Successfully connected to Ubertooth".to_string()
                                             } else if tool_name == "device_disconnect" {
-                                                "Successfully disconnected from Ubertooth".to_string()
+                                                "Successfully disconnected from Ubertooth"
+                                                    .to_string()
                                             } else if tool_name == "capture_delete" {
                                                 "Capture deleted successfully".to_string()
                                             } else {
@@ -652,7 +674,8 @@ impl App {
                                         } else {
                                             // Check if this is capture_list with results
                                             let selected_capture = if tool_name == "capture_list" {
-                                                output.get("captures")
+                                                output
+                                                    .get("captures")
                                                     .and_then(|c| c.as_array())
                                                     .filter(|arr| !arr.is_empty())
                                                     .map(|_| 0) // Select first capture
@@ -708,7 +731,7 @@ impl App {
                                                 selected_capture: None,
                                                 tool: None,
                                                 packet_list_state: None,
-                    analysis_view_state: None,
+                                                analysis_view_state: None,
                                             };
                                         }
                                     }
@@ -733,7 +756,7 @@ impl App {
                             selected_capture: None,
                             tool: None,
                             packet_list_state: None,
-                    analysis_view_state: None,
+                            analysis_view_state: None,
                         };
                     }
                 }
@@ -801,7 +824,9 @@ impl App {
                     KeyCode::Char('y') | KeyCode::Char('Y') => {
                         // Execute the confirmation action
                         let action = match on_confirm {
-                            ConfirmAction::DeleteCapture(id) => ConfirmAction::DeleteCapture(id.clone()),
+                            ConfirmAction::DeleteCapture(id) => {
+                                ConfirmAction::DeleteCapture(id.clone())
+                            }
                         };
 
                         // Return to main menu first
@@ -829,8 +854,16 @@ impl App {
         }
 
         // Handle form input specially
-        if let AppState::ToolForm { form, error, hotkey_mode } = &mut self.state {
-            if let Event::Key(KeyEvent { code, modifiers, .. }) = event {
+        if let AppState::ToolForm {
+            form,
+            error,
+            hotkey_mode,
+        } = &mut self.state
+        {
+            if let Event::Key(KeyEvent {
+                code, modifiers, ..
+            }) = event
+            {
                 // Hotkey mode - direct parameter selection
                 if *hotkey_mode {
                     match code {
@@ -857,7 +890,16 @@ impl App {
                                     // Try to find field starting with this letter
                                     form.fields()
                                         .iter()
-                                        .find(|f| f.name.chars().next().unwrap_or('?').to_uppercase().next().unwrap() == ch_upper)
+                                        .find(|f| {
+                                            f.name
+                                                .chars()
+                                                .next()
+                                                .unwrap_or('?')
+                                                .to_uppercase()
+                                                .next()
+                                                .unwrap()
+                                                == ch_upper
+                                        })
                                         .map(|f| f.name.clone())
                                 }
                             };
@@ -869,7 +911,9 @@ impl App {
                             }
                             return Ok(());
                         }
-                        KeyCode::Char(digit) if digit.is_ascii_digit() && digit >= '1' && digit <= '9' => {
+                        KeyCode::Char(digit)
+                            if digit.is_ascii_digit() && digit >= '1' && digit <= '9' =>
+                        {
                             // Number keys for duration_sec quick select
                             let durations = vec!["5", "10", "30", "60", "120"];
                             let idx = digit.to_digit(10).unwrap() as usize - 1;
@@ -940,13 +984,22 @@ impl App {
             Tag(String),
         }
 
-        let capture_action = if let AppState::Results { tool_name, output, success, selected_capture, .. } = &mut self.state {
+        let capture_action = if let AppState::Results {
+            tool_name,
+            output,
+            success,
+            selected_capture,
+            ..
+        } = &mut self.state
+        {
             if *tool_name == "capture_list" && *success {
                 if let Event::Key(KeyEvent { code, .. }) = event {
                     match code {
                         KeyCode::Up => {
                             // Move selection up
-                            if let Some(captures) = output.get("captures").and_then(|c| c.as_array()) {
+                            if let Some(captures) =
+                                output.get("captures").and_then(|c| c.as_array())
+                            {
                                 if !captures.is_empty() {
                                     if let Some(idx) = selected_capture {
                                         if *idx > 0 {
@@ -961,7 +1014,9 @@ impl App {
                         }
                         KeyCode::Down => {
                             // Move selection down
-                            if let Some(captures) = output.get("captures").and_then(|c| c.as_array()) {
+                            if let Some(captures) =
+                                output.get("captures").and_then(|c| c.as_array())
+                            {
                                 if !captures.is_empty() {
                                     if let Some(idx) = selected_capture {
                                         if *idx < captures.len() - 1 {
@@ -977,9 +1032,13 @@ impl App {
                         KeyCode::Enter => {
                             // Analyze
                             if let Some(idx) = selected_capture {
-                                if let Some(captures) = output.get("captures").and_then(|c| c.as_array()) {
+                                if let Some(captures) =
+                                    output.get("captures").and_then(|c| c.as_array())
+                                {
                                     if let Some(capture) = captures.get(*idx) {
-                                        if let Some(capture_id) = capture.get("capture_id").and_then(|v| v.as_str()) {
+                                        if let Some(capture_id) =
+                                            capture.get("capture_id").and_then(|v| v.as_str())
+                                        {
                                             Some(CaptureAction::Analyze(capture_id.to_string()))
                                         } else {
                                             None
@@ -997,9 +1056,13 @@ impl App {
                         KeyCode::Char('d') | KeyCode::Char('D') => {
                             // Delete
                             if let Some(idx) = selected_capture {
-                                if let Some(captures) = output.get("captures").and_then(|c| c.as_array()) {
+                                if let Some(captures) =
+                                    output.get("captures").and_then(|c| c.as_array())
+                                {
                                     if let Some(capture) = captures.get(*idx) {
-                                        if let Some(capture_id) = capture.get("capture_id").and_then(|v| v.as_str()) {
+                                        if let Some(capture_id) =
+                                            capture.get("capture_id").and_then(|v| v.as_str())
+                                        {
                                             Some(CaptureAction::Delete(capture_id.to_string()))
                                         } else {
                                             None
@@ -1017,9 +1080,13 @@ impl App {
                         KeyCode::Char('v') | KeyCode::Char('V') => {
                             // View details
                             if let Some(idx) = selected_capture {
-                                if let Some(captures) = output.get("captures").and_then(|c| c.as_array()) {
+                                if let Some(captures) =
+                                    output.get("captures").and_then(|c| c.as_array())
+                                {
                                     if let Some(capture) = captures.get(*idx) {
-                                        if let Some(capture_id) = capture.get("capture_id").and_then(|v| v.as_str()) {
+                                        if let Some(capture_id) =
+                                            capture.get("capture_id").and_then(|v| v.as_str())
+                                        {
                                             Some(CaptureAction::View(capture_id.to_string()))
                                         } else {
                                             None
@@ -1037,9 +1104,13 @@ impl App {
                         KeyCode::Char('e') | KeyCode::Char('E') => {
                             // Export
                             if let Some(idx) = selected_capture {
-                                if let Some(captures) = output.get("captures").and_then(|c| c.as_array()) {
+                                if let Some(captures) =
+                                    output.get("captures").and_then(|c| c.as_array())
+                                {
                                     if let Some(capture) = captures.get(*idx) {
-                                        if let Some(capture_id) = capture.get("capture_id").and_then(|v| v.as_str()) {
+                                        if let Some(capture_id) =
+                                            capture.get("capture_id").and_then(|v| v.as_str())
+                                        {
                                             Some(CaptureAction::Export(capture_id.to_string()))
                                         } else {
                                             None
@@ -1057,9 +1128,13 @@ impl App {
                         KeyCode::Char('t') | KeyCode::Char('T') => {
                             // Tag
                             if let Some(idx) = selected_capture {
-                                if let Some(captures) = output.get("captures").and_then(|c| c.as_array()) {
+                                if let Some(captures) =
+                                    output.get("captures").and_then(|c| c.as_array())
+                                {
                                     if let Some(capture) = captures.get(*idx) {
-                                        if let Some(capture_id) = capture.get("capture_id").and_then(|v| v.as_str()) {
+                                        if let Some(capture_id) =
+                                            capture.get("capture_id").and_then(|v| v.as_str())
+                                        {
                                             Some(CaptureAction::Tag(capture_id.to_string()))
                                         } else {
                                             None
@@ -1078,7 +1153,7 @@ impl App {
                             self.go_back();
                             return Ok(());
                         }
-                        _ => None
+                        _ => None,
                     }
                 } else {
                     None
@@ -1103,11 +1178,20 @@ impl App {
         }
 
         // Handle bt_decode packet list navigation
-        if let AppState::Results { tool_name, output, success, packet_list_state, .. } = &mut self.state {
+        if let AppState::Results {
+            tool_name,
+            output,
+            success,
+            packet_list_state,
+            ..
+        } = &mut self.state
+        {
             if *tool_name == "bt_decode" {
                 if let Some(pls) = packet_list_state {
                     if let Event::Key(KeyEvent { code, .. }) = event {
-                        if let Some(packets) = output.get("decoded_packets").and_then(|p| p.as_array()) {
+                        if let Some(packets) =
+                            output.get("decoded_packets").and_then(|p| p.as_array())
+                        {
                             let packet_count = packets.len();
 
                             match code {
@@ -1127,7 +1211,8 @@ impl App {
                                         // Adjust scroll if needed (assume 20 visible lines)
                                         let visible_lines = 20;
                                         if pls.selected_index >= pls.scroll_offset + visible_lines {
-                                            pls.scroll_offset = pls.selected_index - visible_lines + 1;
+                                            pls.scroll_offset =
+                                                pls.selected_index - visible_lines + 1;
                                         }
                                     }
                                     return Ok(());
@@ -1138,8 +1223,10 @@ impl App {
                                     return Ok(());
                                 }
                                 KeyCode::PageDown => {
-                                    pls.selected_index = (pls.selected_index + 10).min(packet_count.saturating_sub(1));
-                                    pls.scroll_offset = (pls.scroll_offset + 10).min(packet_count.saturating_sub(20));
+                                    pls.selected_index = (pls.selected_index + 10)
+                                        .min(packet_count.saturating_sub(1));
+                                    pls.scroll_offset = (pls.scroll_offset + 10)
+                                        .min(packet_count.saturating_sub(20));
                                     return Ok(());
                                 }
                                 KeyCode::Home => {
@@ -1190,7 +1277,8 @@ impl App {
                                 KeyCode::Char('f') | KeyCode::Char('F') => {
                                     // Follow stream - toggle following the MAC of selected packet
                                     if let Some(packet) = packets.get(pls.selected_index) {
-                                        let mac = packet.get("mac_address")
+                                        let mac = packet
+                                            .get("mac_address")
                                             .and_then(|m| m.as_str())
                                             .map(|s| s.to_string());
 
@@ -1219,7 +1307,10 @@ impl App {
                                 KeyCode::Char('n') | KeyCode::Char('N') => {
                                     // Open text input dialog for annotation
                                     let packet_index = pls.selected_index;
-                                    let existing_note = pls.get_annotation(packet_index).cloned().unwrap_or_default();
+                                    let existing_note = pls
+                                        .get_annotation(packet_index)
+                                        .cloned()
+                                        .unwrap_or_default();
 
                                     let mut textarea = TextArea::default();
                                     if !existing_note.is_empty() {
@@ -1236,7 +1327,9 @@ impl App {
                                 }
                                 KeyCode::Delete | KeyCode::Backspace => {
                                     // Remove annotation from selected packet (when in list view and has annotation)
-                                    if pls.view_mode == PacketViewMode::List && pls.has_annotation(pls.selected_index) {
+                                    if pls.view_mode == PacketViewMode::List
+                                        && pls.has_annotation(pls.selected_index)
+                                    {
                                         pls.remove_annotation(pls.selected_index);
                                     }
                                     return Ok(());
@@ -1265,10 +1358,20 @@ impl App {
                                     let pls_clone = pls.clone();
 
                                     // Prepopulate with existing filters
-                                    let packet_type_selections = pls.filters.packet_types.iter().cloned().collect();
-                                    let mac_filter = pls.filters.mac_address.clone().unwrap_or_default();
-                                    let rssi_min = pls.filters.rssi_min.map(|v| v.to_string()).unwrap_or_default();
-                                    let rssi_max = pls.filters.rssi_max.map(|v| v.to_string()).unwrap_or_default();
+                                    let packet_type_selections =
+                                        pls.filters.packet_types.iter().cloned().collect();
+                                    let mac_filter =
+                                        pls.filters.mac_address.clone().unwrap_or_default();
+                                    let rssi_min = pls
+                                        .filters
+                                        .rssi_min
+                                        .map(|v| v.to_string())
+                                        .unwrap_or_default();
+                                    let rssi_max = pls
+                                        .filters
+                                        .rssi_max
+                                        .map(|v| v.to_string())
+                                        .unwrap_or_default();
 
                                     self.state = AppState::FilterDialog {
                                         selected_section: 0,
@@ -1293,7 +1396,13 @@ impl App {
         }
 
         // Handle bt_analyze analysis view navigation
-        if let AppState::Results { tool_name, output, analysis_view_state, .. } = &mut self.state {
+        if let AppState::Results {
+            tool_name,
+            output,
+            analysis_view_state,
+            ..
+        } = &mut self.state
+        {
             if *tool_name == "bt_analyze" {
                 if let Some(avs) = analysis_view_state {
                     if let Event::Key(KeyEvent { code, .. }) = event {
@@ -1330,20 +1439,18 @@ impl App {
                             KeyCode::Down => {
                                 // Determine max index based on view mode
                                 let max_index = match avs.view_mode {
-                                    AnalysisViewMode::Devices => {
-                                        output.get("analysis")
-                                            .and_then(|a| a.get("devices"))
-                                            .and_then(|d| d.as_array())
-                                            .map(|arr| arr.len().saturating_sub(1))
-                                            .unwrap_or(0)
-                                    }
-                                    AnalysisViewMode::Security => {
-                                        output.get("analysis")
-                                            .and_then(|a| a.get("security_observations"))
-                                            .and_then(|s| s.as_array())
-                                            .map(|arr| arr.len().saturating_sub(1))
-                                            .unwrap_or(0)
-                                    }
+                                    AnalysisViewMode::Devices => output
+                                        .get("analysis")
+                                        .and_then(|a| a.get("devices"))
+                                        .and_then(|d| d.as_array())
+                                        .map(|arr| arr.len().saturating_sub(1))
+                                        .unwrap_or(0),
+                                    AnalysisViewMode::Security => output
+                                        .get("analysis")
+                                        .and_then(|a| a.get("security_observations"))
+                                        .and_then(|s| s.as_array())
+                                        .map(|arr| arr.len().saturating_sub(1))
+                                        .unwrap_or(0),
                                     _ => 0,
                                 };
 
@@ -1358,7 +1465,10 @@ impl App {
                             }
                             KeyCode::Enter | KeyCode::Char(' ') => {
                                 // Toggle expansion for devices/security items
-                                if matches!(avs.view_mode, AnalysisViewMode::Devices | AnalysisViewMode::Security) {
+                                if matches!(
+                                    avs.view_mode,
+                                    AnalysisViewMode::Devices | AnalysisViewMode::Security
+                                ) {
                                     avs.toggle_expanded(avs.selected_index);
                                 }
                                 return Ok(());
@@ -1371,7 +1481,15 @@ impl App {
         }
 
         // Handle export menu
-        if let AppState::ExportMenu { selected_index, packets, packet_list_state, previous_tool_name, previous_output, previous_success } = &mut self.state {
+        if let AppState::ExportMenu {
+            selected_index,
+            packets,
+            packet_list_state,
+            previous_tool_name,
+            previous_output,
+            previous_success,
+        } = &mut self.state
+        {
             if let Event::Key(KeyEvent { code, .. }) = event {
                 let options = ExportOption::all();
                 match code {
@@ -1407,7 +1525,7 @@ impl App {
                             selected_capture: None,
                             tool: None,
                             packet_list_state: Some(prev_state),
-                    analysis_view_state: None,
+                            analysis_view_state: None,
                         };
 
                         // Perform export
@@ -1441,7 +1559,7 @@ impl App {
                             selected_capture: None,
                             tool: None,
                             packet_list_state: Some(prev_state),
-                    analysis_view_state: None,
+                            analysis_view_state: None,
                         };
                         return Ok(());
                     }
@@ -1463,7 +1581,8 @@ impl App {
             previous_output,
             previous_success,
             previous_packet_list_state,
-        } = &mut self.state {
+        } = &mut self.state
+        {
             if let Event::Key(KeyEvent { code, .. }) = event {
                 let packet_types = vec!["ADV_IND", "SCAN_REQ", "SCAN_RSP", "CONNECT_REQ", "DATA"];
 
@@ -1475,7 +1594,8 @@ impl App {
                         return Ok(());
                     }
                     KeyCode::Down => {
-                        if *selected_section < 3 {  // 0=types, 1=MAC, 2=RSSI, 3=actions
+                        if *selected_section < 3 {
+                            // 0=types, 1=MAC, 2=RSSI, 3=actions
                             *selected_section += 1;
                         }
                         return Ok(());
@@ -1487,7 +1607,9 @@ impl App {
                         return Ok(());
                     }
                     KeyCode::Right => {
-                        if *selected_section == 0 && *selected_packet_type < packet_types.len().saturating_sub(1) {
+                        if *selected_section == 0
+                            && *selected_packet_type < packet_types.len().saturating_sub(1)
+                        {
                             *selected_packet_type += 1;
                         }
                         return Ok(());
@@ -1507,12 +1629,15 @@ impl App {
                     KeyCode::Char(c) => {
                         // Input for text fields
                         match *selected_section {
-                            1 => {  // MAC filter
+                            1 => {
+                                // MAC filter
                                 mac_filter.push(c);
                             }
-                            2 => {  // RSSI (assume we're on min for now, can toggle later)
+                            2 => {
+                                // RSSI (assume we're on min for now, can toggle later)
                                 if c.is_ascii_digit() || c == '-' {
-                                    if rssi_min.len() < 4 {  // -120 to -30 typically
+                                    if rssi_min.len() < 4 {
+                                        // -120 to -30 typically
                                         rssi_min.push(c);
                                     }
                                 }
@@ -1536,9 +1661,11 @@ impl App {
                     }
                     KeyCode::Enter => {
                         // Apply filters
-                        if *selected_section == 3 {  // "Apply" action
+                        if *selected_section == 3 {
+                            // "Apply" action
                             let mut new_pls = previous_packet_list_state.clone();
-                            new_pls.filters.packet_types = packet_type_selections.iter().cloned().collect();
+                            new_pls.filters.packet_types =
+                                packet_type_selections.iter().cloned().collect();
                             new_pls.filters.mac_address = if mac_filter.is_empty() {
                                 None
                             } else {
@@ -1554,7 +1681,7 @@ impl App {
                                 selected_capture: None,
                                 tool: None,
                                 packet_list_state: Some(new_pls),
-                    analysis_view_state: None,
+                                analysis_view_state: None,
                             };
 
                             self.notification = Some(Notification {
@@ -1582,7 +1709,7 @@ impl App {
                                 selected_capture: None,
                                 tool: None,
                                 packet_list_state: Some(new_pls),
-                    analysis_view_state: None,
+                                analysis_view_state: None,
                             };
 
                             self.notification = Some(Notification {
@@ -1601,7 +1728,7 @@ impl App {
                             selected_capture: None,
                             tool: None,
                             packet_list_state: Some(previous_packet_list_state.clone()),
-                    analysis_view_state: None,
+                            analysis_view_state: None,
                         };
                         return Ok(());
                     }
@@ -1612,12 +1739,19 @@ impl App {
         }
 
         // Handle help overlay
-        if let AppState::HelpOverlay { previous_state, scroll_offset } = &mut self.state {
+        if let AppState::HelpOverlay {
+            previous_state,
+            scroll_offset,
+        } = &mut self.state
+        {
             if let Event::Key(KeyEvent { code, .. }) = event {
                 match code {
                     KeyCode::Esc | KeyCode::Char('?') | KeyCode::Char('q') => {
                         // Close help and return to previous state
-                        if let AppState::HelpOverlay { previous_state, .. } = std::mem::replace(&mut self.state, AppState::MainMenu { selected_index: 0 }) {
+                        if let AppState::HelpOverlay { previous_state, .. } = std::mem::replace(
+                            &mut self.state,
+                            AppState::MainMenu { selected_index: 0 },
+                        ) {
                             self.state = *previous_state;
                         }
                         return Ok(());
@@ -1653,7 +1787,11 @@ impl App {
         }
 
         // Handle theme selector
-        if let AppState::ThemeSelector { selected_index, themes } = &mut self.state {
+        if let AppState::ThemeSelector {
+            selected_index,
+            themes,
+        } = &mut self.state
+        {
             if let Event::Key(KeyEvent { code, .. }) = event {
                 match code {
                     KeyCode::Esc => {
@@ -1731,13 +1869,18 @@ impl App {
                                     self.handle_selection()?;
                                 }
                             }
-                            AppState::ToolCategory { selected_index, category } => {
-                                let device_connected = if matches!(category, Category::DeviceManagement) {
-                                    Some(self.device_status.connected)
-                                } else {
-                                    None
-                                };
-                                let tool_count = category.tool_count_filtered(&self.registry, device_connected);
+                            AppState::ToolCategory {
+                                selected_index,
+                                category,
+                            } => {
+                                let device_connected =
+                                    if matches!(category, Category::DeviceManagement) {
+                                        Some(self.device_status.connected)
+                                    } else {
+                                        None
+                                    };
+                                let tool_count =
+                                    category.tool_count_filtered(&self.registry, device_connected);
                                 let clicked_index = content_row.saturating_sub(1) / 2;
                                 if clicked_index < tool_count {
                                     *selected_index = clicked_index;
@@ -1751,7 +1894,10 @@ impl App {
                                     self.handle_selection()?;
                                 }
                             }
-                            AppState::ThemeSelector { selected_index, themes } => {
+                            AppState::ThemeSelector {
+                                selected_index,
+                                themes,
+                            } => {
                                 let clicked_index = content_row.saturating_sub(1);
                                 if clicked_index < themes.len() {
                                     *selected_index = clicked_index;
@@ -1769,12 +1915,17 @@ impl App {
                                     self.state = AppState::Settings { selected_index: 0 };
                                 }
                             }
-                            AppState::Results { packet_list_state, output, .. } => {
+                            AppState::Results {
+                                packet_list_state,
+                                output,
+                                ..
+                            } => {
                                 // Handle packet list clicks
                                 if let Some(pls) = packet_list_state {
                                     let clicked_index = content_row.saturating_sub(1);
                                     // Get packet count from output
-                                    let packet_count = output.get("packets")
+                                    let packet_count = output
+                                        .get("packets")
                                         .and_then(|p| p.as_array())
                                         .map(|arr| arr.len())
                                         .unwrap_or(0);
@@ -1792,15 +1943,20 @@ impl App {
                 MouseEventKind::ScrollDown => {
                     // Scroll down - move selection down or scroll content
                     match &mut self.state {
-                        AppState::MainMenu { .. } |
-                        AppState::ToolCategory { .. } |
-                        AppState::Settings { .. } |
-                        AppState::ThemeSelector { .. } => {
+                        AppState::MainMenu { .. }
+                        | AppState::ToolCategory { .. }
+                        | AppState::Settings { .. }
+                        | AppState::ThemeSelector { .. } => {
                             self.move_selection(1);
                         }
-                        AppState::Results { packet_list_state, output, .. } => {
+                        AppState::Results {
+                            packet_list_state,
+                            output,
+                            ..
+                        } => {
                             if let Some(pls) = packet_list_state {
-                                let packet_count = output.get("packets")
+                                let packet_count = output
+                                    .get("packets")
                                     .and_then(|p| p.as_array())
                                     .map(|arr| arr.len())
                                     .unwrap_or(0);
@@ -1819,13 +1975,17 @@ impl App {
                 MouseEventKind::ScrollUp => {
                     // Scroll up - move selection up or scroll content
                     match &mut self.state {
-                        AppState::MainMenu { .. } |
-                        AppState::ToolCategory { .. } |
-                        AppState::Settings { .. } |
-                        AppState::ThemeSelector { .. } => {
+                        AppState::MainMenu { .. }
+                        | AppState::ToolCategory { .. }
+                        | AppState::Settings { .. }
+                        | AppState::ThemeSelector { .. } => {
                             self.move_selection(-1);
                         }
-                        AppState::Results { packet_list_state, output, .. } => {
+                        AppState::Results {
+                            packet_list_state,
+                            output,
+                            ..
+                        } => {
                             if let Some(pls) = packet_list_state {
                                 if pls.selected_index > 0 {
                                     pls.selected_index -= 1;
@@ -1854,7 +2014,10 @@ impl App {
                 }
                 KeyCode::Char('?') => {
                     // Show help overlay
-                    let previous_state = std::mem::replace(&mut self.state, AppState::MainMenu { selected_index: 0 });
+                    let previous_state = std::mem::replace(
+                        &mut self.state,
+                        AppState::MainMenu { selected_index: 0 },
+                    );
                     self.state = AppState::HelpOverlay {
                         previous_state: Box::new(previous_state),
                         scroll_offset: 0,
@@ -1872,7 +2035,11 @@ impl App {
                 }
                 KeyCode::Right => {
                     // Right arrow: jump to Device Status when on connect/disconnect toggle
-                    if let AppState::ToolCategory { category, selected_index } = &mut self.state {
+                    if let AppState::ToolCategory {
+                        category,
+                        selected_index,
+                    } = &mut self.state
+                    {
                         if matches!(category, Category::DeviceManagement) && *selected_index == 0 {
                             // Jump to Device Status (index 1 after filtering)
                             *selected_index = 1;
@@ -1903,7 +2070,10 @@ impl App {
                 let new_index = (*selected_index as i32 + delta).max(0).min(6) as usize;
                 *selected_index = new_index;
             }
-            AppState::ToolCategory { selected_index, category } => {
+            AppState::ToolCategory {
+                selected_index,
+                category,
+            } => {
                 // Use filtered tool count for DeviceManagement
                 let device_connected = if matches!(category, Category::DeviceManagement) {
                     Some(self.device_status.connected)
@@ -1911,7 +2081,9 @@ impl App {
                     None
                 };
                 let tool_count = category.tool_count_filtered(&self.registry, device_connected);
-                let new_index = (*selected_index as i32 + delta).max(0).min(tool_count as i32 - 1) as usize;
+                let new_index = (*selected_index as i32 + delta)
+                    .max(0)
+                    .min(tool_count as i32 - 1) as usize;
                 *selected_index = new_index;
             }
             AppState::Settings { selected_index } => {
@@ -1936,7 +2108,10 @@ impl App {
                     self.handle_selection()?;
                 }
             }
-            AppState::ToolCategory { selected_index, category } => {
+            AppState::ToolCategory {
+                selected_index,
+                category,
+            } => {
                 // Tool category: 1-9 = tools (1-indexed in UI)
                 if digit >= 1 && digit <= 9 {
                     let device_connected = if matches!(category, Category::DeviceManagement) {
@@ -2156,7 +2331,10 @@ impl App {
                     selected_index: 0,
                 };
             }
-            AppState::ToolCategory { category, selected_index } => {
+            AppState::ToolCategory {
+                category,
+                selected_index,
+            } => {
                 // Get selected tool (use filtered list for DeviceManagement)
                 let device_connected = if matches!(category, Category::DeviceManagement) {
                     Some(self.device_status.connected)
@@ -2199,7 +2377,7 @@ impl App {
                                 self.state = AppState::ToolForm {
                                     form: Box::new(form),
                                     error: None,
-                                    hotkey_mode: false,  // Allow typing in form fields by default
+                                    hotkey_mode: false, // Allow typing in form fields by default
                                 };
                             }
                         }
@@ -2208,7 +2386,7 @@ impl App {
                             self.state = AppState::ToolForm {
                                 form: Box::new(ToolForm::new(tool.clone()).unwrap()),
                                 error: Some(format!("Failed to create form: {}", e)),
-                                hotkey_mode: false,  // Allow typing in form fields by default
+                                hotkey_mode: false, // Allow typing in form fields by default
                             };
                         }
                     }
@@ -2290,7 +2468,9 @@ impl App {
     /// Launch analysis tool for a specific capture
     fn launch_analysis(&mut self, capture_id: String) -> Result<()> {
         // Find bt_analyze tool
-        let tool = self.registry.tools()
+        let tool = self
+            .registry
+            .tools()
             .iter()
             .find(|t| t.name() == "bt_analyze")
             .cloned();
@@ -2328,8 +2508,8 @@ impl App {
                 success: false,
                 selected_capture: None,
                 tool: None,
-                    packet_list_state: None,
-                    analysis_view_state: None,
+                packet_list_state: None,
+                analysis_view_state: None,
             };
         }
 
@@ -2338,7 +2518,9 @@ impl App {
 
     /// Launch capture_get to view details
     fn launch_capture_get(&mut self, capture_id: String) -> Result<()> {
-        let tool = self.registry.tools()
+        let tool = self
+            .registry
+            .tools()
             .iter()
             .find(|t| t.name() == "capture_get")
             .cloned();
@@ -2385,7 +2567,10 @@ impl App {
         match dialog.context {
             DialogContext::Annotation { packet_index } => {
                 // Update annotation in packet list state
-                if let AppState::Results { packet_list_state, .. } = &mut self.state {
+                if let AppState::Results {
+                    packet_list_state, ..
+                } = &mut self.state
+                {
                     if let Some(pls) = packet_list_state {
                         if text.is_empty() {
                             // Remove annotation if text is empty
@@ -2417,7 +2602,9 @@ impl App {
     }
 
     fn execute_delete_capture(&mut self, capture_id: String) -> Result<()> {
-        let tool = self.registry.tools()
+        let tool = self
+            .registry
+            .tools()
             .iter()
             .find(|t| t.name() == "capture_delete")
             .cloned();
@@ -2447,7 +2634,9 @@ impl App {
 
     /// Launch capture_export
     fn launch_capture_export(&mut self, capture_id: String) -> Result<()> {
-        let tool = self.registry.tools()
+        let tool = self
+            .registry
+            .tools()
             .iter()
             .find(|t| t.name() == "capture_export")
             .cloned();
@@ -2479,7 +2668,12 @@ impl App {
     }
 
     /// Export packets based on selected option
-    fn export_packets(&self, option: ExportOption, packets: Vec<serde_json::Value>, state: PacketListState) -> Result<String> {
+    fn export_packets(
+        &self,
+        option: ExportOption,
+        packets: Vec<serde_json::Value>,
+        state: PacketListState,
+    ) -> Result<String> {
         use std::fs;
         use std::path::PathBuf;
 
@@ -2493,7 +2687,8 @@ impl App {
 
         match option {
             ExportOption::BookmarkedPackets => {
-                let bookmarked: Vec<_> = packets.iter()
+                let bookmarked: Vec<_> = packets
+                    .iter()
                     .enumerate()
                     .filter(|(idx, _)| state.is_bookmarked(*idx))
                     .map(|(_, pkt)| pkt.clone())
@@ -2512,7 +2707,8 @@ impl App {
             }
 
             ExportOption::FilteredPackets => {
-                let filtered: Vec<_> = packets.iter()
+                let filtered: Vec<_> = packets
+                    .iter()
                     .filter(|pkt| {
                         // Apply filters from state
                         if let Some(ref follow_mac) = state.follow_mac {
@@ -2553,7 +2749,11 @@ impl App {
                     if let Some(channel) = packet.get("channel").and_then(|c| c.as_str()) {
                         *channels.entry(channel.to_string()).or_insert(0) += 1;
                     }
-                    if let Some(rssi) = packet.get("rssi").and_then(|r| r.as_str()).and_then(|s| s.parse::<i32>().ok()) {
+                    if let Some(rssi) = packet
+                        .get("rssi")
+                        .and_then(|r| r.as_str())
+                        .and_then(|s| s.parse::<i32>().ok())
+                    {
                         rssi_values.push(rssi);
                     }
                     if let Some(mac) = packet.get("mac_address").and_then(|m| m.as_str()) {
@@ -2592,35 +2792,62 @@ impl App {
 
             ExportOption::ComparisonReport => {
                 if state.comparison_marks.len() != 2 {
-                    return Err(anyhow::anyhow!("Exactly 2 packets must be marked for comparison"));
+                    return Err(anyhow::anyhow!(
+                        "Exactly 2 packets must be marked for comparison"
+                    ));
                 }
 
                 let idx1 = state.comparison_marks[0];
                 let idx2 = state.comparison_marks[1];
-                let pkt1 = packets.get(idx1).ok_or_else(|| anyhow::anyhow!("Packet 1 not found"))?;
-                let pkt2 = packets.get(idx2).ok_or_else(|| anyhow::anyhow!("Packet 2 not found"))?;
+                let pkt1 = packets
+                    .get(idx1)
+                    .ok_or_else(|| anyhow::anyhow!("Packet 1 not found"))?;
+                let pkt2 = packets
+                    .get(idx2)
+                    .ok_or_else(|| anyhow::anyhow!("Packet 2 not found"))?;
 
                 let filename = format!("comparison_report_{}.md", timestamp);
                 let path = export_dir.join(&filename);
 
                 let get_field = |pkt: &serde_json::Value, field: &str| {
-                    pkt.get(field).and_then(|v| v.as_str()).unwrap_or("N/A").to_string()
+                    pkt.get(field)
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("N/A")
+                        .to_string()
                 };
 
                 let mut report = String::new();
                 report.push_str("# Packet Comparison Report\n\n");
-                report.push_str(&format!("**Generated**: {}\n\n", chrono::Utc::now().to_rfc3339()));
+                report.push_str(&format!(
+                    "**Generated**: {}\n\n",
+                    chrono::Utc::now().to_rfc3339()
+                ));
                 report.push_str("## Packet A\n\n");
                 report.push_str(&format!("- **Index**: {}\n", idx1));
-                report.push_str(&format!("- **Frame**: {}\n", get_field(pkt1, "frame_number")));
-                report.push_str(&format!("- **Timestamp**: {}\n", get_field(pkt1, "timestamp")));
+                report.push_str(&format!(
+                    "- **Frame**: {}\n",
+                    get_field(pkt1, "frame_number")
+                ));
+                report.push_str(&format!(
+                    "- **Timestamp**: {}\n",
+                    get_field(pkt1, "timestamp")
+                ));
                 report.push_str(&format!("- **Channel**: {}\n", get_field(pkt1, "channel")));
                 report.push_str(&format!("- **RSSI**: {} dBm\n", get_field(pkt1, "rssi")));
                 report.push_str(&format!("- **Type**: {}\n", get_field(pkt1, "packet_type")));
                 report.push_str(&format!("- **MAC**: {}\n", get_field(pkt1, "mac_address")));
-                report.push_str(&format!("- **Protocol**: {}\n", get_field(pkt1, "protocol")));
-                report.push_str(&format!("- **Access Address**: {}\n", get_field(pkt1, "access_addr")));
-                report.push_str(&format!("- **Summary**: {}\n\n", get_field(pkt1, "summary")));
+                report.push_str(&format!(
+                    "- **Protocol**: {}\n",
+                    get_field(pkt1, "protocol")
+                ));
+                report.push_str(&format!(
+                    "- **Access Address**: {}\n",
+                    get_field(pkt1, "access_addr")
+                ));
+                report.push_str(&format!(
+                    "- **Summary**: {}\n\n",
+                    get_field(pkt1, "summary")
+                ));
 
                 if let Some(note) = state.get_annotation(idx1) {
                     report.push_str(&format!("**Note**: {}\n\n", note));
@@ -2628,15 +2855,30 @@ impl App {
 
                 report.push_str("## Packet B\n\n");
                 report.push_str(&format!("- **Index**: {}\n", idx2));
-                report.push_str(&format!("- **Frame**: {}\n", get_field(pkt2, "frame_number")));
-                report.push_str(&format!("- **Timestamp**: {}\n", get_field(pkt2, "timestamp")));
+                report.push_str(&format!(
+                    "- **Frame**: {}\n",
+                    get_field(pkt2, "frame_number")
+                ));
+                report.push_str(&format!(
+                    "- **Timestamp**: {}\n",
+                    get_field(pkt2, "timestamp")
+                ));
                 report.push_str(&format!("- **Channel**: {}\n", get_field(pkt2, "channel")));
                 report.push_str(&format!("- **RSSI**: {} dBm\n", get_field(pkt2, "rssi")));
                 report.push_str(&format!("- **Type**: {}\n", get_field(pkt2, "packet_type")));
                 report.push_str(&format!("- **MAC**: {}\n", get_field(pkt2, "mac_address")));
-                report.push_str(&format!("- **Protocol**: {}\n", get_field(pkt2, "protocol")));
-                report.push_str(&format!("- **Access Address**: {}\n", get_field(pkt2, "access_addr")));
-                report.push_str(&format!("- **Summary**: {}\n\n", get_field(pkt2, "summary")));
+                report.push_str(&format!(
+                    "- **Protocol**: {}\n",
+                    get_field(pkt2, "protocol")
+                ));
+                report.push_str(&format!(
+                    "- **Access Address**: {}\n",
+                    get_field(pkt2, "access_addr")
+                ));
+                report.push_str(&format!(
+                    "- **Summary**: {}\n\n",
+                    get_field(pkt2, "summary")
+                ));
 
                 if let Some(note) = state.get_annotation(idx2) {
                     report.push_str(&format!("**Note**: {}\n\n", note));
@@ -2673,7 +2915,11 @@ impl App {
 
                 for (idx, packet) in packets.iter().enumerate() {
                     let get_field = |field: &str| {
-                        packet.get(field).and_then(|v| v.as_str()).unwrap_or("").to_string()
+                        packet
+                            .get(field)
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("")
+                            .to_string()
                     };
 
                     csv.push_str(&format!(
@@ -2710,7 +2956,9 @@ impl App {
     /// Launch capture_tag
     fn launch_capture_tag(&mut self, capture_id: String) -> Result<()> {
         // TODO: Add tag input dialog
-        let tool = self.registry.tools()
+        let tool = self
+            .registry
+            .tools()
             .iter()
             .find(|t| t.name() == "capture_tag")
             .cloned();

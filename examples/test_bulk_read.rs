@@ -1,13 +1,11 @@
 //! Simple synchronous test of bulk reads
 
-use ubertooth_usb::{UbertoothDevice, constants::*};
 use std::thread;
 use std::time::Duration;
+use ubertooth_usb::{constants::*, UbertoothDevice};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt()
-        .with_env_filter("debug")
-        .init();
+    tracing_subscriber::fmt().with_env_filter("debug").init();
 
     println!("========================================");
     println!("Simple Bulk Read Test");

@@ -36,24 +36,24 @@
 //! }
 //! ```
 
+pub mod async_reader;
+pub mod commands;
 pub mod constants;
 pub mod device;
-pub mod device_nusb;
 pub mod device_libusb;
+pub mod device_nusb;
+pub mod error;
+pub mod libusb_async;
 pub mod libusb_ffi;
 pub mod libusb_stream;
-pub mod error;
 pub mod protocol;
-pub mod commands;
-pub mod async_reader;
 pub mod stream_reader;
-pub mod libusb_async;
 
 // Re-exports for convenience
+pub use async_reader::{flush_usb_buffer, AsyncPacketReader};
+pub use commands::UbertoothCommands;
 pub use constants::*;
 pub use device::UbertoothDevice;
 pub use error::{Result, UsbError};
-pub use protocol::{BlePacket, DeviceInfo, UsbPacket};
-pub use commands::UbertoothCommands;
-pub use async_reader::{AsyncPacketReader, flush_usb_buffer};
 pub use libusb_async::LibusbStreamReader;
+pub use protocol::{BlePacket, DeviceInfo, UsbPacket};

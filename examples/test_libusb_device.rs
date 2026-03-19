@@ -2,16 +2,14 @@
 //!
 //! This tests the production-ready pure libusb layer.
 
+use std::time::Duration;
+use ubertooth_usb::constants::*;
 use ubertooth_usb::device_libusb::UbertoothDeviceLibusb;
 use ubertooth_usb::protocol::UsbPacket;
-use ubertooth_usb::constants::*;
-use std::time::Duration;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt()
-        .with_env_filter("info")
-        .init();
+    tracing_subscriber::fmt().with_env_filter("info").init();
 
     println!("========================================");
     println!("Pure libusb Device Implementation Test");
@@ -41,15 +39,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ret = device.control_transfer(CMD_JAM_MODE, JAM_NONE as u16, 0, &[], 1000)?;
     println!("  Returned: {} bytes", ret);
 
-    println!("  CMD_SET_MODULATION({})={}", MOD_BT_LOW_ENERGY, CMD_SET_MODULATION);
-    let ret = device.control_transfer(CMD_SET_MODULATION, MOD_BT_LOW_ENERGY as u16, 0, &[], 1000)?;
+    println!(
+        "  CMD_SET_MODULATION({})={}",
+        MOD_BT_LOW_ENERGY, CMD_SET_MODULATION
+    );
+    let ret =
+        device.control_transfer(CMD_SET_MODULATION, MOD_BT_LOW_ENERGY as u16, 0, &[], 1000)?;
     println!("  Returned: {} bytes", ret);
 
-    println!("  CMD_SET_CHANNEL={}  value=2402 (channel 37 frequency)", CMD_SET_CHANNEL);
+    println!(
+        "  CMD_SET_CHANNEL={}  value=2402 (channel 37 frequency)",
+        CMD_SET_CHANNEL
+    );
     let ret = device.control_transfer(CMD_SET_CHANNEL, 2402, 0, &[], 1000)?;
     println!("  Returned: {} bytes", ret);
 
-    println!("  CMD_BTLE_SNIFFING={} (for advertisement scanning)", CMD_BTLE_SNIFFING);
+    println!(
+        "  CMD_BTLE_SNIFFING={} (for advertisement scanning)",
+        CMD_BTLE_SNIFFING
+    );
     let ret = device.control_transfer(CMD_BTLE_SNIFFING, 0, 0, &[], 1000)?;
     println!("  Returned: {} bytes", ret);
 
@@ -92,7 +100,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if packet.len() >= 14 {
                     // Debug: print first packet
                     if packet_count == 1 {
-                        println!("First packet {} bytes: {:02x?}", packet.len(), &packet[..std::cmp::min(20, packet.len())]);
+                        println!(
+                            "First packet {} bytes: {:02x?}",
+                            packet.len(),
+                            &packet[..std::cmp::min(20, packet.len())]
+                        );
                     }
 
                     match UsbPacket::from_bytes(&packet) {
@@ -100,15 +112,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             if usb_pkt.is_ble() {
                                 ble_packet_count += 1;
                                 if ble_packet_count <= 5 {
-                                    println!("✅ BLE Packet #{}: channel={}, {} bytes",
+                                    println!(
+                                        "✅ BLE Packet #{}: channel={}, {} bytes",
                                         ble_packet_count,
                                         usb_pkt.header.channel,
                                         packet.len()
                                     );
                                 }
                             } else if packet_count <= 5 {
-                                println!("Non-BLE packet: channel={}, pkt_type={}",
-                                    usb_pkt.header.channel, usb_pkt.header.pkt_type);
+                                println!(
+                                    "Non-BLE packet: channel={}, pkt_type={}",
+                                    usb_pkt.header.channel, usb_pkt.header.pkt_type
+                                );
                             }
                         }
                         Err(e) if packet_count <= 5 => {
@@ -120,7 +135,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 // Progress update every 20 packets
                 if packet_count % 20 == 0 {
-                    println!("  [{:.1}s] Received {} packets ({} BLE)",
+                    println!(
+                        "  [{:.1}s] Received {} packets ({} BLE)",
                         start.elapsed().as_secs_f32(),
                         packet_count,
                         ble_packet_count

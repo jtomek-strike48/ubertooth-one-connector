@@ -110,7 +110,9 @@ mod tests {
                     "message": format!("Channel set to {}", channel)
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 

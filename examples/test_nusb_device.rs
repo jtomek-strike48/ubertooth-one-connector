@@ -5,9 +5,7 @@ use ubertooth_usb::device_nusb::UbertoothDevice;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt()
-        .with_env_filter("info")
-        .init();
+    tracing_subscriber::fmt().with_env_filter("info").init();
 
     println!("========================================");
     println!("nusb Device Implementation Test");
@@ -40,7 +38,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Start promiscuous mode
     println!("[4/5] Starting BLE promiscuous mode...");
-    device.control_transfer(CMD_BTLE_PROMISC, 0, 0, &[], 1000).await?;
+    device
+        .control_transfer(CMD_BTLE_PROMISC, 0, 0, &[], 1000)
+        .await?;
     println!("✅ Promiscuous mode started\n");
 
     // Wait for data
@@ -59,7 +59,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         match device.bulk_read(&mut buffer, 100).await {
             Ok(len) if len > 0 => {
                 packet_count += 1;
-                println!("✅ Packet #{}: {} bytes - {:02X?}",
+                println!(
+                    "✅ Packet #{}: {} bytes - {:02X?}",
                     packet_count,
                     len,
                     &buffer[..len.min(16)]

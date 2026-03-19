@@ -139,7 +139,9 @@ mod tests {
                     "has_more": false
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 
@@ -161,7 +163,10 @@ mod tests {
         let backend = Arc::new(MockBackend);
         let tool = CaptureGetTool::new(backend);
 
-        let result = tool.execute(json!({ "capture_id": "cap-test-123" })).await.unwrap();
+        let result = tool
+            .execute(json!({ "capture_id": "cap-test-123" }))
+            .await
+            .unwrap();
 
         assert_eq!(result["success"], true);
         assert_eq!(result["capture_id"], "cap-test-123");

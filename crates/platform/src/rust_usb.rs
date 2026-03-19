@@ -9,8 +9,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tracing::{debug, info, warn};
 use ubertooth_core::error::{Result, UbertoothError};
-use ubertooth_usb::UbertoothCommands;
 use ubertooth_usb::device_libusb::UbertoothDeviceLibusb;
+use ubertooth_usb::UbertoothCommands;
 
 use crate::backend::UbertoothBackendProvider;
 
@@ -32,8 +32,8 @@ pub struct RustUsbBackend {
 impl RustUsbBackend {
     /// Create a new Rust USB backend.
     pub fn new() -> Result<Self> {
-        let device = UbertoothDeviceLibusb::new()
-            .map_err(|e| UbertoothError::UsbError(e.to_string()))?;
+        let device =
+            UbertoothDeviceLibusb::new().map_err(|e| UbertoothError::UsbError(e.to_string()))?;
 
         let device = Arc::new(Mutex::new(device));
         let commands = Arc::new(UbertoothCommands::new(device.clone()));
@@ -46,9 +46,7 @@ impl RustUsbBackend {
     }
 
     /// Create with Python fallback for unimplemented methods.
-    pub fn with_fallback(
-        fallback: Arc<dyn UbertoothBackendProvider>,
-    ) -> Result<Self> {
+    pub fn with_fallback(fallback: Arc<dyn UbertoothBackendProvider>) -> Result<Self> {
         let mut backend = Self::new()?;
         backend.python_fallback = Some(fallback);
         Ok(backend)
@@ -141,10 +139,7 @@ impl UbertoothBackendProvider for RustUsbBackend {
         }
 
         // Try to ping the device
-        match device.ping() {
-            Ok(_) => true,
-            Err(_) => false,
-        }
+        device.ping().is_ok()
     }
 
     async fn restart(&self) -> Result<()> {
@@ -163,9 +158,9 @@ impl UbertoothBackendProvider for RustUsbBackend {
         tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
         // Reconnect
-        device.connect(0).map_err(|e| {
-            UbertoothError::BackendError(format!("Failed to reconnect: {}", e))
-        })?;
+        device
+            .connect(0)
+            .map_err(|e| UbertoothError::BackendError(format!("Failed to reconnect: {}", e)))?;
 
         info!("Rust USB backend restarted successfully");
 

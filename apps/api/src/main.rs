@@ -6,18 +6,18 @@ mod handlers;
 mod state;
 
 use axum::{
+    routing::{delete, get, post},
     Router,
-    routing::{get, post, delete},
 };
 use std::net::SocketAddr;
-use tower_http::cors::{CorsLayer, Any};
+use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
+use crate::handlers::{captures, devices, health, streaming};
 use crate::state::AppState;
-use crate::handlers::{captures, devices, streaming, health};
 
 #[derive(OpenApi)]
 #[openapi(
@@ -66,27 +66,26 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         // Health check
         .route("/health", get(health::health_check))
-
         // Captures
         .route("/api/v1/captures", get(captures::list_captures))
         .route("/api/v1/captures/:id", get(captures::get_capture))
         .route("/api/v1/captures/:id", delete(captures::delete_capture))
         .route("/api/v1/captures/compare", post(captures::compare_captures))
-
         // Devices
         .route("/api/v1/devices", get(devices::list_devices))
         .route("/api/v1/devices/:mac", get(devices::get_device))
-
         // Streaming
         .route("/api/v1/stream", get(streaming::stream_packets))
-
         // Swagger UI
         .merge(SwaggerUi::new("/swagger-ui").url("/api-docs/openapi.json", ApiDoc::openapi()))
-
         // Add middleware
-        .layer(CorsLayer::new().allow_origin(Any).allow_methods(Any).allow_headers(Any))
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any),
+        )
         .layer(TraceLayer::new_for_http())
-
         // Add state
         .with_state(state);
 

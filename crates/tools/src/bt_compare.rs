@@ -132,7 +132,9 @@ mod tests {
                     }
                 }))
             } else {
-                Err(UbertoothError::BackendError("Unexpected method".to_string()))
+                Err(UbertoothError::BackendError(
+                    "Unexpected method".to_string(),
+                ))
             }
         }
 
@@ -154,11 +156,14 @@ mod tests {
         let backend = Arc::new(MockBackend);
         let tool = BtCompareTool::new(backend);
 
-        let result = tool.execute(json!({
-            "capture_id_a": "cap-1",
-            "capture_id_b": "cap-2",
-            "compare_mode": "packets"
-        })).await.unwrap();
+        let result = tool
+            .execute(json!({
+                "capture_id_a": "cap-1",
+                "capture_id_b": "cap-2",
+                "compare_mode": "packets"
+            }))
+            .await
+            .unwrap();
 
         assert_eq!(result["success"], true);
         assert!(result["comparison"].is_object());

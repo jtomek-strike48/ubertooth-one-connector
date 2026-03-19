@@ -54,7 +54,10 @@ fn test_list_captures() {
     let captures = fixture.seed_captures(5);
 
     // List all captures
-    let listed = fixture.store.list_captures().expect("Failed to list captures");
+    let listed = fixture
+        .store
+        .list_captures()
+        .expect("Failed to list captures");
 
     assert_eq!(listed.len(), 5);
 
@@ -68,7 +71,10 @@ fn test_list_captures() {
 fn test_list_captures_empty() {
     let fixture = CaptureStoreFixture::new();
 
-    let captures = fixture.store.list_captures().expect("Failed to list captures");
+    let captures = fixture
+        .store
+        .list_captures()
+        .expect("Failed to list captures");
 
     assert_eq!(captures.len(), 0);
 }
@@ -96,8 +102,7 @@ fn test_capture_metadata_serialization() {
     let json = serde_json::to_string(&metadata).expect("Failed to serialize");
 
     // Deserialize back
-    let deserialized: CaptureMetadata =
-        serde_json::from_str(&json).expect("Failed to deserialize");
+    let deserialized: CaptureMetadata = serde_json::from_str(&json).expect("Failed to deserialize");
 
     assert_eq!(deserialized.capture_id, metadata.capture_id);
     assert_eq!(deserialized.packet_count, 100);
@@ -116,7 +121,10 @@ fn test_capture_with_tags() {
     ];
 
     // Save and reload
-    fixture.store.save_metadata(&metadata).expect("Failed to save");
+    fixture
+        .store
+        .save_metadata(&metadata)
+        .expect("Failed to save");
     let loaded = fixture
         .store
         .load_metadata(&metadata.capture_id)
@@ -154,7 +162,10 @@ fn test_capture_ordering_by_timestamp() {
     for i in 0..3 {
         std::thread::sleep(std::time::Duration::from_millis(10));
         let metadata = fixture.create_sample_metadata(&format!("scan-{}", i), i);
-        fixture.store.save_metadata(&metadata).expect("Failed to save");
+        fixture
+            .store
+            .save_metadata(&metadata)
+            .expect("Failed to save");
         captures.push(metadata);
     }
 

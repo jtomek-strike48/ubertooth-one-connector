@@ -4,7 +4,9 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::Arc;
-use strike48_connector::{BaseConnector, ConnectorBehavior, ConnectorError, Result, TaskTypeSchema};
+use strike48_connector::{
+    BaseConnector, ConnectorBehavior, ConnectorError, Result, TaskTypeSchema,
+};
 use tokio::sync::broadcast;
 
 use crate::events::ToolEvent;
@@ -65,9 +67,7 @@ impl BaseConnector for UbertoothConnector {
             let tool_name = request
                 .get("tool")
                 .and_then(|v| v.as_str())
-                .ok_or_else(|| {
-                    ConnectorError::InvokeFailed("Missing 'tool' field".to_string())
-                })?;
+                .ok_or_else(|| ConnectorError::InvokeFailed("Missing 'tool' field".to_string()))?;
 
             // Get the tool from registry
             let tool = self.registry.get(tool_name).ok_or_else(|| {
@@ -75,7 +75,10 @@ impl BaseConnector for UbertoothConnector {
             })?;
 
             // Extract parameters
-            let params = request.get("parameters").cloned().unwrap_or_else(|| json!({}));
+            let params = request
+                .get("parameters")
+                .cloned()
+                .unwrap_or_else(|| json!({}));
 
             // Emit started event
             let start_time = std::time::Instant::now();
@@ -85,7 +88,8 @@ impl BaseConnector for UbertoothConnector {
             });
 
             // Execute the tool
-            let tool_result: std::result::Result<Value, crate::error::UbertoothError> = tool.execute(params).await;
+            let tool_result: std::result::Result<Value, crate::error::UbertoothError> =
+                tool.execute(params).await;
 
             let duration_ms = start_time.elapsed().as_millis() as u64;
 
@@ -154,7 +158,8 @@ impl BaseConnector for UbertoothConnector {
         );
 
         // Convert tool schemas to Strike48 SDK format
-        let tool_schemas: Vec<Value> = self.registry
+        let tool_schemas: Vec<Value> = self
+            .registry
             .tools()
             .iter()
             .map(|tool| {

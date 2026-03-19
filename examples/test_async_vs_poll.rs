@@ -2,16 +2,14 @@
 //!
 //! Tests both approaches to measure performance and verify they receive the same packets.
 
+use std::time::{Duration, Instant};
+use ubertooth_usb::constants::*;
 use ubertooth_usb::device_libusb::UbertoothDeviceLibusb;
 use ubertooth_usb::protocol::UsbPacket;
-use ubertooth_usb::constants::*;
-use std::time::{Duration, Instant};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::fmt()
-        .with_env_filter("info")
-        .init();
+    tracing_subscriber::fmt().with_env_filter("info").init();
 
     println!("========================================");
     println!("Async Bulk Transfer vs CMD_POLL Test");
@@ -69,7 +67,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let poll_duration = start.elapsed();
-    let poll_avg_latency = poll_latencies.iter().sum::<u128>() / poll_latencies.len().max(1) as u128;
+    let poll_avg_latency =
+        poll_latencies.iter().sum::<u128>() / poll_latencies.len().max(1) as u128;
     let poll_max_latency = *poll_latencies.iter().max().unwrap_or(&0);
     let poll_rate = poll_ble_count as f64 / poll_duration.as_secs_f64();
 
@@ -174,7 +173,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if bulk_count > 0 {
         println!("Performance:");
         println!("  🚀 Rate improvement: {:.2}x faster", rate_improvement);
-        println!("  ⚡ Latency improvement: {:.2}x lower latency", latency_improvement);
+        println!(
+            "  ⚡ Latency improvement: {:.2}x lower latency",
+            latency_improvement
+        );
     } else {
         println!("⚠️  Async bulk transfers received no packets!");
         println!("   This might indicate bulk endpoint isn't receiving data.");
