@@ -9,15 +9,10 @@ mod tools;
 mod types;
 mod validation;
 
-use chrono::Utc;
-use serde_json::{json, Value};
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use ubertooth_core::error::{Result, UbertoothError};
-
-use crate::capture_store::{CaptureMetadata, CaptureStore};
-use crate::config_store::ConfigStore;
 
 pub use validation::check_ubertooth_installed;
 
@@ -108,212 +103,11 @@ impl Default for SidecarManager {
     }
 }
 
-impl SidecarManager {
-    /// List all saved configuration presets.
-    ///
-    /// Phase 2 Week 4: List configs from ~/.ubertooth/configs/
-    async fn config_list(&self, _params: Value) -> Result<Value> {
-        tracing::info!("Listing saved configurations");
-
-        let store = ConfigStore::new()?;
-        let configs = store.list_configs()?;
-
-        let config_list: Vec<Value> = configs
-            .iter()
-            .map(|c| {
-                json!({
-                    "name": c.name,
-                    "description": c.description,
-                    "created": c.created.to_rfc3339(),
-                    "settings_preview": {
-                        "channel": c.settings.channel,
-                        "modulation": c.settings.modulation
-                    }
-                })
-            })
-            .collect();
-
-        Ok(json!({
-            "success": true,
-            "configs": config_list,
-            "count": configs.len()
-        }))
-    }
-
-    /// Delete a saved configuration preset.
-    ///
-    /// Phase 2 Week 4: Remove config file from ~/.ubertooth/configs/
-    async fn config_delete(&self, params: Value) -> Result<Value> {
-        let config_name = params
-            .get("config_name")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'config_name'".to_string()))?;
-
-        tracing::info!("Deleting configuration: {}", config_name);
-
-        let store = ConfigStore::new()?;
-        store.delete_config(config_name)?;
-
-        Ok(json!({
-            "success": true,
-            "message": format!("Configuration '{}' deleted", config_name)
-        }))
-    }
-
-
-
-
-    async fn pcap_merge(&self, _params: Value) -> Result<Value> {
-        let capture_ids = _params
-            .get("capture_ids")
-            .and_then(|v| v.as_array())
-            .ok_or_else(|| {
-                UbertoothError::InvalidParameter("Missing 'capture_ids' array".to_string())
-            })?;
-
-        if capture_ids.len() < 2 {
-            return Err(UbertoothError::InvalidParameter(
-                "At least 2 captures required for merge".to_string(),
-            ));
-        }
-
-        tracing::info!("Merging {} captures", capture_ids.len());
-
-        let store = CaptureStore::new()?;
-        let capture_id = CaptureStore::generate_capture_id("merged");
-        let output_path = store.captures_dir().join(format!("{}.pcap", capture_id));
-
-        // Build input file list
-        let mut input_paths = Vec::new();
-        for id_val in capture_ids {
-            if let Some(id) = id_val.as_str() {
-                let path = store.captures_dir().join(format!("{}.pcap", id));
-                if path.exists() {
-                    input_paths.push(path.to_string_lossy().to_string());
-                } else {
-                    return Err(UbertoothError::CaptureNotFound(id.to_string()));
-                }
-            }
-        }
-
-        // Use mergecap to merge PCAP files
-        let mut args = vec!["-w", output_path.to_str().unwrap()];
-        let input_refs: Vec<&str> = input_paths.iter().map(|s| s.as_str()).collect();
-        args.extend(input_refs);
-
-        self.execute_ubertooth_command("mergecap", &args).await?;
-
-        // Count total packets in merged file
-        let capinfos_output = self
-            .execute_ubertooth_command("capinfos", &[output_path.to_str().unwrap()])
-            .await
-            .unwrap_or_default();
-
-        let mut total_packets = 0;
-        for line in capinfos_output.lines() {
-            if line.contains("Number of packets") {
-                if let Some(num_str) = line.split(':').nth(1) {
-                    total_packets = num_str.trim().parse().unwrap_or(0);
-                }
-            }
-        }
-
-        // Save metadata
-        let file_size_bytes = if output_path.exists() {
-            std::fs::metadata(&output_path)?.len()
-        } else {
-            0
-        };
-
-        let metadata = CaptureMetadata {
-            capture_id: capture_id.clone(),
-            timestamp: Utc::now(),
-            capture_type: "merged".to_string(),
-            duration_sec: None,
-            packet_count: total_packets,
-            file_size_bytes,
-            pcap_path: output_path.to_string_lossy().to_string(),
-            tags: vec!["merged".to_string()],
-            description: format!("Merged from {} source captures", capture_ids.len()),
-            category: None,
-            notes: None,
-        };
-        store.save_metadata(&metadata)?;
-
-        Ok(json!({
-            "success": true,
-            "capture_id": capture_id,
-            "source_captures": capture_ids.len(),
-            "total_packets": total_packets,
-            "pcap_path": output_path.to_string_lossy()
-        }))
-    }
-
-
-    // Phase 2 Week 6: Attack operations (all require authorization)
-
-
-
-
-
-
-    async fn ubertooth_raw(&self, _params: Value) -> Result<Value> {
-        let command = _params
-            .get("command")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'command'".to_string()))?;
-
-        let args_array = _params.get("args").and_then(|v| v.as_array());
-
-        tracing::warn!(
-            "ubertooth_raw - WARNING: Direct hardware access to {}",
-            command
-        );
-
-        // Build command arguments
-        let mut cmd_args = vec![command];
-        let arg_strings: Vec<String>;
-        if let Some(args) = args_array {
-            arg_strings = args
-                .iter()
-                .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                .collect();
-            cmd_args.extend(arg_strings.iter().map(|s| s.as_str()));
-        }
-
-        // Execute raw ubertooth command
-        let output = self
-            .execute_ubertooth_command("ubertooth-util", &cmd_args)
-            .await?;
-
-        // Parse response
-        let response_hex = output
-            .lines()
-            .find(|line| {
-                line.contains("0x")
-                    || line
-                        .chars()
-                        .all(|c| c.is_ascii_hexdigit() || c.is_whitespace())
-            })
-            .unwrap_or("")
-            .trim()
-            .to_string();
-
-        let response_length = response_hex.len() / 2; // Assuming hex pairs
-
-        Ok(json!({
-            "success": true,
-            "command": command,
-            "response_hex": response_hex,
-            "response_length": response_length,
-            "raw_output": output.trim()
-        }))
-    }
-}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sidecar::parsing::pcap::parse_pcap;
 
     #[test]
     fn test_parse_pcap_ble_rf() {
@@ -334,7 +128,7 @@ mod tests {
         }
 
         println!("Parsing PCAP: {}", pcap_path);
-        let result = SidecarManager::parse_pcap(&pcap_path);
+        let result = parse_pcap(&pcap_path);
 
         match result {
             Ok(analysis) => {

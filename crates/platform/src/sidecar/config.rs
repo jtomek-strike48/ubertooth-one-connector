@@ -1,6 +1,7 @@
 //! Configuration methods for SidecarManager.
 
 use crate::capture_store::CaptureStore;
+use crate::config_store::ConfigStore;
 use serde_json::{json, Value};
 use ubertooth_core::error::{Result, UbertoothError};
 
@@ -297,6 +298,57 @@ impl SidecarManager {
                 "captures_count": all_captures.len(),
                 "total_size_mb": format!("{:.1}", total_size_mb).parse::<f64>().unwrap_or(0.0)
             }
+        }))
+    }
+
+    /// List all saved configuration presets.
+    ///
+    /// Phase 2 Week 4: List configs from ~/.ubertooth/configs/
+    pub(in crate::sidecar) async fn config_list(&self, _params: Value) -> Result<Value> {
+        tracing::info!("Listing saved configurations");
+
+        let store = ConfigStore::new()?;
+        let configs = store.list_configs()?;
+
+        let config_list: Vec<Value> = configs
+            .iter()
+            .map(|c| {
+                json!({
+                    "name": c.name,
+                    "description": c.description,
+                    "created": c.created.to_rfc3339(),
+                    "settings_preview": {
+                        "channel": c.settings.channel,
+                        "modulation": c.settings.modulation
+                    }
+                })
+            })
+            .collect();
+
+        Ok(json!({
+            "success": true,
+            "configs": config_list,
+            "count": configs.len()
+        }))
+    }
+
+    /// Delete a saved configuration preset.
+    ///
+    /// Phase 2 Week 4: Remove config file from ~/.ubertooth/configs/
+    pub(in crate::sidecar) async fn config_delete(&self, params: Value) -> Result<Value> {
+        let config_name = params
+            .get("config_name")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'config_name'".to_string()))?;
+
+        tracing::info!("Deleting configuration: {}", config_name);
+
+        let store = ConfigStore::new()?;
+        store.delete_config(config_name)?;
+
+        Ok(json!({
+            "success": true,
+            "message": format!("Configuration '{}' deleted", config_name)
         }))
     }
 }
