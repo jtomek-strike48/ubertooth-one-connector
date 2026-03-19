@@ -4,3 +4,4 @@
 //! organized by functionality.
 
 pub mod scan;
+pub mod spectrum;
