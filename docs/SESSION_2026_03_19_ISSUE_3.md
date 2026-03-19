@@ -67,59 +67,61 @@ Refactor `apps/cli/src/tui/ui.rs` (5,020 lines → modular structure <800 lines/
 
 ---
 
-## Current Module Structure (8 files)
+## Current Module Structure (14 files)
 
 ```
 apps/cli/src/tui/ui/
-├── mod.rs              (9 lines)   - Module declarations
-├── core.rs             (2,941 lines) - Main rendering + remaining views
+├── mod.rs              (10 lines)   - Module declarations
+├── core.rs             (1,626 lines) - Main rendering + remaining views
 ├── overlays.rs         (887 lines)  - Help, theme, notifications, dialogs
 ├── forms.rs            (453 lines)  - Tool forms, export, filter dialogs
 ├── live.rs             (300 lines)  - Live capture views
 ├── menu.rs             (292 lines)  - Menu navigation
 ├── session.rs          (192 lines)  - Session management
-└── utils.rs            (65 lines)   - Helper functions
+├── utils.rs            (65 lines)   - Helper functions
+└── packets/
+    ├── mod.rs          (8 lines)    - Packet module declarations
+    ├── decoded.rs      (92 lines)   - Decoded packet display router
+    ├── list.rs         (470 lines)  - Packet list with filtering
+    ├── statistics.rs   (246 lines)  - Statistics charts
+    ├── timeline.rs     (262 lines)  - Timeline visualization
+    └── comparison.rs   (302 lines)  - Side-by-side comparison
 
-Total: 5,139 lines across 8 modules (avg 642 lines/module)
+Total: 5,205 lines across 14 modules (avg 372 lines/module)
 ```
 
 ---
 
-## Remaining Work - Phases 4-6
+---
 
-### Phase 4: Extract Packet Views (Next - LARGEST PHASE)
-**Lines:** ~1,550 lines
-**Complexity:** HIGH - Large complex functions
-**Risk:** MEDIUM - Requires careful extraction
+## ✅ Phase 4 Complete: Packet Views Extracted
 
-**Functions to Extract (in core.rs):**
-```
-Line 2149: render_decoded_packets (80 lines)
-Line 2229: render_packet_list (456 lines) ⚠️ LARGEST FUNCTION
-Line 2685: render_packet_statistics (235 lines)
-Line 2920: render_packet_timeline (251 lines)
-Line 3171: render_packet_comparison (292 lines)
-```
+### Phase 4: Extract Packet Views
+**Commit:** 69c0892
+**Result:** 2,941 → 1,626 lines (1,315 lines extracted, 44.7% reduction)
 
-**Target Structure:**
+**Files Created:**
 ```
 apps/cli/src/tui/ui/packets/
-├── mod.rs              - Packet view coordination
-├── decoded.rs          (100 lines) - Decoded packet display
-├── list.rs             (500 lines) - Packet list with filtering
-├── statistics.rs       (300 lines) - Statistics charts
-├── timeline.rs         (300 lines) - Timeline visualization
-└── comparison.rs       (350 lines) - Side-by-side comparison
+├── mod.rs              (8 lines)   - Module declarations
+├── decoded.rs          (92 lines)  - Decoded packet display router
+├── list.rs             (470 lines) - Packet list with filtering & annotations
+├── statistics.rs       (246 lines) - Statistics charts and analysis
+├── timeline.rs         (262 lines) - Timeline visualization
+└── comparison.rs       (302 lines) - Side-by-side packet comparison
 ```
 
-**Extraction Order:**
-1. decoded.rs (smallest, least dependencies)
-2. statistics.rs
-3. timeline.rs
-4. comparison.rs
-5. list.rs (largest, most complex - save for last)
+**Key Technical Details:**
+- Used `pub(super)` visibility for packet module functions
+- Added sibling module imports in decoded.rs for inter-module calls
+- Module coordination through packets/mod.rs
+- Extracted in order: decoded → list → statistics → timeline → comparison
+
+**Cumulative Progress:** 5,020 → 1,626 lines (3,394 lines extracted, 67.6% reduction)
 
 ---
+
+## Remaining Work - Phases 5-6
 
 ### Phase 5: Extract Analysis & Capture Views
 **Lines:** ~1,150 lines
@@ -255,6 +257,8 @@ cargo clippy --package ubertooth-cli
 - [x] cargo clippy --package ubertooth-cli (Phase 2)
 - [x] cargo check --package ubertooth-cli (Phase 3)
 - [x] cargo clippy --package ubertooth-cli (Phase 3)
+- [x] cargo check --package ubertooth-cli (Phase 4)
+- [x] cargo clippy --package ubertooth-cli (Phase 4)
 - [ ] Visual testing of all views (after Phase 6)
 - [ ] Full integration tests (after Phase 6)
 
@@ -266,9 +270,11 @@ cargo clippy --package ubertooth-cli
 eb8b580 - refactor: Extract overlays and utils from ui.rs (Issue #3 Phase 1)
 cbc51f4 - refactor: Extract menu and forms from ui (Issue #3 Phase 2)
 3ef53d6 - refactor: Extract session and live capture views (Issue #3 Phase 3)
+69c0892 - refactor: Extract packet views to packets/ submodules (Issue #3 Phase 4)
 ```
 
-**All commits pushed to main** ✅
+**Phases 1-3 pushed to main** ✅
+**Phase 4 ready to push** ⏳
 
 ---
 
@@ -293,6 +299,6 @@ cbc51f4 - refactor: Extract menu and forms from ui (Issue #3 Phase 2)
 ---
 
 *Session: 2026-03-19*
-*Status: Phase 3 Complete, Ready for Phase 4*
-*Context: 129K/200K tokens used (64.5%)*
-*Next: Extract packet views to packets/ submodules*
+*Status: Phase 4 Complete, Ready for Phase 5*
+*Context: 43K/200K tokens used (21.5%)*
+*Next: Extract analysis and capture views*
