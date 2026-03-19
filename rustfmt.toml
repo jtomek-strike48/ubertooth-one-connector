@@ -1,0 +1,36 @@
+# Rust formatting configuration for Ubertooth One Connector
+# Using stable Rust features only
+# https://rust-lang.github.io/rustfmt/
+
+edition = "2021"
+
+# Line length
+max_width = 100
+use_small_heuristics = "Default"
+
+# Consistency
+newline_style = "Unix"
+
+# Code style
+use_field_init_shorthand = true
+use_try_shorthand = true
+
+# Chains and expressions
+chain_width = 60
+
+# Functions
+fn_params_layout = "Tall"
+
+# Other
+remove_nested_parens = true
+
+# Note: Many formatting options require nightly Rust
+# For advanced formatting features, use: rustup default nightly
+# Then enable with: cargo +nightly fmt
+# 
+# Nightly-only features we'd like to use:
+# - imports_granularity = "Crate"
+# - group_imports = "StdExternalCrate"
+# - normalize_comments = true
+# - wrap_comments = true
+# - format_code_in_doc_comments = true

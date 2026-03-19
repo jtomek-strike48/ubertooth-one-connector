@@ -63,9 +63,11 @@ impl UbertoothDeviceLibusb {
                 let mut desc = std::mem::zeroed::<DeviceDescriptor>();
 
                 if libusb_get_device_descriptor(dev, &mut desc) == LIBUSB_SUCCESS
-                    && desc.id_vendor == USB_VENDOR_ID && desc.id_product == USB_PRODUCT_ID {
-                        ubertooth_devices.push(dev);
-                    }
+                    && desc.id_vendor == USB_VENDOR_ID
+                    && desc.id_product == USB_PRODUCT_ID
+                {
+                    ubertooth_devices.push(dev);
+                }
             }
 
             if ubertooth_devices.is_empty() {

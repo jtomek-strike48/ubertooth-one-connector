@@ -62,11 +62,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     // Track unique devices
                                     if devices_seen.insert(addr_str.clone()) {
                                         println!("📱 New Device: {}", addr_str);
-                                        println!("   Type: {} ({})",
+                                        println!(
+                                            "   Type: {} ({})",
                                             ble_pkt.pdu_type_name(),
                                             match ad_data.address_type {
-                                                ubertooth_usb::protocol::AddressType::Public => "Public",
-                                                ubertooth_usb::protocol::AddressType::Random => "Random",
+                                                ubertooth_usb::protocol::AddressType::Public =>
+                                                    "Public",
+                                                ubertooth_usb::protocol::AddressType::Random =>
+                                                    "Random",
                                             }
                                         );
 
@@ -106,8 +109,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             );
                                         }
 
-                                        if let Some((company_id, data)) =
-                                            &ad_data.manufacturer_data
+                                        if let Some((company_id, data)) = &ad_data.manufacturer_data
                                         {
                                             println!(
                                                 "   Manufacturer: 0x{:04X} ({} bytes)",

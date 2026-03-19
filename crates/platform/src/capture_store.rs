@@ -111,7 +111,6 @@ impl CaptureCategory {
             Self::Custom(name) => name,
         }
     }
-
 }
 
 impl FromStr for CaptureCategory {
@@ -352,10 +351,7 @@ impl CaptureStore {
                 .category
                 .clone()
                 .unwrap_or_else(|| "Uncategorized".to_string());
-            grouped
-                .entry(category)
-                .or_default()
-                .push(capture);
+            grouped.entry(category).or_default().push(capture);
         }
 
         Ok(grouped)

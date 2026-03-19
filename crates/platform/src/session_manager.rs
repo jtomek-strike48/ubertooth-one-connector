@@ -106,9 +106,7 @@ impl SessionState {
 
     /// Get a human-readable session description
     pub fn description(&self) -> String {
-        let tool = self
-            .current_tool.as_deref()
-            .unwrap_or("None");
+        let tool = self.current_tool.as_deref().unwrap_or("None");
         let captures = self.open_captures.len();
         let filters = self.filters.len();
 
