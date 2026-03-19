@@ -4,8 +4,10 @@
 
 mod core;
 mod forms;
+mod live;
 mod menu;
 mod overlays;
+mod session;
 mod utils;
 
 // Re-export main render function
