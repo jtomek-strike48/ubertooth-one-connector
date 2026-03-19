@@ -59,14 +59,13 @@ impl UbertoothDeviceLibusb {
             // Find Ubertooth devices
             let mut ubertooth_devices = Vec::new();
             for i in 0..count {
-                let dev = *list.offset(i as isize);
+                let dev = *list.offset(i);
                 let mut desc = std::mem::zeroed::<DeviceDescriptor>();
 
-                if libusb_get_device_descriptor(dev, &mut desc) == LIBUSB_SUCCESS {
-                    if desc.id_vendor == USB_VENDOR_ID && desc.id_product == USB_PRODUCT_ID {
+                if libusb_get_device_descriptor(dev, &mut desc) == LIBUSB_SUCCESS
+                    && desc.id_vendor == USB_VENDOR_ID && desc.id_product == USB_PRODUCT_ID {
                         ubertooth_devices.push(dev);
                     }
-                }
             }
 
             if ubertooth_devices.is_empty() {
@@ -77,7 +76,11 @@ impl UbertoothDeviceLibusb {
                 });
             }
 
-            info!("Found {} Ubertooth device(s), connecting to index {}", ubertooth_devices.len(), device_index);
+            info!(
+                "Found {} Ubertooth device(s), connecting to index {}",
+                ubertooth_devices.len(),
+                device_index
+            );
 
             if device_index >= ubertooth_devices.len() {
                 libusb_free_device_list(list, 1);
@@ -296,15 +299,30 @@ impl UbertoothDeviceLibusb {
 
     /// Set modulation mode
     pub fn set_modulation(&self, mode: u8) -> Result<()> {
-        debug!("Setting modulation to {} (CMD={})", mode, CMD_SET_MODULATION);
-        self.control_transfer(CMD_SET_MODULATION, mode as u16, 0, &[], USB_TIMEOUT_SHORT_MS)?;
+        debug!(
+            "Setting modulation to {} (CMD={})",
+            mode, CMD_SET_MODULATION
+        );
+        self.control_transfer(
+            CMD_SET_MODULATION,
+            mode as u16,
+            0,
+            &[],
+            USB_TIMEOUT_SHORT_MS,
+        )?;
         Ok(())
     }
 
     /// Set channel
     pub fn set_channel(&self, channel: u8) -> Result<()> {
         debug!("Setting channel to {}", channel);
-        self.control_transfer(CMD_SET_CHANNEL, channel as u16, 0, &[], USB_TIMEOUT_SHORT_MS)?;
+        self.control_transfer(
+            CMD_SET_CHANNEL,
+            channel as u16,
+            0,
+            &[],
+            USB_TIMEOUT_SHORT_MS,
+        )?;
         Ok(())
     }
 
@@ -335,11 +353,7 @@ impl UbertoothDeviceLibusb {
     pub fn create_async_stream_reader(&self) -> Result<crate::libusb_stream::LibusbAsyncReader> {
         let raw_handle = self.raw_handle().ok_or(UsbError::NotOpen)?;
         let raw_context = self.raw_context();
-        crate::libusb_stream::LibusbAsyncReader::start(
-            raw_handle,
-            raw_context,
-            ENDPOINT_DATA_IN,
-        )
+        crate::libusb_stream::LibusbAsyncReader::start(raw_handle, raw_context, ENDPOINT_DATA_IN)
     }
 
     /// Refresh device information
@@ -354,9 +368,7 @@ impl UbertoothDeviceLibusb {
             &mut buffer,
             USB_TIMEOUT_SHORT_MS,
         ) {
-            Ok(len) if len > 0 => {
-                String::from_utf8_lossy(&buffer[..len]).trim().to_string()
-            }
+            Ok(len) if len > 0 => String::from_utf8_lossy(&buffer[..len]).trim().to_string(),
             _ => {
                 debug!("Failed to get compile info, using default");
                 "unknown".to_string()
@@ -385,11 +397,10 @@ impl UbertoothDeviceLibusb {
         ) {
             Ok(len) if len >= 17 => {
                 // Parse serial number from 17 bytes
-                let mut serial = String::new();
-                for i in 1..17 {
-                    serial.push_str(&format!("{:02x}", buffer[i]));
-                }
-                serial
+                buffer[1..17]
+                    .iter()
+                    .map(|b| format!("{:02x}", b))
+                    .collect::<String>()
             }
             _ => "unknown".to_string(),
         };
@@ -402,7 +413,8 @@ impl UbertoothDeviceLibusb {
             compile_info: firmware_version.clone(),
         });
 
-        info!("Device: {} ({})",
+        info!(
+            "Device: {} ({})",
             self.device_info.as_ref().unwrap().board_name(),
             firmware_version
         );

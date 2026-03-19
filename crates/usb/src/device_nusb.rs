@@ -85,10 +85,7 @@ impl UbertoothDevice {
         );
 
         // Open device
-        let device = device_info
-            .open()
-            .await
-            .map_err(UsbError::from_nusb)?;
+        let device = device_info.open().await.map_err(UsbError::from_nusb)?;
 
         // Claim interface 0
         debug!("Claiming interface 0");
@@ -156,49 +153,37 @@ impl UbertoothDevice {
     /// Refresh device information from hardware.
     async fn refresh_device_info(&mut self) -> Result<()> {
         // Get board ID (optional - may not work on all firmware)
-        let board_id = self
-            .get_board_id()
-            .await
-            .unwrap_or_else(|e| {
-                debug!("Failed to get board ID: {}, using default (1=Ubertooth One)", e);
-                1 // Default to Ubertooth One
-            });
+        let board_id = self.get_board_id().await.unwrap_or_else(|e| {
+            debug!(
+                "Failed to get board ID: {}, using default (1=Ubertooth One)",
+                e
+            );
+            1 // Default to Ubertooth One
+        });
 
         // Get firmware version (optional)
-        let firmware_version = self
-            .get_firmware_version()
-            .await
-            .unwrap_or_else(|e| {
-                debug!("Failed to get firmware version: {}, using default", e);
-                "unknown".to_string()
-            });
+        let firmware_version = self.get_firmware_version().await.unwrap_or_else(|e| {
+            debug!("Failed to get firmware version: {}, using default", e);
+            "unknown".to_string()
+        });
 
         // Get API version (optional - may not be supported on all firmware)
-        let api_version = self
-            .get_api_version()
-            .await
-            .unwrap_or_else(|e| {
-                debug!("Failed to get API version: {}, using default", e);
-                "unknown".to_string()
-            });
+        let api_version = self.get_api_version().await.unwrap_or_else(|e| {
+            debug!("Failed to get API version: {}, using default", e);
+            "unknown".to_string()
+        });
 
         // Get serial number (optional)
-        let serial_number = self
-            .get_serial_number()
-            .await
-            .unwrap_or_else(|e| {
-                debug!("Failed to get serial number: {}, using default", e);
-                "unknown".to_string()
-            });
+        let serial_number = self.get_serial_number().await.unwrap_or_else(|e| {
+            debug!("Failed to get serial number: {}, using default", e);
+            "unknown".to_string()
+        });
 
         // Get compile info (optional)
-        let compile_info = self
-            .get_compile_info()
-            .await
-            .unwrap_or_else(|e| {
-                debug!("Failed to get compile info: {}, using default", e);
-                "unknown".to_string()
-            });
+        let compile_info = self.get_compile_info().await.unwrap_or_else(|e| {
+            debug!("Failed to get compile info: {}, using default", e);
+            "unknown".to_string()
+        });
 
         let info = DeviceInfo {
             board_id,
@@ -237,9 +222,7 @@ impl UbertoothDevice {
         timeout_ms: u64,
     ) -> Result<usize> {
         let interface_guard = self.interface.lock().await;
-        let interface = interface_guard
-            .as_ref()
-            .ok_or(UsbError::NotOpen)?;
+        let interface = interface_guard.as_ref().ok_or(UsbError::NotOpen)?;
 
         let timeout = Duration::from_millis(timeout_ms);
 
@@ -302,9 +285,7 @@ impl UbertoothDevice {
         timeout_ms: u64,
     ) -> Result<usize> {
         let interface_guard = self.interface.lock().await;
-        let interface = interface_guard
-            .as_ref()
-            .ok_or(UsbError::NotOpen)?;
+        let interface = interface_guard.as_ref().ok_or(UsbError::NotOpen)?;
 
         let timeout = Duration::from_millis(timeout_ms);
 
@@ -347,9 +328,7 @@ impl UbertoothDevice {
     /// Read bulk data from device (async).
     pub async fn bulk_read(&self, buffer: &mut [u8], timeout_ms: u64) -> Result<usize> {
         let interface_guard = self.interface.lock().await;
-        let interface = interface_guard
-            .as_ref()
-            .ok_or(UsbError::NotOpen)?;
+        let interface = interface_guard.as_ref().ok_or(UsbError::NotOpen)?;
 
         let timeout = Duration::from_millis(timeout_ms);
 
@@ -387,9 +366,7 @@ impl UbertoothDevice {
     /// Write bulk data to device (async).
     pub async fn bulk_write(&self, data: &[u8], timeout_ms: u64) -> Result<usize> {
         let interface_guard = self.interface.lock().await;
-        let interface = interface_guard
-            .as_ref()
-            .ok_or(UsbError::NotOpen)?;
+        let interface = interface_guard.as_ref().ok_or(UsbError::NotOpen)?;
 
         let timeout = Duration::from_millis(timeout_ms);
 
@@ -442,14 +419,8 @@ impl UbertoothDevice {
     /// Get board ID.
     async fn get_board_id(&self) -> Result<u8> {
         let mut buffer = [0u8; 1];
-        self.control_transfer_read(
-            CMD_GET_BOARD_ID,
-            0,
-            0,
-            &mut buffer,
-            USB_TIMEOUT_SHORT_MS,
-        )
-        .await?;
+        self.control_transfer_read(CMD_GET_BOARD_ID, 0, 0, &mut buffer, USB_TIMEOUT_SHORT_MS)
+            .await?;
         Ok(buffer[0])
     }
 
@@ -475,13 +446,7 @@ impl UbertoothDevice {
     async fn get_api_version(&self) -> Result<String> {
         let mut buffer = [0u8; 4];
         let len = self
-            .control_transfer_read(
-                CMD_GET_API_VERSION,
-                0,
-                0,
-                &mut buffer,
-                USB_TIMEOUT_SHORT_MS,
-            )
+            .control_transfer_read(CMD_GET_API_VERSION, 0, 0, &mut buffer, USB_TIMEOUT_SHORT_MS)
             .await?;
 
         if len >= 4 {
@@ -574,7 +539,7 @@ impl UbertoothDevice {
         debug!("Setting power to {} dBm", power_dbm);
 
         // Validate power range
-        if power_dbm < TX_POWER_MIN || power_dbm > TX_POWER_MAX {
+        if !(TX_POWER_MIN..=TX_POWER_MAX).contains(&power_dbm) {
             return Err(UsbError::InvalidParameter(format!(
                 "Power {} dBm out of range ({} to {})",
                 power_dbm, TX_POWER_MIN, TX_POWER_MAX
@@ -622,12 +587,11 @@ impl UbertoothDevice {
     /// Create a streaming packet reader for continuous packet capture.
     ///
     /// This uses nusb's optimized multi-transfer streaming pattern.
-    pub async fn create_stream_reader(&self) -> Result<crate::stream_reader::StreamingPacketReader> {
+    pub async fn create_stream_reader(
+        &self,
+    ) -> Result<crate::stream_reader::StreamingPacketReader> {
         let interface_guard = self.interface.lock().await;
-        let interface = interface_guard
-            .as_ref()
-            .ok_or(UsbError::NotOpen)?
-            .clone();
+        let interface = interface_guard.as_ref().ok_or(UsbError::NotOpen)?.clone();
 
         // Release lock before starting stream
         drop(interface_guard);

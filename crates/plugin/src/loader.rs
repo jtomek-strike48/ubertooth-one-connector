@@ -13,15 +13,20 @@ pub struct PluginLoader {
 
 impl PluginLoader {
     /// Load plugin from path
+    ///
+    /// # Safety
+    /// This function loads and executes code from a dynamic library.
+    /// The caller must ensure that:
+    /// - The library at the given path is a valid plugin
+    /// - The library exports the `_plugin_create` symbol with the correct signature
+    /// - The plugin's code is trusted and does not contain malicious code
     pub unsafe fn load<P: AsRef<Path>>(path: P) -> PluginResult<(Self, Box<dyn Plugin>)> {
-        let library = Library::new(path.as_ref()).map_err(|e| {
-            PluginError::LoadError(format!("Failed to load library: {}", e))
-        })?;
+        let library = Library::new(path.as_ref())
+            .map_err(|e| PluginError::LoadError(format!("Failed to load library: {}", e)))?;
 
         // Get the plugin constructor function
-        let constructor: Symbol<unsafe extern "C" fn() -> *mut dyn Plugin> = library
-            .get(b"_plugin_create")
-            .map_err(|e| {
+        let constructor: Symbol<unsafe extern "C" fn() -> *mut dyn Plugin> =
+            library.get(b"_plugin_create").map_err(|e| {
                 PluginError::LoadError(format!("Failed to find _plugin_create symbol: {}", e))
             })?;
 
@@ -52,9 +57,9 @@ impl PluginLoader {
         // Check file extension
         let extension = path.as_ref().extension().and_then(|e| e.to_str());
         let valid = match extension {
-            Some("so") => true,  // Linux
+            Some("so") => true,    // Linux
             Some("dylib") => true, // macOS
-            Some("dll") => true, // Windows
+            Some("dll") => true,   // Windows
             _ => false,
         };
 

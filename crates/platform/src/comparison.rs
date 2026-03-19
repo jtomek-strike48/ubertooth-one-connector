@@ -116,12 +116,12 @@ pub struct ComparisonSummary {
 /// Similarity level
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
 pub enum SimilarityLevel {
-    Identical,      // >95%
-    VerySimilar,    // 80-95%
-    Similar,        // 60-80%
-    Somewhat,       // 40-60%
-    Different,      // 20-40%
-    VeryDifferent,  // <20%
+    Identical,     // >95%
+    VerySimilar,   // 80-95%
+    Similar,       // 60-80%
+    Somewhat,      // 40-60%
+    Different,     // 20-40%
+    VeryDifferent, // <20%
 }
 
 impl SimilarityLevel {
@@ -158,12 +158,8 @@ pub struct ComparisonEngine;
 
 impl ComparisonEngine {
     /// Compare multiple captures
-    pub fn compare_captures(
-        capture_data: Vec<CaptureData>,
-    ) -> Result<ComparisonResult> {
-        let capture_ids: Vec<String> = capture_data.iter()
-            .map(|c| c.capture_id.clone())
-            .collect();
+    pub fn compare_captures(capture_data: Vec<CaptureData>) -> Result<ComparisonResult> {
+        let capture_ids: Vec<String> = capture_data.iter().map(|c| c.capture_id.clone()).collect();
 
         // Analyze device presence
         let device_presence = Self::analyze_device_presence(&capture_data);
@@ -172,8 +168,9 @@ impl ComparisonEngine {
         let traffic_patterns = Self::analyze_traffic_patterns(&capture_data);
 
         // Calculate statistics for each capture
-        let statistics: Vec<CaptureStatistics> = capture_data.iter()
-            .map(|data| Self::calculate_statistics(data))
+        let statistics: Vec<CaptureStatistics> = capture_data
+            .iter()
+            .map(Self::calculate_statistics)
             .collect();
 
         // Build similarity matrix
@@ -204,26 +201,29 @@ impl ComparisonEngine {
         // Collect devices from each capture
         for (idx, capture) in captures.iter().enumerate() {
             for device in &capture.devices {
-                all_devices.entry(device.mac_address.clone())
-                    .or_insert_with(Vec::new)
+                all_devices
+                    .entry(device.mac_address.clone())
+                    .or_default()
                     .push((idx, device.clone()));
             }
         }
 
         // Identify common devices (present in all captures)
-        let common_devices: Vec<DeviceInfo> = all_devices.iter()
+        let common_devices: Vec<DeviceInfo> = all_devices
+            .iter()
             .filter(|(_, occurrences)| occurrences.len() == captures.len())
             .map(|(_, occurrences)| occurrences[0].1.clone())
             .collect();
 
         // Identify unique devices per capture
         let mut unique_devices: HashMap<String, Vec<DeviceInfo>> = HashMap::new();
-        for (mac, occurrences) in &all_devices {
+        for occurrences in all_devices.values() {
             if occurrences.len() == 1 {
                 let (capture_idx, device) = &occurrences[0];
                 let capture_id = captures[*capture_idx].capture_id.clone();
-                unique_devices.entry(capture_id)
-                    .or_insert_with(Vec::new)
+                unique_devices
+                    .entry(capture_id)
+                    .or_default()
                     .push(device.clone());
             }
         }
@@ -249,7 +249,8 @@ impl ComparisonEngine {
                 *channel_counts.entry(packet.channel).or_insert(0) += 1;
             }
 
-            let mut usage: Vec<ChannelUsage> = channel_counts.iter()
+            let mut usage: Vec<ChannelUsage> = channel_counts
+                .iter()
                 .map(|(&channel, &count)| ChannelUsage {
                     channel,
                     packet_count: count,
@@ -265,7 +266,8 @@ impl ComparisonEngine {
                 *type_counts.entry(packet.packet_type.clone()).or_insert(0) += 1;
             }
 
-            let mut types: Vec<PacketTypeCount> = type_counts.iter()
+            let mut types: Vec<PacketTypeCount> = type_counts
+                .iter()
                 .map(|(packet_type, &count)| PacketTypeCount {
                     packet_type: packet_type.clone(),
                     count,
@@ -333,7 +335,8 @@ impl ComparisonEngine {
 
         for window_start in (first_time..=last_time).step_by(100) {
             let window_end = window_start + window_ms;
-            let count = packets.iter()
+            let count = packets
+                .iter()
                 .filter(|p| p.timestamp_ms >= window_start && p.timestamp_ms < window_end)
                 .count();
             max_count = max_count.max(count);
@@ -345,10 +348,10 @@ impl ComparisonEngine {
     /// Calculate statistics for a capture
     fn calculate_statistics(capture: &CaptureData) -> CaptureStatistics {
         let unique_devices = capture.devices.len();
-        let channels_used: HashSet<u8> = capture.packets.iter()
-            .map(|p| p.channel)
-            .collect();
-        let packet_types: HashSet<String> = capture.packets.iter()
+        let channels_used: HashSet<u8> = capture.packets.iter().map(|p| p.channel).collect();
+        let packet_types: HashSet<String> = capture
+            .packets
+            .iter()
             .map(|p| p.packet_type.clone())
             .collect();
 
@@ -361,7 +364,9 @@ impl ComparisonEngine {
         };
 
         let avg_rssi = if !capture.packets.is_empty() {
-            let rssi_sum: i32 = capture.packets.iter()
+            let rssi_sum: i32 = capture
+                .packets
+                .iter()
                 .filter_map(|p| p.rssi)
                 .map(|r| r as i32)
                 .sum();
@@ -411,12 +416,8 @@ impl ComparisonEngine {
         let mut scores = Vec::new();
 
         // Device overlap score
-        let devices_a: HashSet<String> = a.devices.iter()
-            .map(|d| d.mac_address.clone())
-            .collect();
-        let devices_b: HashSet<String> = b.devices.iter()
-            .map(|d| d.mac_address.clone())
-            .collect();
+        let devices_a: HashSet<String> = a.devices.iter().map(|d| d.mac_address.clone()).collect();
+        let devices_b: HashSet<String> = b.devices.iter().map(|d| d.mac_address.clone()).collect();
         let common = devices_a.intersection(&devices_b).count();
         let total = devices_a.union(&devices_b).count();
         if total > 0 {
@@ -433,12 +434,8 @@ impl ComparisonEngine {
         }
 
         // Packet type overlap
-        let types_a: HashSet<String> = a.packets.iter()
-            .map(|p| p.packet_type.clone())
-            .collect();
-        let types_b: HashSet<String> = b.packets.iter()
-            .map(|p| p.packet_type.clone())
-            .collect();
+        let types_a: HashSet<String> = a.packets.iter().map(|p| p.packet_type.clone()).collect();
+        let types_b: HashSet<String> = b.packets.iter().map(|p| p.packet_type.clone()).collect();
         let common_types = types_a.intersection(&types_b).count();
         let total_types = types_a.union(&types_b).count();
         if total_types > 0 {
@@ -456,7 +453,7 @@ impl ComparisonEngine {
     /// Generate comparison summary
     fn generate_summary(
         device_presence: &DevicePresenceComparison,
-        traffic_patterns: &TrafficPatternComparison,
+        _traffic_patterns: &TrafficPatternComparison,
         statistics: &[CaptureStatistics],
         similarity_matrix: &[Vec<f64>],
     ) -> ComparisonSummary {
@@ -486,23 +483,32 @@ impl ComparisonEngine {
         }
 
         // Analyze packet counts
-        let min_packets = statistics.iter().map(|s| s.total_packets).min().unwrap_or(0);
-        let max_packets = statistics.iter().map(|s| s.total_packets).max().unwrap_or(0);
+        let min_packets = statistics
+            .iter()
+            .map(|s| s.total_packets)
+            .min()
+            .unwrap_or(0);
+        let max_packets = statistics
+            .iter()
+            .map(|s| s.total_packets)
+            .max()
+            .unwrap_or(0);
         if max_packets > 0 && (max_packets - min_packets) as f64 / max_packets as f64 > 0.5 {
             key_differences.push(format!(
                 "Significant packet count variation: {} - {}",
                 min_packets, max_packets
             ));
-            recommendations.push("Consider normalizing capture durations for better comparison".to_string());
+            recommendations
+                .push("Consider normalizing capture durations for better comparison".to_string());
         }
 
         // Calculate overall similarity
         let avg_similarity = if similarity_matrix.len() > 1 {
             let mut sum = 0.0;
             let mut count = 0;
-            for i in 0..similarity_matrix.len() {
-                for j in (i + 1)..similarity_matrix[i].len() {
-                    sum += similarity_matrix[i][j];
+            for (i, row) in similarity_matrix.iter().enumerate() {
+                for &value in row.iter().skip(i + 1) {
+                    sum += value;
                     count += 1;
                 }
             }
@@ -520,10 +526,15 @@ impl ComparisonEngine {
         // Generate recommendations based on similarity
         match overall_similarity {
             SimilarityLevel::Identical | SimilarityLevel::VerySimilar => {
-                recommendations.push("Captures are highly similar - potential replay or identical scenarios".to_string());
+                recommendations.push(
+                    "Captures are highly similar - potential replay or identical scenarios"
+                        .to_string(),
+                );
             }
             SimilarityLevel::VeryDifferent => {
-                recommendations.push("Captures are very different - analyze unique devices and patterns".to_string());
+                recommendations.push(
+                    "Captures are very different - analyze unique devices and patterns".to_string(),
+                );
             }
             _ => {
                 recommendations.push("Captures show moderate differences - review device presence and traffic patterns".to_string());
@@ -560,19 +571,25 @@ mod tests {
     use super::*;
 
     fn create_test_capture(id: &str, device_macs: Vec<&str>, packet_count: usize) -> CaptureData {
-        let devices = device_macs.iter().enumerate().map(|(i, &mac)| DeviceInfo {
-            mac_address: mac.to_string(),
-            name: Some(format!("Device {}", i)),
-            packet_count: packet_count / device_macs.len(),
-            avg_rssi: Some(-50.0),
-        }).collect();
+        let devices = device_macs
+            .iter()
+            .enumerate()
+            .map(|(i, &mac)| DeviceInfo {
+                mac_address: mac.to_string(),
+                name: Some(format!("Device {}", i)),
+                packet_count: packet_count / device_macs.len(),
+                avg_rssi: Some(-50.0),
+            })
+            .collect();
 
-        let packets = (0..packet_count).map(|i| PacketInfo {
-            timestamp_ms: i as u64 * 100,
-            channel: (i % 3 + 37) as u8, // Channels 37, 38, 39
-            rssi: Some(-50),
-            packet_type: "LE_ADV".to_string(),
-        }).collect();
+        let packets = (0..packet_count)
+            .map(|i| PacketInfo {
+                timestamp_ms: i as u64 * 100,
+                channel: (i % 3 + 37) as u8, // Channels 37, 38, 39
+                rssi: Some(-50),
+                packet_type: "LE_ADV".to_string(),
+            })
+            .collect();
 
         CaptureData {
             capture_id: id.to_string(),
@@ -619,16 +636,23 @@ mod tests {
 
     #[test]
     fn test_similarity_level() {
-        assert_eq!(SimilarityLevel::from_score(0.99), SimilarityLevel::Identical);
-        assert_eq!(SimilarityLevel::from_score(0.85), SimilarityLevel::VerySimilar);
-        assert_eq!(SimilarityLevel::from_score(0.10), SimilarityLevel::VeryDifferent);
+        assert_eq!(
+            SimilarityLevel::from_score(0.99),
+            SimilarityLevel::Identical
+        );
+        assert_eq!(
+            SimilarityLevel::from_score(0.85),
+            SimilarityLevel::VerySimilar
+        );
+        assert_eq!(
+            SimilarityLevel::from_score(0.10),
+            SimilarityLevel::VeryDifferent
+        );
     }
 
     #[test]
     fn test_traffic_pattern_analysis() {
-        let captures = vec![
-            create_test_capture("cap1", vec!["AA:BB:CC:DD:EE:FF"], 100),
-        ];
+        let captures = vec![create_test_capture("cap1", vec!["AA:BB:CC:DD:EE:FF"], 100)];
 
         let result = ComparisonEngine::compare_captures(captures).unwrap();
         assert!(!result.traffic_patterns.channel_usage.is_empty());

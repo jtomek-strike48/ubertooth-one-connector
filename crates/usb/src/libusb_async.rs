@@ -61,11 +61,15 @@ struct LibusbTransfer {
 
 // Transfer status constants
 const LIBUSB_TRANSFER_COMPLETED: i32 = 0;
+#[allow(dead_code)]
 const LIBUSB_TRANSFER_ERROR: i32 = 1;
 const LIBUSB_TRANSFER_TIMED_OUT: i32 = 2;
 const LIBUSB_TRANSFER_CANCELLED: i32 = 3;
+#[allow(dead_code)]
 const LIBUSB_TRANSFER_STALL: i32 = 4;
+#[allow(dead_code)]
 const LIBUSB_TRANSFER_NO_DEVICE: i32 = 5;
+#[allow(dead_code)]
 const LIBUSB_TRANSFER_OVERFLOW: i32 = 6;
 
 // Transfer type constants
@@ -122,8 +126,10 @@ impl AsyncTransfer {
         (*transfer).callback = Some(transfer_callback);
         (*transfer).user_data = completion_ptr;
 
-        debug!("Created async transfer: endpoint=0x{:02x}, size={}, timeout={}ms",
-               endpoint, buffer_size, timeout_ms);
+        debug!(
+            "Created async transfer: endpoint=0x{:02x}, size={}, timeout={}ms",
+            endpoint, buffer_size, timeout_ms
+        );
 
         Ok(Self {
             transfer,
@@ -164,7 +170,8 @@ impl AsyncTransfer {
     pub fn cancel(&mut self) {
         unsafe {
             let ret = libusb_cancel_transfer(self.transfer);
-            if ret != 0 && ret != -5 {  // -5 = NOT_FOUND (already completed)
+            if ret != 0 && ret != -5 {
+                // -5 = NOT_FOUND (already completed)
                 warn!("Failed to cancel transfer: error {}", ret);
             }
         }
@@ -195,7 +202,7 @@ impl Drop for AsyncTransfer {
                 // Free user_data Arc
                 if !(*self.transfer).user_data.is_null() {
                     let _ = Arc::from_raw(
-                        (*self.transfer).user_data as *const Mutex<Option<TransferCompletion>>
+                        (*self.transfer).user_data as *const Mutex<Option<TransferCompletion>>,
                     );
                 }
 
@@ -268,10 +275,7 @@ impl AsyncTransferManager {
     ///
     /// # Safety
     /// The context must be a valid libusb context pointer from rusb.
-    pub unsafe fn new(
-        context: *mut c_void,
-        packet_tx: mpsc::Sender<Vec<u8>>,
-    ) -> Self {
+    pub unsafe fn new(context: *mut c_void, packet_tx: mpsc::Sender<Vec<u8>>) -> Self {
         Self {
             context,
             packet_tx,
@@ -288,20 +292,18 @@ impl AsyncTransferManager {
         let mut completed = 0;
         let timeout = TimeVal {
             tv_sec: 0,
-            tv_usec: 100_000,  // 100ms
+            tv_usec: 100_000, // 100ms
         };
 
         while *self.running.lock().unwrap() {
             unsafe {
-                let ret = libusb_handle_events_timeout_completed(
-                    self.context,
-                    &timeout,
-                    &mut completed,
-                );
+                let ret =
+                    libusb_handle_events_timeout_completed(self.context, &timeout, &mut completed);
 
                 if ret < 0 {
                     warn!("libusb_handle_events error: {}", ret);
-                    if ret == -1 {  // LIBUSB_ERROR_IO
+                    if ret == -1 {
+                        // LIBUSB_ERROR_IO
                         return Err(UsbError::Disconnected);
                     }
                 }
@@ -356,7 +358,9 @@ impl LibusbStreamReader {
 
         // Spawn background streaming task
         tokio::task::spawn_blocking(move || {
-            if let Err(e) = run_streaming_raw(sendable_handle, sendable_context, endpoint, packet_tx) {
+            if let Err(e) =
+                run_streaming_raw(sendable_handle, sendable_context, endpoint, packet_tx)
+            {
                 warn!("Streaming error: {}", e);
             }
         });
@@ -396,7 +400,11 @@ impl LibusbStreamReader {
         match self.packet_rx.recv().await {
             Some(packet) => {
                 self.packet_count += 1;
-                trace!("Received packet #{}: {} bytes", self.packet_count, packet.len());
+                trace!(
+                    "Received packet #{}: {} bytes",
+                    self.packet_count,
+                    packet.len()
+                );
                 Some(packet)
             }
             None => {
@@ -419,14 +427,17 @@ fn run_streaming_raw(
     endpoint: u8,
     packet_tx: mpsc::Sender<Vec<u8>>,
 ) -> Result<()> {
-    let raw_handle = raw_handle.0;  // Extract the pointer
-    let raw_context = raw_context.0;  // Extract the context pointer
+    let raw_handle = raw_handle.0; // Extract the pointer
+    let raw_context = raw_context.0; // Extract the context pointer
     const NUM_TRANSFERS: usize = 8;
     const TRANSFER_SIZE: usize = USB_PKT_SIZE;
     const TIMEOUT_MS: u32 = 5000;
 
     debug!("Starting run_streaming_raw");
-    debug!("Setting up {} concurrent transfers with raw handle", NUM_TRANSFERS);
+    debug!(
+        "Setting up {} concurrent transfers with raw handle",
+        NUM_TRANSFERS
+    );
 
     // Create transfer manager
     let manager = unsafe { AsyncTransferManager::new(raw_context, packet_tx.clone()) };
@@ -435,9 +446,8 @@ fn run_streaming_raw(
     debug!("Creating {} transfers", NUM_TRANSFERS);
     let mut transfers = Vec::new();
     for i in 0..NUM_TRANSFERS {
-        let mut transfer = unsafe {
-            AsyncTransfer::new_bulk_in(raw_handle, endpoint, TRANSFER_SIZE, TIMEOUT_MS)?
-        };
+        let mut transfer =
+            unsafe { AsyncTransfer::new_bulk_in(raw_handle, endpoint, TRANSFER_SIZE, TIMEOUT_MS)? };
 
         transfer.submit()?;
         debug!("Submitted transfer {}/{}", i + 1, NUM_TRANSFERS);
@@ -460,7 +470,6 @@ fn run_streaming_raw(
     // Main transfer management loop
     let mut packet_count = 0;
     loop {
-
         // Check all transfers for completion
         let mut any_completed = false;
 
@@ -472,7 +481,10 @@ fn run_streaming_raw(
                     LIBUSB_TRANSFER_COMPLETED => {
                         if completion.actual_length > 0 {
                             packet_count += 1;
-                            debug!("Packet #{}: {} bytes", packet_count, completion.actual_length);
+                            debug!(
+                                "Packet #{}: {} bytes",
+                                packet_count, completion.actual_length
+                            );
 
                             // Send packet
                             if let Err(e) = packet_tx.blocking_send(completion.data) {
@@ -532,7 +544,7 @@ fn run_streaming(
     // and libusb will use the default context
     let raw_context = ptr::null_mut();
 
-    drop(handle_guard);  // Release lock
+    drop(handle_guard); // Release lock
 
     // Create transfer manager
     let manager = unsafe { AsyncTransferManager::new(raw_context, packet_tx.clone()) };
@@ -541,9 +553,8 @@ fn run_streaming(
     debug!("Creating {} transfers", NUM_TRANSFERS);
     let mut transfers = Vec::new();
     for i in 0..NUM_TRANSFERS {
-        let mut transfer = unsafe {
-            AsyncTransfer::new_bulk_in(raw_handle, endpoint, TRANSFER_SIZE, TIMEOUT_MS)?
-        };
+        let mut transfer =
+            unsafe { AsyncTransfer::new_bulk_in(raw_handle, endpoint, TRANSFER_SIZE, TIMEOUT_MS)? };
 
         transfer.submit()?;
         debug!("Submitted transfer {}/{}", i + 1, NUM_TRANSFERS);
@@ -566,7 +577,6 @@ fn run_streaming(
     // Main transfer management loop
     let mut packet_count = 0;
     loop {
-
         // Check all transfers for completion
         let mut any_completed = false;
 
@@ -578,7 +588,10 @@ fn run_streaming(
                     LIBUSB_TRANSFER_COMPLETED => {
                         if completion.actual_length > 0 {
                             packet_count += 1;
-                            debug!("Packet #{}: {} bytes", packet_count, completion.actual_length);
+                            debug!(
+                                "Packet #{}: {} bytes",
+                                packet_count, completion.actual_length
+                            );
 
                             // Send packet
                             if let Err(e) = packet_tx.blocking_send(completion.data) {
@@ -619,6 +632,7 @@ fn run_streaming(
 
 #[cfg(test)]
 mod tests {
+    #[allow(unused_imports)]
     use super::*;
 
     #[test]

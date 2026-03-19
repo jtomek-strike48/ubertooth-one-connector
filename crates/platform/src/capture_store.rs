@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::str::FromStr;
 use ubertooth_core::error::{Result, UbertoothError};
 use uuid::Uuid;
 
@@ -56,7 +57,7 @@ impl Tag {
 
     /// Get the tag name (last component)
     pub fn name(&self) -> &str {
-        self.path.split('/').last().unwrap_or(&self.path)
+        self.path.split('/').next_back().unwrap_or(&self.path)
     }
 
     /// Check if this is a child of another tag
@@ -111,16 +112,20 @@ impl CaptureCategory {
         }
     }
 
-    /// Parse from string
-    pub fn from_str(s: &str) -> Self {
-        match s {
+}
+
+impl FromStr for CaptureCategory {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Ok(match s {
             "Reconnaissance" => Self::Reconnaissance,
             "Attack" => Self::Attack,
             "Defense" => Self::Defense,
             "Analysis" => Self::Analysis,
             "Testing" => Self::Testing,
             custom => Self::Custom(custom.to_string()),
-        }
+        })
     }
 }
 
@@ -132,8 +137,9 @@ pub struct CaptureStore {
 impl CaptureStore {
     /// Create a new capture store at ~/.ubertooth/
     pub fn new() -> Result<Self> {
-        let home = dirs::home_dir()
-            .ok_or_else(|| UbertoothError::BackendError("Could not determine home directory".to_string()))?;
+        let home = dirs::home_dir().ok_or_else(|| {
+            UbertoothError::BackendError("Could not determine home directory".to_string())
+        })?;
 
         let base_path = home.join(".ubertooth");
 
@@ -237,9 +243,10 @@ impl CaptureStore {
             .filter(|capture| {
                 // Check if capture has any of the filter tags (or their children)
                 tag_filters.iter().any(|filter| {
-                    capture.tags.iter().any(|tag| {
-                        tag == filter || tag.starts_with(&format!("{}/", filter))
-                    })
+                    capture
+                        .tags
+                        .iter()
+                        .any(|tag| tag == filter || tag.starts_with(&format!("{}/", filter)))
                 })
             })
             .collect();
@@ -253,9 +260,7 @@ impl CaptureStore {
 
         let filtered: Vec<CaptureMetadata> = all_captures
             .into_iter()
-            .filter(|capture| {
-                capture.category.as_ref().map_or(false, |c| c == category)
-            })
+            .filter(|capture| capture.category.as_ref().is_some_and(|c| c == category))
             .collect();
 
         Ok(filtered)
@@ -335,13 +340,22 @@ impl CaptureStore {
     }
 
     /// Get captures grouped by category
-    pub fn group_by_category(&self) -> Result<std::collections::HashMap<String, Vec<CaptureMetadata>>> {
+    pub fn group_by_category(
+        &self,
+    ) -> Result<std::collections::HashMap<String, Vec<CaptureMetadata>>> {
         let captures = self.list_captures()?;
-        let mut grouped: std::collections::HashMap<String, Vec<CaptureMetadata>> = std::collections::HashMap::new();
+        let mut grouped: std::collections::HashMap<String, Vec<CaptureMetadata>> =
+            std::collections::HashMap::new();
 
         for capture in captures {
-            let category = capture.category.clone().unwrap_or_else(|| "Uncategorized".to_string());
-            grouped.entry(category).or_insert_with(Vec::new).push(capture);
+            let category = capture
+                .category
+                .clone()
+                .unwrap_or_else(|| "Uncategorized".to_string());
+            grouped
+                .entry(category)
+                .or_default()
+                .push(capture);
         }
 
         Ok(grouped)
@@ -356,8 +370,14 @@ impl CaptureStore {
             .into_iter()
             .filter(|capture| {
                 capture.description.to_lowercase().contains(&query_lower)
-                    || capture.notes.as_ref().map_or(false, |n| n.to_lowercase().contains(&query_lower))
-                    || capture.tags.iter().any(|t| t.to_lowercase().contains(&query_lower))
+                    || capture
+                        .notes
+                        .as_ref()
+                        .is_some_and(|n| n.to_lowercase().contains(&query_lower))
+                    || capture
+                        .tags
+                        .iter()
+                        .any(|t| t.to_lowercase().contains(&query_lower))
             })
             .collect();
 
@@ -407,7 +427,13 @@ mod tests {
 
     #[test]
     fn test_category_from_str() {
-        assert_eq!(CaptureCategory::from_str("Attack"), CaptureCategory::Attack);
-        assert_eq!(CaptureCategory::from_str("Custom"), CaptureCategory::Custom("Custom".to_string()));
+        assert_eq!(
+            CaptureCategory::from_str("Attack").unwrap(),
+            CaptureCategory::Attack
+        );
+        assert_eq!(
+            CaptureCategory::from_str("Custom").unwrap(),
+            CaptureCategory::Custom("Custom".to_string())
+        );
     }
 }

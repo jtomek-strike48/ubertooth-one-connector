@@ -74,7 +74,7 @@ pub trait Plugin: Send + Sync {
     fn initialize(&mut self, context: PluginContext) -> Result<(), PluginError>;
 
     /// Process packet (if capability includes PacketProcessor)
-    fn process_packet(&mut self, packet: &PacketData) -> Result<ProcessResult, PluginError> {
+    fn process_packet(&mut self, _packet: &PacketData) -> Result<ProcessResult, PluginError> {
         Err(PluginError::NotSupported(
             "PacketProcessor capability not implemented".to_string(),
         ))
@@ -83,8 +83,8 @@ pub trait Plugin: Send + Sync {
     /// Analyze capture (if capability includes CaptureAnalyzer)
     fn analyze_capture(
         &mut self,
-        capture_id: &str,
-        packets: &[PacketData],
+        _capture_id: &str,
+        _packets: &[PacketData],
     ) -> Result<AnalysisResult, PluginError> {
         Err(PluginError::NotSupported(
             "CaptureAnalyzer capability not implemented".to_string(),
@@ -94,9 +94,9 @@ pub trait Plugin: Send + Sync {
     /// Export data (if capability includes Exporter)
     fn export(
         &mut self,
-        capture_id: &str,
-        packets: &[PacketData],
-        format: &str,
+        _capture_id: &str,
+        _packets: &[PacketData],
+        _format: &str,
     ) -> Result<Vec<u8>, PluginError> {
         Err(PluginError::NotSupported(
             "Exporter capability not implemented".to_string(),
@@ -104,7 +104,7 @@ pub trait Plugin: Send + Sync {
     }
 
     /// Execute command (if capability includes Command)
-    fn execute_command(&mut self, command: &str, args: &[String]) -> Result<Value, PluginError> {
+    fn execute_command(&mut self, _command: &str, _args: &[String]) -> Result<Value, PluginError> {
         Err(PluginError::NotSupported(
             "Command capability not implemented".to_string(),
         ))
@@ -278,7 +278,9 @@ mod tests {
         fn process_packet(&mut self, packet: &PacketData) -> Result<ProcessResult, PluginError> {
             let mut result = ProcessResult::default();
             result.tags.push("processed".to_string());
-            result.metadata.insert("test".to_string(), serde_json::json!(packet.sequence));
+            result
+                .metadata
+                .insert("test".to_string(), serde_json::json!(packet.sequence));
             Ok(result)
         }
     }
@@ -325,7 +327,10 @@ mod tests {
         let data_dir = std::path::PathBuf::from("/tmp");
 
         let context = PluginContext::new(config, data_dir.clone());
-        assert_eq!(context.get_config("key").unwrap(), &serde_json::json!("value"));
+        assert_eq!(
+            context.get_config("key").unwrap(),
+            &serde_json::json!("value")
+        );
         assert_eq!(context.data_dir, data_dir);
     }
 }

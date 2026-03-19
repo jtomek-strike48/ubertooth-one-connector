@@ -148,8 +148,10 @@ impl StreamingBuffer {
 
     /// Create a new streaming buffer with custom limits
     pub fn with_limits(limits: CaptureLimits) -> Self {
-        let mut stats = BufferStats::default();
-        stats.started_at = Utc::now();
+        let stats = BufferStats {
+            started_at: Utc::now(),
+            ..Default::default()
+        };
 
         Self {
             packets: Arc::new(RwLock::new(VecDeque::with_capacity(limits.max_packets))),
@@ -215,19 +217,14 @@ impl StreamingBuffer {
     /// Get packets in a specific range
     pub fn get_packets_range(&self, start: usize, count: usize) -> Result<Vec<PacketData>, String> {
         let packets = self.packets.read().map_err(|e| e.to_string())?;
-        Ok(packets
-            .iter()
-            .skip(start)
-            .take(count)
-            .cloned()
-            .collect())
+        Ok(packets.iter().skip(start).take(count).cloned().collect())
     }
 
     /// Get the most recent N packets
     pub fn get_recent_packets(&self, count: usize) -> Result<Vec<PacketData>, String> {
         let packets = self.packets.read().map_err(|e| e.to_string())?;
         let total = packets.len();
-        let start = if total > count { total - count } else { 0 };
+        let start = total.saturating_sub(count);
         Ok(packets.iter().skip(start).cloned().collect())
     }
 

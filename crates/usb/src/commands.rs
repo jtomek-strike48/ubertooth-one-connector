@@ -1,16 +1,16 @@
 //! High-level USB command implementations.
 
+use crate::async_reader::flush_usb_buffer_libusb;
 use crate::constants::*;
 use crate::device_libusb::UbertoothDeviceLibusb;
 use crate::error::UsbError;
 use crate::protocol::{BlePacket, UsbPacket};
-use crate::async_reader::flush_usb_buffer_libusb;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
-use tracing::{info, warn, debug};
+use tracing::{debug, info, warn};
 use ubertooth_core::error::Result;
 
 /// High-level command executor for Ubertooth operations.
@@ -123,9 +123,9 @@ impl UbertoothCommands {
 
     /// Execute configure_channel command.
     pub async fn configure_channel(&self, params: Value) -> Result<Value> {
-        let channel = params["channel"]
-            .as_u64()
-            .ok_or_else(|| ubertooth_core::error::UbertoothError::InvalidParameter("channel required".to_string()))? as u8;
+        let channel = params["channel"].as_u64().ok_or_else(|| {
+            ubertooth_core::error::UbertoothError::InvalidParameter("channel required".to_string())
+        })? as u8;
 
         // Validate channel
         if channel > BLE_CHANNEL_MAX {
@@ -148,9 +148,11 @@ impl UbertoothCommands {
 
     /// Execute configure_modulation command.
     pub async fn configure_modulation(&self, params: Value) -> Result<Value> {
-        let modulation_str = params["modulation"]
-            .as_str()
-            .ok_or_else(|| ubertooth_core::error::UbertoothError::InvalidParameter("modulation required".to_string()))?;
+        let modulation_str = params["modulation"].as_str().ok_or_else(|| {
+            ubertooth_core::error::UbertoothError::InvalidParameter(
+                "modulation required".to_string(),
+            )
+        })?;
 
         let modulation = match modulation_str {
             "bt_basic_rate" | "BR" => MOD_BT_BASIC_RATE,
@@ -176,10 +178,11 @@ impl UbertoothCommands {
 
     /// Execute configure_power command.
     pub async fn configure_power(&self, params: Value) -> Result<Value> {
-        let power_dbm = params["power_dbm"]
-            .as_i64()
-            .ok_or_else(|| ubertooth_core::error::UbertoothError::InvalidParameter("power_dbm required".to_string()))?
-            as i8;
+        let power_dbm = params["power_dbm"].as_i64().ok_or_else(|| {
+            ubertooth_core::error::UbertoothError::InvalidParameter(
+                "power_dbm required".to_string(),
+            )
+        })? as i8;
 
         let device = self.device.lock().await;
         usb_result!(device.set_power(power_dbm))?;
@@ -228,14 +231,23 @@ impl UbertoothCommands {
         // 4. Set channel using FREQUENCY in MHz (not channel number!)
         let frequency = 2402 + (channel - 37) as u16; // Channel 37=2402, 38=2426, 39=2480
         info!("Setting channel {} (frequency {} MHz)", channel, frequency);
-        usb_result!(device.control_transfer(CMD_SET_CHANNEL, frequency, 0, &[], USB_TIMEOUT_SHORT_MS))?;
+        usb_result!(device.control_transfer(
+            CMD_SET_CHANNEL,
+            frequency,
+            0,
+            &[],
+            USB_TIMEOUT_SHORT_MS
+        ))?;
 
         // 5. Use CMD_BTLE_SNIFFING (42) for advertisement scanning
         // (NOT CMD_BTLE_PROMISC which is for connection following)
         info!("Starting BLE advertisement scanning...");
         usb_result!(device.control_transfer(CMD_BTLE_SNIFFING, 0, 0, &[], USB_TIMEOUT_SHORT_MS))?;
 
-        info!("BLE advertisement scanning started on channel {} ({} MHz)", channel, frequency);
+        info!(
+            "BLE advertisement scanning started on channel {} ({} MHz)",
+            channel, frequency
+        );
 
         // Drop the lock before flushing
         drop(device);
@@ -320,7 +332,10 @@ impl UbertoothCommands {
         let mut preview = Vec::new();
         let mut packet_count = 0;
 
-        info!("Starting libusb async packet capture ({}s)...", duration_sec);
+        info!(
+            "Starting libusb async packet capture ({}s)...",
+            duration_sec
+        );
 
         // Create libusb async stream reader
         let device = self.device.lock().await;
@@ -341,41 +356,57 @@ impl UbertoothCommands {
                     if buffer.len() >= 14 {
                         match UsbPacket::from_bytes(&buffer) {
                             Ok(usb_pkt) => {
-                                debug!("Parsed USB packet: type={}, channel={}, payload_len={}",
-                                      usb_pkt.header.pkt_type,
-                                      usb_pkt.header.channel,
-                                      usb_pkt.payload.len());
+                                debug!(
+                                    "Parsed USB packet: type={}, channel={}, payload_len={}",
+                                    usb_pkt.header.pkt_type,
+                                    usb_pkt.header.channel,
+                                    usb_pkt.payload.len()
+                                );
 
                                 if usb_pkt.is_ble() {
                                     // Parse BLE packet
                                     match BlePacket::from_usb_packet(&usb_pkt) {
                                         Ok(ble_pkt) => {
                                             total_packets += 1;
-                                            info!("BLE packet #{}: RSSI={}", total_packets, ble_pkt.rssi);
+                                            info!(
+                                                "BLE packet #{}: RSSI={}",
+                                                total_packets, ble_pkt.rssi
+                                            );
 
                                             // Extract device info
                                             if let Some(addr) = ble_pkt.advertiser_address() {
                                                 let mac = format!(
                                                     "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
-                                                    addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]
+                                                    addr[5],
+                                                    addr[4],
+                                                    addr[3],
+                                                    addr[2],
+                                                    addr[1],
+                                                    addr[0]
                                                 );
 
-                                                let stats = devices.entry(mac.clone()).or_insert(DeviceStats {
-                                                    address_type: "public".to_string(),
-                                                    name: None,
-                                                    rssi_sum: 0,
-                                                    packet_count: 0,
-                                                    rssi_avg: 0,
-                                                });
+                                                let stats = devices.entry(mac.clone()).or_insert(
+                                                    DeviceStats {
+                                                        address_type: "public".to_string(),
+                                                        name: None,
+                                                        rssi_sum: 0,
+                                                        packet_count: 0,
+                                                        rssi_avg: 0,
+                                                    },
+                                                );
 
                                                 stats.packet_count += 1;
                                                 stats.rssi_sum += ble_pkt.rssi as i32;
-                                                stats.rssi_avg = stats.rssi_sum / stats.packet_count as i32;
+                                                stats.rssi_avg =
+                                                    stats.rssi_sum / stats.packet_count as i32;
 
                                                 // Try to extract device name
                                                 if stats.name.is_none() {
                                                     if let Some(name) = ble_pkt.device_name() {
-                                                        info!("Device discovered: {} ({})", mac, name);
+                                                        info!(
+                                                            "Device discovered: {} ({})",
+                                                            mac, name
+                                                        );
                                                         stats.name = Some(name);
                                                     }
                                                 }
@@ -415,7 +446,9 @@ impl UbertoothCommands {
 
         info!(
             "Packet capture complete: {} raw packets, {} BLE packets, {} devices",
-            packet_count, total_packets, devices.len()
+            packet_count,
+            total_packets,
+            devices.len()
         );
 
         Ok(ScanResult {
@@ -429,11 +462,11 @@ impl UbertoothCommands {
     ///
     /// Follows a specific BLE connection by its access address, capturing data channel packets.
     pub async fn btle_follow(&self, params: Value) -> Result<Value> {
-        let access_address = params["access_address"]
-            .as_u64()
-            .ok_or_else(|| UsbError::InvalidParameter(
-                "access_address parameter required (32-bit hex value)".to_string()
-            ))? as u32;
+        let access_address = params["access_address"].as_u64().ok_or_else(|| {
+            UsbError::InvalidParameter(
+                "access_address parameter required (32-bit hex value)".to_string(),
+            )
+        })? as u32;
         let channel = params["channel"].as_u64().unwrap_or(0) as u8;
         let duration_sec = params["duration_sec"].as_u64().unwrap_or(30);
         let save_pcap = params["save_pcap"].as_bool().unwrap_or(true);
@@ -473,9 +506,12 @@ impl UbertoothCommands {
                 37 => 2402,
                 38 => 2426,
                 39 => 2480,
-                _ => return usb_result!(Err(UsbError::InvalidParameter(
-                    format!("Invalid advertising channel: {}", channel)
-                ))),
+                _ => {
+                    return usb_result!(Err(UsbError::InvalidParameter(format!(
+                        "Invalid advertising channel: {}",
+                        channel
+                    ))))
+                }
             }
         } else {
             // Data channels 0-36
@@ -483,13 +519,22 @@ impl UbertoothCommands {
         };
 
         info!("Setting channel {} (frequency {} MHz)", channel, frequency);
-        usb_result!(device.control_transfer(CMD_SET_CHANNEL, frequency, 0, &[], USB_TIMEOUT_SHORT_MS))?;
+        usb_result!(device.control_transfer(
+            CMD_SET_CHANNEL,
+            frequency,
+            0,
+            &[],
+            USB_TIMEOUT_SHORT_MS
+        ))?;
 
         // 6. Start promiscuous mode (connection following)
         info!("Starting BLE promiscuous mode (connection following)...");
         usb_result!(device.control_transfer(CMD_BTLE_PROMISC, 0, 0, &[], USB_TIMEOUT_SHORT_MS))?;
 
-        info!("Connection following started on channel {} ({} MHz)", channel, frequency);
+        info!(
+            "Connection following started on channel {} ({} MHz)",
+            channel, frequency
+        );
 
         // Drop lock before packet collection
         drop(device);
@@ -595,9 +640,18 @@ impl UbertoothCommands {
 
         // Start spectrum analysis mode
         // wValue = low_freq, wIndex = high_freq
-        usb_result!(device.control_transfer(CMD_SPECAN, low_freq, high_freq, &[], USB_TIMEOUT_SHORT_MS))?;
+        usb_result!(device.control_transfer(
+            CMD_SPECAN,
+            low_freq,
+            high_freq,
+            &[],
+            USB_TIMEOUT_SHORT_MS
+        ))?;
 
-        info!("Spectrum analysis started: scanning {}-{} MHz", low_freq, high_freq);
+        info!(
+            "Spectrum analysis started: scanning {}-{} MHz",
+            low_freq, high_freq
+        );
 
         // Drop lock before scanning
         drop(device);
@@ -652,7 +706,10 @@ impl UbertoothCommands {
         let mut sweep_count = 0;
         let mut total_samples = 0;
 
-        info!("Collecting spectrum data for {}s using CMD_POLL...", duration_sec);
+        info!(
+            "Collecting spectrum data for {}s using CMD_POLL...",
+            duration_sec
+        );
 
         let start = tokio::time::Instant::now();
         let scan_duration = Duration::from_secs(duration_sec);
@@ -666,7 +723,7 @@ impl UbertoothCommands {
                     drop(device);
 
                     // Parse USB packet
-                    if let Ok(usb_pkt) = UsbPacket::from_bytes(&buffer[..len].to_vec()) {
+                    if let Ok(usb_pkt) = UsbPacket::from_bytes(&buffer[..len]) {
                         if usb_pkt.is_specan() {
                             // Parse spectrum points
                             match crate::protocol::SpectrumPoint::from_usb_packet(&usb_pkt) {
@@ -677,15 +734,15 @@ impl UbertoothCommands {
                                     for point in points {
                                         total_samples += 1;
 
-                                        let stats = channel_stats
-                                            .entry(point.channel)
-                                            .or_insert(ChannelStats {
+                                        let stats = channel_stats.entry(point.channel).or_insert(
+                                            ChannelStats {
                                                 rssi_min: point.rssi,
                                                 rssi_max: point.rssi,
                                                 rssi_sum: 0,
                                                 sample_count: 0,
                                                 rssi_avg: 0,
-                                            });
+                                            },
+                                        );
 
                                         stats.sample_count += 1;
                                         stats.rssi_sum += point.rssi as i32;

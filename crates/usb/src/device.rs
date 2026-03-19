@@ -188,39 +188,37 @@ impl UbertoothDevice {
     /// Refresh device information from hardware.
     fn refresh_device_info(&mut self) -> Result<()> {
         // Get board ID (optional - may not work on all firmware)
-        let board_id = self.get_board_id()
-            .unwrap_or_else(|e| {
-                debug!("Failed to get board ID: {}, using default (1=Ubertooth One)", e);
-                1  // Default to Ubertooth One
-            });
+        let board_id = self.get_board_id().unwrap_or_else(|e| {
+            debug!(
+                "Failed to get board ID: {}, using default (1=Ubertooth One)",
+                e
+            );
+            1 // Default to Ubertooth One
+        });
 
         // Get firmware version (optional)
-        let firmware_version = self.get_firmware_version()
-            .unwrap_or_else(|e| {
-                debug!("Failed to get firmware version: {}, using default", e);
-                "unknown".to_string()
-            });
+        let firmware_version = self.get_firmware_version().unwrap_or_else(|e| {
+            debug!("Failed to get firmware version: {}, using default", e);
+            "unknown".to_string()
+        });
 
         // Get API version (optional - may not be supported on all firmware)
-        let api_version = self.get_api_version()
-            .unwrap_or_else(|e| {
-                debug!("Failed to get API version: {}, using default", e);
-                "unknown".to_string()
-            });
+        let api_version = self.get_api_version().unwrap_or_else(|e| {
+            debug!("Failed to get API version: {}, using default", e);
+            "unknown".to_string()
+        });
 
         // Get serial number (optional)
-        let serial_number = self.get_serial_number()
-            .unwrap_or_else(|e| {
-                debug!("Failed to get serial number: {}, using default", e);
-                "unknown".to_string()
-            });
+        let serial_number = self.get_serial_number().unwrap_or_else(|e| {
+            debug!("Failed to get serial number: {}, using default", e);
+            "unknown".to_string()
+        });
 
         // Get compile info (optional)
-        let compile_info = self.get_compile_info()
-            .unwrap_or_else(|e| {
-                debug!("Failed to get compile info: {}, using default", e);
-                "unknown".to_string()
-            });
+        let compile_info = self.get_compile_info().unwrap_or_else(|e| {
+            debug!("Failed to get compile info: {}, using default", e);
+            "unknown".to_string()
+        });
 
         let info = DeviceInfo {
             board_id,
@@ -263,14 +261,7 @@ impl UbertoothDevice {
 
         let timeout = Duration::from_millis(timeout_ms);
 
-        match handle.write_control(
-            USB_REQ_TYPE_OUT,
-            request,
-            value,
-            index,
-            data,
-            timeout,
-        ) {
+        match handle.write_control(USB_REQ_TYPE_OUT, request, value, index, data, timeout) {
             Ok(len) => Ok(len),
             Err(rusb::Error::Timeout) => Err(UsbError::Timeout { timeout_ms }),
             Err(rusb::Error::NoDevice) | Err(rusb::Error::Io) => Err(UsbError::Disconnected),
@@ -295,14 +286,7 @@ impl UbertoothDevice {
 
         let timeout = Duration::from_millis(timeout_ms);
 
-        match handle.read_control(
-            USB_REQ_TYPE_IN,
-            request,
-            value,
-            index,
-            buffer,
-            timeout,
-        ) {
+        match handle.read_control(USB_REQ_TYPE_IN, request, value, index, buffer, timeout) {
             Ok(len) => Ok(len),
             Err(rusb::Error::Timeout) => Err(UsbError::Timeout { timeout_ms }),
             Err(rusb::Error::NoDevice) | Err(rusb::Error::Io) => Err(UsbError::Disconnected),
@@ -368,30 +352,20 @@ impl UbertoothDevice {
     /// Get board ID.
     fn get_board_id(&self) -> Result<u8> {
         let mut buffer = [0u8; 1];
-        self.control_transfer_read(
-            CMD_GET_BOARD_ID,
-            0,
-            0,
-            &mut buffer,
-            USB_TIMEOUT_SHORT_MS,
-        )?;
+        self.control_transfer_read(CMD_GET_BOARD_ID, 0, 0, &mut buffer, USB_TIMEOUT_SHORT_MS)?;
         Ok(buffer[0])
     }
 
     /// Get firmware version string.
     fn get_firmware_version(&self) -> Result<String> {
         let mut buffer = [0u8; 64];
-        let len = self.control_transfer_read(
-            CMD_GET_REV_NUM,
-            0,
-            0,
-            &mut buffer,
-            USB_TIMEOUT_SHORT_MS,
-        )?;
+        let len =
+            self.control_transfer_read(CMD_GET_REV_NUM, 0, 0, &mut buffer, USB_TIMEOUT_SHORT_MS)?;
 
         // Trim null bytes and convert to string (lossy to handle non-UTF8)
         let bytes = &buffer[..len];
-        let trimmed = bytes.iter()
+        let trimmed = bytes
+            .iter()
             .take_while(|&&b| b != 0)
             .copied()
             .collect::<Vec<u8>>();
@@ -411,10 +385,7 @@ impl UbertoothDevice {
         )?;
 
         if len >= 4 {
-            Ok(format!(
-                "{}.{}.{}",
-                buffer[0], buffer[1], buffer[2]
-            ))
+            Ok(format!("{}.{}.{}", buffer[0], buffer[1], buffer[2]))
         } else {
             Ok("unknown".to_string())
         }
@@ -423,17 +394,13 @@ impl UbertoothDevice {
     /// Get serial number.
     fn get_serial_number(&self) -> Result<String> {
         let mut buffer = [0u8; 64];
-        let len = self.control_transfer_read(
-            CMD_GET_SERIAL,
-            0,
-            0,
-            &mut buffer,
-            USB_TIMEOUT_SHORT_MS,
-        )?;
+        let len =
+            self.control_transfer_read(CMD_GET_SERIAL, 0, 0, &mut buffer, USB_TIMEOUT_SHORT_MS)?;
 
         // Trim null bytes and convert to string (lossy to handle non-UTF8)
         let bytes = &buffer[..len];
-        let trimmed = bytes.iter()
+        let trimmed = bytes
+            .iter()
             .take_while(|&&b| b != 0)
             .copied()
             .collect::<Vec<u8>>();
@@ -454,7 +421,8 @@ impl UbertoothDevice {
 
         // Trim null bytes and convert to string (lossy to handle non-UTF8)
         let bytes = &buffer[..len];
-        let trimmed = bytes.iter()
+        let trimmed = bytes
+            .iter()
             .take_while(|&&b| b != 0)
             .copied()
             .collect::<Vec<u8>>();
@@ -478,13 +446,7 @@ impl UbertoothDevice {
     /// Get current channel.
     pub fn get_channel(&self) -> Result<u8> {
         let mut buffer = [0u8; 1];
-        self.control_transfer_read(
-            CMD_GET_CHANNEL,
-            0,
-            0,
-            &mut buffer,
-            USB_TIMEOUT_SHORT_MS,
-        )?;
+        self.control_transfer_read(CMD_GET_CHANNEL, 0, 0, &mut buffer, USB_TIMEOUT_SHORT_MS)?;
         Ok(buffer[0])
     }
 
@@ -506,7 +468,7 @@ impl UbertoothDevice {
         debug!("Setting power to {} dBm", power_dbm);
 
         // Validate power range
-        if power_dbm < TX_POWER_MIN || power_dbm > TX_POWER_MAX {
+        if !(TX_POWER_MIN..=TX_POWER_MAX).contains(&power_dbm) {
             return Err(UsbError::InvalidParameter(format!(
                 "Power {} dBm out of range ({} to {})",
                 power_dbm, TX_POWER_MIN, TX_POWER_MAX
@@ -546,7 +508,9 @@ impl UbertoothDevice {
     /// Create a libusb async stream reader for high-performance packet capture.
     ///
     /// This uses libusb-1.0's async transfer API (proven to work with Ubertooth).
-    pub async fn create_libusb_stream_reader(&self) -> Result<crate::libusb_async::LibusbStreamReader> {
+    pub async fn create_libusb_stream_reader(
+        &self,
+    ) -> Result<crate::libusb_async::LibusbStreamReader> {
         // Check if connected
         {
             let handle_guard = self.handle.lock().unwrap();
@@ -558,7 +522,7 @@ impl UbertoothDevice {
         // Create a new Arc<Mutex<DeviceHandle>> from our Option wrapper
         // We need to clone the inner handle to match the expected type
         let handle_guard = self.handle.lock().unwrap();
-        let handle_ref = handle_guard.as_ref().unwrap();
+        let _handle_ref = handle_guard.as_ref().unwrap();
 
         // Create a new Arc<Mutex<DeviceHandle>> with the cloned handle
         // Note: We can't actually clone a DeviceHandle, so we need to restructure this
@@ -568,11 +532,13 @@ impl UbertoothDevice {
         let raw_handle = self.raw_handle().ok_or(UsbError::NotOpen)?;
         let raw_context = self.raw_context();
 
+        #[allow(clippy::await_holding_lock)]
         crate::libusb_async::LibusbStreamReader::start_from_raw(
             raw_handle,
             raw_context,
             ENDPOINT_DATA_IN,
-        ).await
+        )
+        .await
     }
 
     /// Get raw device handle pointer for FFI.
@@ -581,7 +547,9 @@ impl UbertoothDevice {
     /// The pointer is only valid while the device is connected.
     pub(crate) fn raw_handle(&self) -> Option<*mut std::ffi::c_void> {
         let handle_guard = self.handle.lock().unwrap();
-        handle_guard.as_ref().map(|h| h.as_raw() as *mut std::ffi::c_void)
+        handle_guard
+            .as_ref()
+            .map(|h| h.as_raw() as *mut std::ffi::c_void)
     }
 
     /// Get raw context pointer for FFI.

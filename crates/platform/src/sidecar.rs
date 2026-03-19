@@ -73,6 +73,7 @@ struct BleDevice {
 /// The sidecar wraps the ubertooth-* command-line tools and provides a
 /// simple interface for executing commands.
 pub struct SidecarManager {
+    #[allow(dead_code)]
     process: Arc<Mutex<Option<Child>>>,
 }
 
@@ -90,7 +91,9 @@ impl SidecarManager {
         let output = Command::new("which")
             .arg("ubertooth-util")
             .output()
-            .map_err(|e| UbertoothError::BackendError(format!("Failed to check for ubertooth-util: {}", e)))?;
+            .map_err(|e| {
+                UbertoothError::BackendError(format!("Failed to check for ubertooth-util: {}", e))
+            })?;
 
         if !output.status.success() {
             return Err(UbertoothError::BackendError(
@@ -98,7 +101,8 @@ impl SidecarManager {
                  Ubuntu/Debian: sudo apt-get install ubertooth\n\
                  Arch: sudo pacman -S ubertooth\n\
                  macOS: brew install ubertooth\n\
-                 From source: https://github.com/greatscottgadgets/ubertooth".to_string()
+                 From source: https://github.com/greatscottgadgets/ubertooth"
+                    .to_string(),
             ));
         }
 
@@ -117,11 +121,7 @@ impl SidecarManager {
     /// Execute a ubertooth command-line tool.
     ///
     /// Filters out benign API version mismatch warnings from stderr.
-    async fn execute_ubertooth_command(
-        &self,
-        tool: &str,
-        args: &[&str],
-    ) -> Result<String> {
+    async fn execute_ubertooth_command(&self, tool: &str, args: &[&str]) -> Result<String> {
         tracing::debug!("Executing: {} {:?}", tool, args);
 
         let output = Command::new(tool)
@@ -139,9 +139,9 @@ impl SidecarManager {
             .lines()
             .filter(|line| {
                 // Filter out API version mismatch warnings (firmware newer than libubertooth)
-                !line.contains("API version") &&
-                !line.contains("newer than that supported") &&
-                !line.contains("Things will still work")
+                !line.contains("API version")
+                    && !line.contains("newer than that supported")
+                    && !line.contains("Things will still work")
             })
             .collect::<Vec<_>>()
             .join("\n");
@@ -229,9 +229,7 @@ impl UbertoothBackendProvider for SidecarManager {
 
     async fn is_alive(&self) -> bool {
         // Check if ubertooth-util responds
-        let result = Command::new("ubertooth-util")
-            .arg("-V")
-            .output();
+        let result = Command::new("ubertooth-util").arg("-V").output();
 
         result.is_ok()
     }
@@ -264,9 +262,7 @@ impl SidecarManager {
             .find(|line| line.contains("ubertooth"))
             .and_then(|line| {
                 // Extract version number (e.g., "2020-12-R1")
-                line.split_whitespace()
-                    .nth(1)
-                    .map(|s| s.to_string())
+                line.split_whitespace().nth(1).map(|s| s.to_string())
             })
             .unwrap_or_else(|| "unknown".to_string());
 
@@ -304,9 +300,7 @@ impl SidecarManager {
             .find(|line| line.contains("ubertooth"))
             .and_then(|line| {
                 // Extract version number (e.g., "2020-12-R1")
-                line.split_whitespace()
-                    .nth(1)
-                    .map(|s| s.to_string())
+                line.split_whitespace().nth(1).map(|s| s.to_string())
             })
             .unwrap_or_else(|| "unknown".to_string());
 
@@ -327,10 +321,7 @@ impl SidecarManager {
             .and_then(|v| v.as_u64())
             .unwrap_or(30);
 
-        let channel = params
-            .get("channel")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(37);
+        let _channel = params.get("channel").and_then(|v| v.as_u64()).unwrap_or(37);
 
         tracing::info!(
             "Starting multi-channel BLE scan: duration={}s (scanning channels 37, 38, 39)",
@@ -357,14 +348,19 @@ impl SidecarManager {
             tracing::info!("Scanning channel {} for {}s...", ch, duration_per_channel);
 
             // Prepare output file path for this channel
-            let channel_pcap_path = store.captures_dir().join(format!("{}_ch{}.pcap", capture_id, ch));
+            let channel_pcap_path = store
+                .captures_dir()
+                .join(format!("{}_ch{}.pcap", capture_id, ch));
             let channel_pcap_str = channel_pcap_path
                 .to_str()
                 .ok_or_else(|| UbertoothError::BackendError("Invalid path".to_string()))?
                 .to_string();
 
             // Scan single channel
-            match self.scan_single_channel(*ch, duration_per_channel, &channel_pcap_str).await {
+            match self
+                .scan_single_channel(*ch, duration_per_channel, &channel_pcap_str)
+                .await
+            {
                 Ok(packet_count) => {
                     total_packets += packet_count;
                     channel_pcaps.push(channel_pcap_str);
@@ -384,7 +380,8 @@ impl SidecarManager {
             .ok_or_else(|| UbertoothError::BackendError("Invalid path".to_string()))?;
 
         if !channel_pcaps.is_empty() {
-            self.merge_pcap_files(&channel_pcaps, final_pcap_str).await?;
+            self.merge_pcap_files(&channel_pcaps, final_pcap_str)
+                .await?;
 
             // Clean up individual channel files
             for pcap in &channel_pcaps {
@@ -393,8 +390,9 @@ impl SidecarManager {
         } else {
             // No captures, create empty PCAP
             tracing::warn!("No packets captured on any channel");
-            std::fs::write(&final_pcap_path, &[])
-                .map_err(|e| UbertoothError::BackendError(format!("Failed to create empty PCAP: {}", e)))?;
+            std::fs::write(&final_pcap_path, []).map_err(|e| {
+                UbertoothError::BackendError(format!("Failed to create empty PCAP: {}", e))
+            })?;
         }
 
         // Get final file size
@@ -412,8 +410,8 @@ impl SidecarManager {
             file_size_bytes: file_size,
             pcap_path: final_pcap_str.to_string(),
             tags: vec!["ble".to_string(), "multi-channel".to_string()],
-            description: format!("Multi-channel BLE scan (channels 37, 38, 39)"),
-                    category: None,
+            description: "Multi-channel BLE scan (channels 37, 38, 39)".to_string(),
+            category: None,
             notes: None,
         };
 
@@ -444,14 +442,19 @@ impl SidecarManager {
     }
 
     /// Scan a single BLE advertising channel
-    async fn scan_single_channel(&self, channel: u64, duration_sec: u64, pcap_path: &str) -> Result<u64> {
-        use tokio::time::Duration;
+    async fn scan_single_channel(
+        &self,
+        channel: u64,
+        duration_sec: u64,
+        pcap_path: &str,
+    ) -> Result<u64> {
         use std::process::Stdio;
+        use tokio::time::Duration;
 
         // Build ubertooth-btle command
         let channel_str = channel.to_string();
         let args = vec![
-            "-n",              // Scan mode (don't follow connections)
+            "-n", // Scan mode (don't follow connections)
             "-A",
             channel_str.as_str(),
             "-q",
@@ -466,7 +469,9 @@ impl SidecarManager {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| UbertoothError::BackendError(format!("Failed to spawn ubertooth-btle: {}", e)))?;
+            .map_err(|e| {
+                UbertoothError::BackendError(format!("Failed to spawn ubertooth-btle: {}", e))
+            })?;
 
         // Wait for duration, then kill process
         tokio::time::sleep(Duration::from_secs(duration_sec)).await;
@@ -474,17 +479,16 @@ impl SidecarManager {
         tracing::debug!("Duration elapsed, killing ubertooth-btle process...");
         let _ = child.kill().await;
 
-        let output_result = child.wait_with_output().await
-            .map_err(|e| UbertoothError::BackendError(format!("Failed to wait for ubertooth-btle: {}", e)))?;
+        let _output_result = child.wait_with_output().await.map_err(|e| {
+            UbertoothError::BackendError(format!("Failed to wait for ubertooth-btle: {}", e))
+        })?;
 
         // Count packets from PCAP file size (rough estimate)
-        let file_size = std::fs::metadata(pcap_path)
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let file_size = std::fs::metadata(pcap_path).map(|m| m.len()).unwrap_or(0);
 
         // Estimate packet count: PCAP header is 24 bytes, typical BLE packet ~50-100 bytes
         let packet_count = if file_size > 24 {
-            (file_size - 24) / 75  // Conservative estimate
+            (file_size - 24) / 75 // Conservative estimate
         } else {
             0
         };
@@ -512,27 +516,40 @@ impl SidecarManager {
                 tracing::debug!("mergecap not available, using manual merge");
 
                 if input_files.is_empty() {
-                    return Err(UbertoothError::BackendError("No PCAP files to merge".to_string()));
+                    return Err(UbertoothError::BackendError(
+                        "No PCAP files to merge".to_string(),
+                    ));
                 }
 
                 // Copy first file as base
-                std::fs::copy(&input_files[0], output_file)
-                    .map_err(|e| UbertoothError::BackendError(format!("Failed to copy base PCAP: {}", e)))?;
+                std::fs::copy(&input_files[0], output_file).map_err(|e| {
+                    UbertoothError::BackendError(format!("Failed to copy base PCAP: {}", e))
+                })?;
 
                 // Append packets from other files (skip their headers)
                 for input_file in &input_files[1..] {
-                    let data = std::fs::read(input_file)
-                        .map_err(|e| UbertoothError::BackendError(format!("Failed to read PCAP: {}", e)))?;
+                    let data = std::fs::read(input_file).map_err(|e| {
+                        UbertoothError::BackendError(format!("Failed to read PCAP: {}", e))
+                    })?;
 
                     // Skip PCAP global header (24 bytes) and append packet data
                     if data.len() > 24 {
                         let mut output = std::fs::OpenOptions::new()
                             .append(true)
                             .open(output_file)
-                            .map_err(|e| UbertoothError::BackendError(format!("Failed to open output PCAP: {}", e)))?;
+                            .map_err(|e| {
+                                UbertoothError::BackendError(format!(
+                                    "Failed to open output PCAP: {}",
+                                    e
+                                ))
+                            })?;
 
-                        std::io::Write::write_all(&mut output, &data[24..])
-                            .map_err(|e| UbertoothError::BackendError(format!("Failed to append PCAP data: {}", e)))?;
+                        std::io::Write::write_all(&mut output, &data[24..]).map_err(|e| {
+                            UbertoothError::BackendError(format!(
+                                "Failed to append PCAP data: {}",
+                                e
+                            ))
+                        })?;
                     }
                 }
 
@@ -585,12 +602,7 @@ impl SidecarManager {
         // -t: timeout duration (estimated based on range)
         let low_str = low_freq.to_string();
         let high_str = high_freq.to_string();
-        let args = vec![
-            "-l",
-            low_str.as_str(),
-            "-u",
-            high_str.as_str(),
-        ];
+        let args = vec!["-l", low_str.as_str(), "-u", high_str.as_str()];
 
         tracing::debug!("Executing: ubertooth-specan {:?}", args);
 
@@ -601,8 +613,7 @@ impl SidecarManager {
             self.execute_ubertooth_command("ubertooth-specan", &args),
         )
         .await
-        .map_err(|_| UbertoothError::BackendError("Spectrum scan timed out".to_string()))?
-        ?;
+        .map_err(|_| UbertoothError::BackendError("Spectrum scan timed out".to_string()))??;
 
         tracing::debug!("ubertooth-specan output length: {} bytes", output.len());
 
@@ -612,7 +623,10 @@ impl SidecarManager {
         for line in output.lines().take(100) {
             // Limit to first 100 lines for Phase 1
             if let Some((freq_str, rssi_str)) = line.split_once(',') {
-                if let (Ok(freq), Ok(rssi)) = (freq_str.trim().parse::<i32>(), rssi_str.trim().parse::<i32>()) {
+                if let (Ok(freq), Ok(rssi)) = (
+                    freq_str.trim().parse::<i32>(),
+                    rssi_str.trim().parse::<i32>(),
+                ) {
                     let channel = (freq - 2402).max(0);
                     scan_results.push(json!({
                         "frequency_mhz": freq,
@@ -641,9 +655,7 @@ impl SidecarManager {
         }
 
         // Create capture metadata
-        let file_size = std::fs::metadata(&pcap_path)
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let file_size = std::fs::metadata(&pcap_path).map(|m| m.len()).unwrap_or(0);
 
         let metadata = CaptureMetadata {
             capture_id: capture_id.clone(),
@@ -653,9 +665,12 @@ impl SidecarManager {
             duration_sec: Some(duration_sec),
             file_size_bytes: file_size,
             pcap_path: pcap_path_str.to_string(),
-            tags: vec!["specan".to_string(), format!("{}-{}_MHz", low_freq, high_freq)],
+            tags: vec![
+                "specan".to_string(),
+                format!("{}-{}_MHz", low_freq, high_freq),
+            ],
             description: format!("Spectrum scan {}-{} MHz", low_freq, high_freq),
-                    category: None,
+            category: None,
             notes: None,
         };
 
@@ -683,7 +698,9 @@ impl SidecarManager {
         let channel = params
             .get("channel")
             .and_then(|v| v.as_u64())
-            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'channel' parameter".to_string()))?;
+            .ok_or_else(|| {
+                UbertoothError::InvalidParameter("Missing 'channel' parameter".to_string())
+            })?;
 
         // Validate channel range
         if channel > 78 {
@@ -704,8 +721,11 @@ impl SidecarManager {
 
         // Channel commands may return non-zero exit codes even on success
         // This is normal behavior for ubertooth-util configuration commands
-        match self.execute_ubertooth_command("ubertooth-util", &[channel_arg.as_str()]).await {
-            Ok(_) => {},
+        match self
+            .execute_ubertooth_command("ubertooth-util", &[channel_arg.as_str()])
+            .await
+        {
+            Ok(_) => {}
             Err(e) => {
                 // Log but don't fail - channel setting may not persist but command executed
                 tracing::debug!("Channel command completed with note: {:?}", e);
@@ -725,7 +745,9 @@ impl SidecarManager {
         let modulation = params
             .get("modulation")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'modulation' parameter".to_string()))?;
+            .ok_or_else(|| {
+                UbertoothError::InvalidParameter("Missing 'modulation' parameter".to_string())
+            })?;
 
         // Validate modulation type
         let valid_mods = ["BT_BASIC_RATE", "BT_LOW_ENERGY", "80211_FHSS", "NONE"];
@@ -755,7 +777,9 @@ impl SidecarManager {
         let power_level = params
             .get("power_level")
             .and_then(|v| v.as_u64())
-            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'power_level' parameter".to_string()))?;
+            .ok_or_else(|| {
+                UbertoothError::InvalidParameter("Missing 'power_level' parameter".to_string())
+            })?;
 
         let paen = params.get("paen").and_then(|v| v.as_bool()).unwrap_or(true);
         let hgm = params.get("hgm").and_then(|v| v.as_bool()).unwrap_or(false);
@@ -825,17 +849,19 @@ impl SidecarManager {
             .into_iter()
             .skip(offset)
             .take(limit)
-            .map(|c| json!({
-                "capture_id": c.capture_id,
-                "timestamp": c.timestamp.to_rfc3339(),
-                "type": c.capture_type,
-                "packet_count": c.packet_count,
-                "duration_sec": c.duration_sec,
-                "file_size_bytes": c.file_size_bytes,
-                "pcap_path": c.pcap_path,
-                "tags": c.tags,
-                "description": c.description
-            }))
+            .map(|c| {
+                json!({
+                    "capture_id": c.capture_id,
+                    "timestamp": c.timestamp.to_rfc3339(),
+                    "type": c.capture_type,
+                    "packet_count": c.packet_count,
+                    "duration_sec": c.duration_sec,
+                    "file_size_bytes": c.file_size_bytes,
+                    "pcap_path": c.pcap_path,
+                    "tags": c.tags,
+                    "description": c.description
+                })
+            })
             .collect();
 
         Ok(json!({
@@ -900,18 +926,18 @@ impl SidecarManager {
             .and_then(|v| v.as_str())
             .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'capture_id'".to_string()))?;
 
-        let new_tags = params
-            .get("tags")
-            .and_then(|v| v.as_array())
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str())
-                    .map(|s| s.to_string())
-                    .collect::<Vec<_>>()
-            });
+        let new_tags = params.get("tags").and_then(|v| v.as_array()).map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str())
+                .map(|s| s.to_string())
+                .collect::<Vec<_>>()
+        });
 
         let new_description = params.get("description").and_then(|v| v.as_str());
-        let append_tags = params.get("append_tags").and_then(|v| v.as_bool()).unwrap_or(true);
+        let append_tags = params
+            .get("append_tags")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
 
         let store = CaptureStore::new()?;
         let mut metadata = store.load_metadata(capture_id)?;
@@ -958,7 +984,11 @@ impl SidecarManager {
             .and_then(|v| v.as_str())
             .unwrap_or("auto");
 
-        tracing::info!("Analyzing capture: {} (type: {})", capture_id, analysis_type);
+        tracing::info!(
+            "Analyzing capture: {} (type: {})",
+            capture_id,
+            analysis_type
+        );
 
         let store = CaptureStore::new()?;
         let metadata = store.load_metadata(capture_id)?;
@@ -974,28 +1004,37 @@ impl SidecarManager {
         let pcap_analysis = Self::parse_pcap(&metadata.pcap_path)?;
 
         // Build device list for JSON output
-        let devices: Vec<Value> = pcap_analysis.devices.iter().map(|dev| {
-            json!({
-                "mac_address": dev.mac_address,
-                "device_name": dev.name.as_deref().unwrap_or("Unknown"),
-                "name": dev.name,  // Keep for backwards compatibility
-                "rssi": dev.rssi,
-                "pdu_type": dev.pdu_type,
-                "first_seen": dev.first_seen,
-                "last_seen": dev.last_seen,
-                "packet_count": dev.packet_count
+        let devices: Vec<Value> = pcap_analysis
+            .devices
+            .iter()
+            .map(|dev| {
+                json!({
+                    "mac_address": dev.mac_address,
+                    "device_name": dev.name.as_deref().unwrap_or("Unknown"),
+                    "name": dev.name,  // Keep for backwards compatibility
+                    "rssi": dev.rssi,
+                    "pdu_type": dev.pdu_type,
+                    "first_seen": dev.first_seen,
+                    "last_seen": dev.last_seen,
+                    "packet_count": dev.packet_count
+                })
             })
-        }).collect();
+            .collect();
 
         // Build security observations for JSON output
-        let security_observations: Vec<Value> = pcap_analysis.security.observations.iter().map(|obs| {
-            json!({
-                "type": obs.observation_type,
-                "severity": obs.severity,
-                "description": obs.description,
-                "affected_device": obs.affected_device
+        let security_observations: Vec<Value> = pcap_analysis
+            .security
+            .observations
+            .iter()
+            .map(|obs| {
+                json!({
+                    "type": obs.observation_type,
+                    "severity": obs.severity,
+                    "description": obs.description,
+                    "affected_device": obs.affected_device
+                })
             })
-        }).collect();
+            .collect();
 
         Ok(json!({
             "success": true,
@@ -1032,27 +1071,32 @@ impl SidecarManager {
 
     /// Parse PCAP/PCAPNG file and extract basic statistics, device information, and timing analysis.
     fn parse_pcap(pcap_path: &str) -> Result<PcapAnalysis> {
-        let file = File::open(pcap_path)
-            .map_err(|e| UbertoothError::BackendError(format!("Failed to open PCAP file: {}", e)))?;
+        let file = File::open(pcap_path).map_err(|e| {
+            UbertoothError::BackendError(format!("Failed to open PCAP file: {}", e))
+        })?;
 
         // Create reader that auto-detects PCAP vs PCAPNG format
-        let mut reader = create_reader(65536, file)
-            .map_err(|e| UbertoothError::BackendError(format!("Failed to create PCAP reader: {}", e)))?;
+        let mut reader = create_reader(65536, file).map_err(|e| {
+            UbertoothError::BackendError(format!("Failed to create PCAP reader: {}", e))
+        })?;
 
         let mut packet_count = 0;
         let mut total_bytes = 0;
         let mut first_timestamp: Option<f64> = None;
         let mut last_timestamp: Option<f64> = None;
         let mut prev_timestamp: Option<f64> = None;
-        let mut devices: std::collections::HashMap<String, BleDevice> = std::collections::HashMap::new();
+        let mut devices: std::collections::HashMap<String, BleDevice> =
+            std::collections::HashMap::new();
         let mut linktype: Option<u32> = None;
 
         // Timing analysis tracking
         let mut intervals: Vec<f64> = Vec::new();
 
         // Security analysis tracking
-        let mut privacy_addresses: std::collections::HashSet<String> = std::collections::HashSet::new();
-        let mut public_addresses: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut privacy_addresses: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
+        let mut public_addresses: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
         let mut connection_requests = 0;
         let mut scan_requests = 0;
         let mut malformed_packets = 0;
@@ -1072,7 +1116,8 @@ impl SidecarManager {
                             total_bytes += packet.data.len();
 
                             // Convert timestamp (seconds + microseconds)
-                            let timestamp = packet.ts_sec as f64 + (packet.ts_usec as f64 / 1_000_000.0);
+                            let timestamp =
+                                packet.ts_sec as f64 + (packet.ts_usec as f64 / 1_000_000.0);
 
                             if first_timestamp.is_none() {
                                 first_timestamp = Some(timestamp);
@@ -1091,13 +1136,16 @@ impl SidecarManager {
 
                             // Extract device information based on linktype
                             let device_info = match linktype {
-                                Some(161) | Some(251) | Some(256) => Self::extract_ble_device_from_rf(packet.data, timestamp),
+                                Some(161) | Some(251) | Some(256) => {
+                                    Self::extract_ble_device_from_rf(packet.data, timestamp)
+                                }
                                 _ => Self::extract_ble_device(packet.data, timestamp),
                             };
 
                             if let Some(device_info) = device_info {
                                 let mac = device_info.mac_address.clone();
-                                devices.entry(mac.clone())
+                                devices
+                                    .entry(mac.clone())
                                     .and_modify(|d| {
                                         d.last_seen = timestamp;
                                         d.packet_count += 1;
@@ -1125,13 +1173,20 @@ impl SidecarManager {
                                             _ => {}
                                         }
 
-                                        if matches!(pdu_type, 0x00 | 0x02 | 0x04 | 0x06) && usb_payload.len() >= 12 {
+                                        if matches!(pdu_type, 0x00 | 0x02 | 0x04 | 0x06)
+                                            && usb_payload.len() >= 12
+                                        {
                                             let ble_payload = &usb_payload[6..];
                                             if ble_payload.len() >= 6 {
                                                 let addr = &ble_payload[0..6];
                                                 let mac_address = format!(
                                                     "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
-                                                    addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]
+                                                    addr[5],
+                                                    addr[4],
+                                                    addr[3],
+                                                    addr[2],
+                                                    addr[1],
+                                                    addr[0]
                                                 );
 
                                                 if tx_add == 1 {
@@ -1177,13 +1232,16 @@ impl SidecarManager {
                                 epb.data.len()
                             );
                             let device_info = match linktype {
-                                Some(161) | Some(251) | Some(256) => Self::extract_ble_device_from_rf(epb.data, timestamp),
+                                Some(161) | Some(251) | Some(256) => {
+                                    Self::extract_ble_device_from_rf(epb.data, timestamp)
+                                }
                                 _ => Self::extract_ble_device(epb.data, timestamp),
                             };
 
                             if let Some(device_info) = device_info {
                                 let mac = device_info.mac_address.clone();
-                                devices.entry(mac.clone())
+                                devices
+                                    .entry(mac.clone())
                                     .and_modify(|d| {
                                         d.last_seen = timestamp;
                                         d.packet_count += 1;
@@ -1211,13 +1269,20 @@ impl SidecarManager {
                                             _ => {}
                                         }
 
-                                        if matches!(pdu_type, 0x00 | 0x02 | 0x04 | 0x06) && usb_payload.len() >= 12 {
+                                        if matches!(pdu_type, 0x00 | 0x02 | 0x04 | 0x06)
+                                            && usb_payload.len() >= 12
+                                        {
                                             let ble_payload = &usb_payload[6..];
                                             if ble_payload.len() >= 6 {
                                                 let addr = &ble_payload[0..6];
                                                 let mac_address = format!(
                                                     "{:02X}:{:02X}:{:02X}:{:02X}:{:02X}:{:02X}",
-                                                    addr[5], addr[4], addr[3], addr[2], addr[1], addr[0]
+                                                    addr[5],
+                                                    addr[4],
+                                                    addr[3],
+                                                    addr[2],
+                                                    addr[1],
+                                                    addr[0]
                                                 );
 
                                                 if tx_add == 1 {
@@ -1310,7 +1375,12 @@ impl SidecarManager {
         // Observation: Privacy-enabled devices
         if !privacy_addresses.is_empty() {
             let device_list_str = if privacy_addresses.len() <= 3 {
-                privacy_addresses.iter().take(3).cloned().collect::<Vec<_>>().join(", ")
+                privacy_addresses
+                    .iter()
+                    .take(3)
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ")
             } else {
                 format!("{} devices", privacy_addresses.len())
             };
@@ -1342,7 +1412,11 @@ impl SidecarManager {
 
         // Observation: Connection attempts
         if connection_requests > 0 {
-            let severity = if connection_requests > 10 { "Medium" } else { "Info" };
+            let severity = if connection_requests > 10 {
+                "Medium"
+            } else {
+                "Info"
+            };
             observations.push(SecurityObservation {
                 observation_type: "Connection Activity".to_string(),
                 severity: severity.to_string(),
@@ -1427,7 +1501,7 @@ impl SidecarManager {
 
         // Parse USB packet header
         let pkt_type = packet_data[0];
-        let channel = packet_data[2];
+        let _channel = packet_data[2];
         let rssi_avg = packet_data[10] as i8;
 
         // Check if this is a BLE packet (PKT_TYPE_LE_PACKET = 1)
@@ -1443,7 +1517,7 @@ impl SidecarManager {
         // Parse BLE packet structure
         // let _access_address = u32::from_le_bytes([usb_payload[0], usb_payload[1], usb_payload[2], usb_payload[3]]);
         let pdu_header = usb_payload[4];
-        let length = usb_payload[5] as usize;
+        let _length = usb_payload[5] as usize;
 
         // Extract PDU type (lower 4 bits of header)
         let pdu_type = pdu_header & 0x0F;
@@ -1511,7 +1585,7 @@ impl SidecarManager {
             let data = &ad_data[offset + 2..offset + 1 + length];
 
             // 0x08 = Shortened Local Name, 0x09 = Complete Local Name
-            if (ad_type == 0x08 || ad_type == 0x09) {
+            if ad_type == 0x08 || ad_type == 0x09 {
                 if let Ok(name) = String::from_utf8(data.to_vec()) {
                     return Some(name);
                 }
@@ -1544,7 +1618,7 @@ impl SidecarManager {
 
         // Parse BLE PDU header (bytes 14-15)
         let pdu_header = packet_data[14];
-        let length = packet_data[15] as usize;
+        let _length = packet_data[15] as usize;
 
         // Extract PDU type (lower 4 bits of byte 14)
         let pdu_type = pdu_header & 0x0F;
@@ -1574,7 +1648,10 @@ impl SidecarManager {
             0x03 | 0x05 => {
                 // SCAN_REQ/CONNECT_REQ: advertising address is second (bytes 6-11)
                 if payload.len() < 12 {
-                    tracing::trace!("SCAN_REQ/CONNECT_REQ payload too short: {} bytes", payload.len());
+                    tracing::trace!(
+                        "SCAN_REQ/CONNECT_REQ payload too short: {} bytes",
+                        payload.len()
+                    );
                     return None;
                 }
                 6
@@ -1666,10 +1743,7 @@ impl SidecarManager {
         // Calculate storage stats
         let store = CaptureStore::new()?;
         let all_captures = store.list_captures()?;
-        let total_size_bytes: u64 = all_captures
-            .iter()
-            .map(|m| m.file_size_bytes)
-            .sum();
+        let total_size_bytes: u64 = all_captures.iter().map(|m| m.file_size_bytes).sum();
         let total_size_mb = total_size_bytes as f64 / 1_048_576.0;
 
         let timestamp = chrono::Utc::now().to_rfc3339();
@@ -1713,10 +1787,9 @@ impl SidecarManager {
         // Note: ubertooth-scan does not support PCAP output directly
         let duration_str = duration_sec.to_string();
 
-        let output = self.execute_ubertooth_command(
-            "ubertooth-scan",
-            &["-t", duration_str.as_str()]
-        ).await?;
+        let output = self
+            .execute_ubertooth_command("ubertooth-scan", &["-t", duration_str.as_str()])
+            .await?;
 
         // Parse output for discovered devices
         let mut devices_found = Vec::new();
@@ -1724,9 +1797,13 @@ impl SidecarManager {
             // Parse device lines (format: BD_ADDR - Device Name)
             if line.contains(':') && (line.len() > 17) {
                 let parts: Vec<&str> = line.splitn(2, " - ").collect();
-                if parts.len() >= 1 {
+                if !parts.is_empty() {
                     let bd_addr = parts[0].trim();
-                    let name = if parts.len() > 1 { parts[1].trim() } else { "Unknown" };
+                    let name = if parts.len() > 1 {
+                        parts[1].trim()
+                    } else {
+                        "Unknown"
+                    };
                     devices_found.push(json!({
                         "bd_addr": bd_addr,
                         "name": name
@@ -1754,7 +1831,7 @@ impl SidecarManager {
             pcap_path: pcap_path.to_string_lossy().to_string(),
             tags: Vec::new(),
             description: format!("Bluetooth Classic scan, {} devices found", total_devices),
-                    category: None,
+            category: None,
             notes: None,
         };
         store.save_metadata(&metadata)?;
@@ -1793,14 +1870,24 @@ impl SidecarManager {
         let duration_str = duration_sec.to_string();
         let pcap_str = pcap_path.to_string_lossy().to_string();
 
-        let output = self.execute_ubertooth_command(
-            "ubertooth-follow",
-            &["-t", bd_addr, "-r", pcap_str.as_str(), "-d", duration_str.as_str()]
-        ).await?;
+        let output = self
+            .execute_ubertooth_command(
+                "ubertooth-follow",
+                &[
+                    "-t",
+                    bd_addr,
+                    "-r",
+                    pcap_str.as_str(),
+                    "-d",
+                    duration_str.as_str(),
+                ],
+            )
+            .await?;
 
         // Parse output for connection info and packet count
         let connection_found = output.contains("Following") || output.contains("Connection");
-        let packet_count = output.lines()
+        let packet_count = output
+            .lines()
             .filter(|line| line.contains("packet"))
             .count();
 
@@ -1836,7 +1923,7 @@ impl SidecarManager {
             pcap_path: pcap_path.to_string_lossy().to_string(),
             tags: vec![format!("bd_addr:{}", bd_addr)],
             description: format!("Following Bluetooth connection {}", bd_addr),
-                    category: None,
+            category: None,
             notes: None,
         };
         store.save_metadata(&metadata)?;
@@ -1874,7 +1961,9 @@ impl SidecarManager {
             args.extend_from_slice(&["-t", bd_addr_str.as_str()]);
         }
 
-        let output = self.execute_ubertooth_command("ubertooth-afh", &args).await?;
+        let output = self
+            .execute_ubertooth_command("ubertooth-afh", &args)
+            .await?;
 
         // Parse AFH channel map from output
         let mut afh_map = "0x0000000000000000000000".to_string();
@@ -1885,7 +1974,9 @@ impl SidecarManager {
             if line.contains("AFH map:") || line.contains("Channel map:") {
                 // Extract hex map
                 if let Some(hex_start) = line.find("0x") {
-                    afh_map = line[hex_start..].split_whitespace().next()
+                    afh_map = line[hex_start..]
+                        .split_whitespace()
+                        .next()
                         .unwrap_or("0x0000000000000000000000")
                         .to_string();
                 }
@@ -1915,8 +2006,10 @@ impl SidecarManager {
         let used_count = channels_used.len();
         let avoided_count = channels_avoided.len();
         let interpretation = if used_count > 0 {
-            format!("Device uses {} channels, avoids {} channels (likely due to WiFi interference)",
-                    used_count, avoided_count)
+            format!(
+                "Device uses {} channels, avoids {} channels (likely due to WiFi interference)",
+                used_count, avoided_count
+            )
         } else {
             "No AFH data captured yet".to_string()
         };
@@ -1952,10 +2045,12 @@ impl SidecarManager {
         let duration_str = duration_sec.to_string();
         let pcap_str = pcap_path.to_string_lossy().to_string();
 
-        let output = self.execute_ubertooth_command(
-            "ubertooth-rx",
-            &["-d", duration_str.as_str(), "-q", pcap_str.as_str()]
-        ).await?;
+        let output = self
+            .execute_ubertooth_command(
+                "ubertooth-rx",
+                &["-d", duration_str.as_str(), "-q", pcap_str.as_str()],
+            )
+            .await?;
 
         // Parse output for piconets and packet count
         let mut piconets_found = Vec::new();
@@ -1997,8 +2092,11 @@ impl SidecarManager {
             file_size_bytes,
             pcap_path: pcap_path.to_string_lossy().to_string(),
             tags: Vec::new(),
-            description: format!("Promiscuous BT discovery, {} piconets found", piconets_found.len()),
-                    category: None,
+            description: format!(
+                "Promiscuous BT discovery, {} piconets found",
+                piconets_found.len()
+            ),
+            category: None,
             notes: None,
         };
         store.save_metadata(&metadata)?;
@@ -2020,14 +2118,20 @@ impl SidecarManager {
         let access_address = params
             .get("access_address")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'access_address'".to_string()))?;
+            .ok_or_else(|| {
+                UbertoothError::InvalidParameter("Missing 'access_address'".to_string())
+            })?;
 
         let duration_sec = params
             .get("duration_sec")
             .and_then(|v| v.as_u64())
             .unwrap_or(60);
 
-        tracing::info!("Following BLE connection: {} for {}s", access_address, duration_sec);
+        tracing::info!(
+            "Following BLE connection: {} for {}s",
+            access_address,
+            duration_sec
+        );
 
         let store = CaptureStore::new()?;
         let capture_id = CaptureStore::generate_capture_id("btlefollow");
@@ -2037,10 +2141,20 @@ impl SidecarManager {
         let duration_str = duration_sec.to_string();
         let pcap_str = pcap_path.to_string_lossy().to_string();
 
-        let output = self.execute_ubertooth_command(
-            "ubertooth-btle",
-            &["-f", "-a", access_address, "-r", pcap_str.as_str(), "-d", duration_str.as_str()]
-        ).await?;
+        let output = self
+            .execute_ubertooth_command(
+                "ubertooth-btle",
+                &[
+                    "-f",
+                    "-a",
+                    access_address,
+                    "-r",
+                    pcap_str.as_str(),
+                    "-d",
+                    duration_str.as_str(),
+                ],
+            )
+            .await?;
 
         // Parse output for connection info
         let mut packets_captured = 0;
@@ -2086,7 +2200,7 @@ impl SidecarManager {
             pcap_path: pcap_path.to_string_lossy().to_string(),
             tags: vec![format!("access_address:{}", access_address)],
             description: format!("Following BLE connection {}", access_address),
-                    category: None,
+            category: None,
             notes: None,
         };
         store.save_metadata(&metadata)?;
@@ -2109,10 +2223,12 @@ impl SidecarManager {
         let squelch_level = params
             .get("squelch_level")
             .and_then(|v| v.as_i64())
-            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'squelch_level'".to_string()))?;
+            .ok_or_else(|| {
+                UbertoothError::InvalidParameter("Missing 'squelch_level'".to_string())
+            })?;
 
         // Validate squelch range (-128 to 0 dBm)
-        if squelch_level < -128 || squelch_level > 0 {
+        if !(-128..=0).contains(&squelch_level) {
             return Err(UbertoothError::InvalidParameter(
                 "Squelch level must be between -128 and 0 dBm".to_string(),
             ));
@@ -2137,11 +2253,25 @@ impl SidecarManager {
     ///
     /// Phase 2 Week 3: LED control via ubertooth-util.
     async fn configure_leds(&self, params: Value) -> Result<Value> {
-        let usr_led = params.get("usr_led").and_then(|v| v.as_bool()).unwrap_or(true);
-        let rx_led = params.get("rx_led").and_then(|v| v.as_bool()).unwrap_or(false);
-        let tx_led = params.get("tx_led").and_then(|v| v.as_bool()).unwrap_or(false);
+        let usr_led = params
+            .get("usr_led")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(true);
+        let rx_led = params
+            .get("rx_led")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let tx_led = params
+            .get("tx_led")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
 
-        tracing::info!("Configuring LEDs: usr={}, rx={}, tx={}", usr_led, rx_led, tx_led);
+        tracing::info!(
+            "Configuring LEDs: usr={}, rx={}, tx={}",
+            usr_led,
+            rx_led,
+            tx_led
+        );
 
         // Note: ubertooth-util only supports:
         // -l[0-1] for USR LED
@@ -2211,8 +2341,14 @@ impl SidecarManager {
 
         // Extract settings from device status
         let settings = ConfigSettings {
-            channel: device_status.get("channel").and_then(|v| v.as_u64()).map(|v| v as u8),
-            modulation: device_status.get("modulation").and_then(|v| v.as_str()).map(|s| s.to_string()),
+            channel: device_status
+                .get("channel")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as u8),
+            modulation: device_status
+                .get("modulation")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
             power_level: None, // TODO: Extract from device_status when available
             paen: None,
             hgm: None,
@@ -2330,17 +2466,31 @@ impl SidecarManager {
     // Phase 2 Week 5: Analysis tools
 
     async fn bt_compare(&self, _params: Value) -> Result<Value> {
-        let capture_id_a = _params.get("capture_id_a")
+        let capture_id_a = _params
+            .get("capture_id_a")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'capture_id_a'".to_string()))?;
+            .ok_or_else(|| {
+                UbertoothError::InvalidParameter("Missing 'capture_id_a'".to_string())
+            })?;
 
-        let capture_id_b = _params.get("capture_id_b")
+        let capture_id_b = _params
+            .get("capture_id_b")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'capture_id_b'".to_string()))?;
+            .ok_or_else(|| {
+                UbertoothError::InvalidParameter("Missing 'capture_id_b'".to_string())
+            })?;
 
-        let mode = _params.get("mode").and_then(|v| v.as_str()).unwrap_or("packets");
+        let mode = _params
+            .get("mode")
+            .and_then(|v| v.as_str())
+            .unwrap_or("packets");
 
-        tracing::info!("Comparing captures {} and {} (mode: {})", capture_id_a, capture_id_b, mode);
+        tracing::info!(
+            "Comparing captures {} and {} (mode: {})",
+            capture_id_a,
+            capture_id_b,
+            mode
+        );
 
         let store = CaptureStore::new()?;
 
@@ -2352,8 +2502,14 @@ impl SidecarManager {
         let pcap_a = store.captures_dir().join(format!("{}.pcap", capture_id_a));
         let pcap_b = store.captures_dir().join(format!("{}.pcap", capture_id_b));
 
-        let stats_a = self.execute_ubertooth_command("capinfos", &[pcap_a.to_str().unwrap()]).await.unwrap_or_default();
-        let stats_b = self.execute_ubertooth_command("capinfos", &[pcap_b.to_str().unwrap()]).await.unwrap_or_default();
+        let _stats_a = self
+            .execute_ubertooth_command("capinfos", &[pcap_a.to_str().unwrap()])
+            .await
+            .unwrap_or_default();
+        let _stats_b = self
+            .execute_ubertooth_command("capinfos", &[pcap_b.to_str().unwrap()])
+            .await
+            .unwrap_or_default();
 
         // Basic comparison based on metadata
         let common_packets = std::cmp::min(meta_a.packet_count, meta_b.packet_count);
@@ -2368,10 +2524,16 @@ impl SidecarManager {
 
         let mut differences = Vec::new();
         if meta_a.capture_type != meta_b.capture_type {
-            differences.push(format!("Capture types differ: {} vs {}", meta_a.capture_type, meta_b.capture_type));
+            differences.push(format!(
+                "Capture types differ: {} vs {}",
+                meta_a.capture_type, meta_b.capture_type
+            ));
         }
         if meta_a.packet_count != meta_b.packet_count {
-            differences.push(format!("Packet counts differ: {} vs {}", meta_a.packet_count, meta_b.packet_count));
+            differences.push(format!(
+                "Packet counts differ: {} vs {}",
+                meta_a.packet_count, meta_b.packet_count
+            ));
         }
 
         Ok(json!({
@@ -2431,7 +2593,9 @@ impl SidecarManager {
             .unwrap_or("Unknown");
 
         // Determine packet type
-        let pdu_type = if let Some(adv_header) = btle.and_then(|b| b.get("btle.advertising_header.pdu_type")) {
+        let pdu_type = if let Some(adv_header) =
+            btle.and_then(|b| b.get("btle.advertising_header.pdu_type"))
+        {
             let pdu_val = adv_header.as_str().unwrap_or("?");
             match pdu_val {
                 "0x00" | "0" => "ADV_IND",
@@ -2516,24 +2680,43 @@ impl SidecarManager {
     }
 
     async fn bt_decode(&self, _params: Value) -> Result<Value> {
-        let capture_id = _params.get("capture_id")
+        let capture_id = _params
+            .get("capture_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'capture_id'".to_string()))?;
 
-        let protocol = _params.get("protocol").and_then(|v| v.as_str()).unwrap_or("bluetooth");
+        let protocol = _params
+            .get("protocol")
+            .and_then(|v| v.as_str())
+            .unwrap_or("bluetooth");
         let limit = _params.get("limit").and_then(|v| v.as_u64()).unwrap_or(100) as usize;
 
-        tracing::info!("Decoding capture {} (protocol: {}, limit: {})", capture_id, protocol, limit);
+        tracing::info!(
+            "Decoding capture {} (protocol: {}, limit: {})",
+            capture_id,
+            protocol,
+            limit
+        );
 
         let store = CaptureStore::new()?;
         let pcap_path = store.captures_dir().join(format!("{}.pcap", capture_id));
 
         // Use tshark to decode packets
         let limit_str = limit.to_string();
-        let output = self.execute_ubertooth_command(
-            "tshark",
-            &["-r", pcap_path.to_str().unwrap(), "-c", limit_str.as_str(), "-T", "json"]
-        ).await.unwrap_or_else(|_| "[]".to_string());
+        let output = self
+            .execute_ubertooth_command(
+                "tshark",
+                &[
+                    "-r",
+                    pcap_path.to_str().unwrap(),
+                    "-c",
+                    limit_str.as_str(),
+                    "-T",
+                    "json",
+                ],
+            )
+            .await
+            .unwrap_or_else(|_| "[]".to_string());
 
         // Parse JSON output from tshark
         let tshark_packets: Vec<Value> = serde_json::from_str(&output).unwrap_or_else(|_| vec![]);
@@ -2560,15 +2743,21 @@ impl SidecarManager {
     async fn bt_fingerprint(&self, _params: Value) -> Result<Value> {
         use crate::fingerprint::FingerprintEngine;
 
-        let capture_id = _params.get("capture_id")
+        let capture_id = _params
+            .get("capture_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'capture_id'".to_string()))?;
 
-        let target_mac = _params.get("target_mac")
+        let target_mac = _params
+            .get("target_mac")
             .and_then(|v| v.as_str())
             .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'target_mac'".to_string()))?;
 
-        tracing::info!("Fingerprinting capture {} (target: {})", capture_id, target_mac);
+        tracing::info!(
+            "Fingerprinting capture {} (target: {})",
+            capture_id,
+            target_mac
+        );
 
         let store = CaptureStore::new()?;
         let pcap_path = store.captures_dir().join(format!("{}.pcap", capture_id));
@@ -2671,7 +2860,7 @@ impl SidecarManager {
         data: &[u8],
         target_mac: &str,
     ) -> Option<crate::FingerprintPacketData> {
-        use crate::{FingerprintPacketData, fingerprint::ManufacturerData};
+        use crate::{fingerprint::ManufacturerData, FingerprintPacketData};
 
         // Minimum BLE advertising packet size
         if data.len() < 10 {
@@ -2685,11 +2874,9 @@ impl SidecarManager {
 
         // Parse advertising data structures (AD structures)
         // Format: [length][type][data...]
-        let mut offset = 0;
-
         // Skip to advertising data (varies by link layer)
         // For now, start at offset 6 (typical for BLE advertising packets)
-        offset = 6.min(data.len());
+        let mut offset = 6.min(data.len());
 
         while offset < data.len() {
             if offset + 1 >= data.len() {
@@ -2756,13 +2943,16 @@ impl SidecarManager {
     }
 
     async fn pcap_merge(&self, _params: Value) -> Result<Value> {
-        let capture_ids = _params.get("capture_ids")
+        let capture_ids = _params
+            .get("capture_ids")
             .and_then(|v| v.as_array())
-            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'capture_ids' array".to_string()))?;
+            .ok_or_else(|| {
+                UbertoothError::InvalidParameter("Missing 'capture_ids' array".to_string())
+            })?;
 
         if capture_ids.len() < 2 {
             return Err(UbertoothError::InvalidParameter(
-                "At least 2 captures required for merge".to_string()
+                "At least 2 captures required for merge".to_string(),
             ));
         }
 
@@ -2793,10 +2983,10 @@ impl SidecarManager {
         self.execute_ubertooth_command("mergecap", &args).await?;
 
         // Count total packets in merged file
-        let capinfos_output = self.execute_ubertooth_command(
-            "capinfos",
-            &[output_path.to_str().unwrap()]
-        ).await.unwrap_or_default();
+        let capinfos_output = self
+            .execute_ubertooth_command("capinfos", &[output_path.to_str().unwrap()])
+            .await
+            .unwrap_or_default();
 
         let mut total_packets = 0;
         for line in capinfos_output.lines() {
@@ -2824,7 +3014,7 @@ impl SidecarManager {
             pcap_path: output_path.to_string_lossy().to_string(),
             tags: vec!["merged".to_string()],
             description: format!("Merged from {} source captures", capture_ids.len()),
-                    category: None,
+            category: None,
             notes: None,
         };
         store.save_metadata(&metadata)?;
@@ -2839,11 +3029,15 @@ impl SidecarManager {
     }
 
     async fn capture_export(&self, _params: Value) -> Result<Value> {
-        let capture_id = _params.get("capture_id")
+        let capture_id = _params
+            .get("capture_id")
             .and_then(|v| v.as_str())
             .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'capture_id'".to_string()))?;
 
-        let format = _params.get("format").and_then(|v| v.as_str()).unwrap_or("pcap");
+        let format = _params
+            .get("format")
+            .and_then(|v| v.as_str())
+            .unwrap_or("pcap");
         let output_path = _params.get("output_path").and_then(|v| v.as_str());
 
         tracing::info!("Exporting capture {} to format {}", capture_id, format);
@@ -2859,7 +3053,9 @@ impl SidecarManager {
         let export_path = if let Some(path) = output_path {
             PathBuf::from(path)
         } else {
-            store.captures_dir().join(format!("{}.{}", capture_id, format))
+            store
+                .captures_dir()
+                .join(format!("{}.{}", capture_id, format))
         };
 
         // Use tshark or editcap for format conversion
@@ -2872,29 +3068,49 @@ impl SidecarManager {
                 // Use editcap to convert to pcapng
                 self.execute_ubertooth_command(
                     "editcap",
-                    &["-F", "pcapng", input_path.to_str().unwrap(), export_path.to_str().unwrap()]
-                ).await?;
+                    &[
+                        "-F",
+                        "pcapng",
+                        input_path.to_str().unwrap(),
+                        export_path.to_str().unwrap(),
+                    ],
+                )
+                .await?;
             }
             "json" => {
                 // Use tshark to export to JSON
-                let json_output = self.execute_ubertooth_command(
-                    "tshark",
-                    &["-r", input_path.to_str().unwrap(), "-T", "json"]
-                ).await?;
+                let json_output = self
+                    .execute_ubertooth_command(
+                        "tshark",
+                        &["-r", input_path.to_str().unwrap(), "-T", "json"],
+                    )
+                    .await?;
                 std::fs::write(&export_path, json_output)?;
             }
             "csv" => {
                 // Use tshark to export to CSV
-                let csv_output = self.execute_ubertooth_command(
-                    "tshark",
-                    &["-r", input_path.to_str().unwrap(), "-T", "fields", "-E", "header=y", "-E", "separator=,"]
-                ).await?;
+                let csv_output = self
+                    .execute_ubertooth_command(
+                        "tshark",
+                        &[
+                            "-r",
+                            input_path.to_str().unwrap(),
+                            "-T",
+                            "fields",
+                            "-E",
+                            "header=y",
+                            "-E",
+                            "separator=,",
+                        ],
+                    )
+                    .await?;
                 std::fs::write(&export_path, csv_output)?;
             }
             _ => {
-                return Err(UbertoothError::InvalidParameter(
-                    format!("Unsupported format: {}", format)
-                ));
+                return Err(UbertoothError::InvalidParameter(format!(
+                    "Unsupported format: {}",
+                    format
+                )));
             }
         }
 
@@ -2921,15 +3137,22 @@ impl SidecarManager {
     // Phase 2 Week 6: Attack operations (all require authorization)
 
     async fn btle_inject(&self, _params: Value) -> Result<Value> {
-        let access_address = _params.get("access_address")
+        let access_address = _params
+            .get("access_address")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'access_address'".to_string()))?;
+            .ok_or_else(|| {
+                UbertoothError::InvalidParameter("Missing 'access_address'".to_string())
+            })?;
 
-        let packet_hex = _params.get("packet_hex")
+        let packet_hex = _params
+            .get("packet_hex")
             .and_then(|v| v.as_str())
             .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'packet_hex'".to_string()))?;
 
-        let channel = _params.get("channel").and_then(|v| v.as_u64()).unwrap_or(37) as u8;
+        let channel = _params
+            .get("channel")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(37) as u8;
         let repeat = _params.get("repeat").and_then(|v| v.as_u64()).unwrap_or(1) as usize;
 
         tracing::warn!("btle_inject - REQUIRES AUTHORIZATION - Active RF transmission");
@@ -2937,7 +3160,7 @@ impl SidecarManager {
         // Validate channel range
         if channel > 39 {
             return Err(UbertoothError::InvalidParameter(
-                "BLE channel must be 0-39".to_string()
+                "BLE channel must be 0-39".to_string(),
             ));
         }
 
@@ -2945,10 +3168,22 @@ impl SidecarManager {
         let channel_str = channel.to_string();
         let repeat_str = repeat.to_string();
 
-        let output = self.execute_ubertooth_command(
-            "ubertooth-btle",
-            &["-i", "-a", access_address, "-c", channel_str.as_str(), "-p", packet_hex, "-n", repeat_str.as_str()]
-        ).await?;
+        let output = self
+            .execute_ubertooth_command(
+                "ubertooth-btle",
+                &[
+                    "-i",
+                    "-a",
+                    access_address,
+                    "-c",
+                    channel_str.as_str(),
+                    "-p",
+                    packet_hex,
+                    "-n",
+                    repeat_str.as_str(),
+                ],
+            )
+            .await?;
 
         // Parse output for confirmation
         let packets_sent = if output.contains("injected") || output.contains("transmitted") {
@@ -2967,18 +3202,30 @@ impl SidecarManager {
     }
 
     async fn bt_jam(&self, params: Value) -> Result<Value> {
-        let jam_mode = params.get("jam_mode").and_then(|v| v.as_str()).unwrap_or("continuous");
+        let _jam_mode = params
+            .get("jam_mode")
+            .and_then(|v| v.as_str())
+            .unwrap_or("continuous");
         tracing::error!("bt_jam - HIGHLY REGULATED - ILLEGAL IN MOST JURISDICTIONS");
-        Ok(json!({"success": false, "error": "OPERATION_NOT_AVAILABLE", "message": "Jamming is highly regulated and not implemented. Illegal in most jurisdictions without proper authorization."}))
+        Ok(
+            json!({"success": false, "error": "OPERATION_NOT_AVAILABLE", "message": "Jamming is highly regulated and not implemented. Illegal in most jurisdictions without proper authorization."}),
+        )
     }
 
     async fn btle_slave(&self, _params: Value) -> Result<Value> {
-        let mac_address = _params.get("mac_address")
+        let mac_address = _params
+            .get("mac_address")
             .and_then(|v| v.as_str())
             .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'mac_address'".to_string()))?;
 
-        let duration_sec = _params.get("duration_sec").and_then(|v| v.as_u64()).unwrap_or(60);
-        let advertising_interval = _params.get("advertising_interval_ms").and_then(|v| v.as_u64()).unwrap_or(100);
+        let duration_sec = _params
+            .get("duration_sec")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(60);
+        let advertising_interval = _params
+            .get("advertising_interval_ms")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(100);
 
         tracing::warn!("btle_slave - REQUIRES AUTHORIZATION - BLE slave/advertising mode");
 
@@ -2991,13 +3238,26 @@ impl SidecarManager {
         let interval_str = advertising_interval.to_string();
         let pcap_str = pcap_path.to_string_lossy().to_string();
 
-        let output = self.execute_ubertooth_command(
-            "ubertooth-btle",
-            &["-a", "-m", mac_address, "-i", interval_str.as_str(), "-d", duration_str.as_str(), "-r", pcap_str.as_str()]
-        ).await?;
+        let output = self
+            .execute_ubertooth_command(
+                "ubertooth-btle",
+                &[
+                    "-a",
+                    "-m",
+                    mac_address,
+                    "-i",
+                    interval_str.as_str(),
+                    "-d",
+                    duration_str.as_str(),
+                    "-r",
+                    pcap_str.as_str(),
+                ],
+            )
+            .await?;
 
         // Parse output for connection events
-        let connections_received = output.lines()
+        let connections_received = output
+            .lines()
             .filter(|line| line.contains("connection") || line.contains("CONNECT_REQ"))
             .count();
 
@@ -3020,7 +3280,7 @@ impl SidecarManager {
             pcap_path: pcap_path.to_string_lossy().to_string(),
             tags: vec![format!("mac:{}", mac_address)],
             description: format!("BLE slave mode, {} connections", connections_received),
-                    category: None,
+            category: None,
             notes: None,
         };
         store.save_metadata(&metadata)?;
@@ -3037,33 +3297,44 @@ impl SidecarManager {
     }
 
     async fn btle_mitm(&self, params: Value) -> Result<Value> {
-        let target_mac = params.get("target_mac").and_then(|v| v.as_str()).unwrap_or("00:00:00:00:00:00");
+        let _target_mac = params
+            .get("target_mac")
+            .and_then(|v| v.as_str())
+            .unwrap_or("00:00:00:00:00:00");
         tracing::error!("btle_mitm - STRICTLY REQUIRED AUTHORIZATION - ACTIVE ATTACK");
-        let store = CaptureStore::new()?;
-        let capture_id = CaptureStore::generate_capture_id("mitm");
-        Ok(json!({"success": false, "error": "AUTHORIZATION_REQUIRED", "message": "MITM attack requires STRICTLY REQUIRED authorization level. Not implemented in Phase 2 Week 6."}))
+        let _store = CaptureStore::new()?;
+        let _capture_id = CaptureStore::generate_capture_id("mitm");
+        Ok(
+            json!({"success": false, "error": "AUTHORIZATION_REQUIRED", "message": "MITM attack requires STRICTLY REQUIRED authorization level. Not implemented in Phase 2 Week 6."}),
+        )
     }
 
     async fn bt_spoof(&self, _params: Value) -> Result<Value> {
-        let spoof_mac = _params.get("spoof_mac")
+        let spoof_mac = _params
+            .get("spoof_mac")
             .and_then(|v| v.as_str())
             .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'spoof_mac'".to_string()))?;
 
-        let duration_sec = _params.get("duration_sec").and_then(|v| v.as_u64()).unwrap_or(60);
-        let action = _params.get("action").and_then(|v| v.as_str()).unwrap_or("set");
+        let duration_sec = _params
+            .get("duration_sec")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(60);
+        let action = _params
+            .get("action")
+            .and_then(|v| v.as_str())
+            .unwrap_or("set");
 
         tracing::warn!("bt_spoof - REQUIRES AUTHORIZATION - BD_ADDR spoofing");
 
         // Execute ubertooth-util to set BD_ADDR
         // Note: This requires firmware support and may not work on all devices
-        let output = self.execute_ubertooth_command(
-            "ubertooth-util",
-            &["-B", spoof_mac]
-        ).await?;
+        let output = self
+            .execute_ubertooth_command("ubertooth-util", &["-B", spoof_mac])
+            .await?;
 
         let success = output.contains("set") || output.contains("success") || output.contains("OK");
 
-        let store = CaptureStore::new()?;
+        let _store = CaptureStore::new()?;
         let capture_id = CaptureStore::generate_capture_id("spoof");
 
         Ok(json!({
@@ -3081,30 +3352,43 @@ impl SidecarManager {
     }
 
     async fn ubertooth_raw(&self, _params: Value) -> Result<Value> {
-        let command = _params.get("command")
+        let command = _params
+            .get("command")
             .and_then(|v| v.as_str())
             .ok_or_else(|| UbertoothError::InvalidParameter("Missing 'command'".to_string()))?;
 
         let args_array = _params.get("args").and_then(|v| v.as_array());
 
-        tracing::warn!("ubertooth_raw - WARNING: Direct hardware access to {}", command);
+        tracing::warn!(
+            "ubertooth_raw - WARNING: Direct hardware access to {}",
+            command
+        );
 
         // Build command arguments
         let mut cmd_args = vec![command];
         let arg_strings: Vec<String>;
         if let Some(args) = args_array {
-            arg_strings = args.iter()
+            arg_strings = args
+                .iter()
                 .filter_map(|v| v.as_str().map(|s| s.to_string()))
                 .collect();
             cmd_args.extend(arg_strings.iter().map(|s| s.as_str()));
         }
 
         // Execute raw ubertooth command
-        let output = self.execute_ubertooth_command("ubertooth-util", &cmd_args).await?;
+        let output = self
+            .execute_ubertooth_command("ubertooth-util", &cmd_args)
+            .await?;
 
         // Parse response
-        let response_hex = output.lines()
-            .find(|line| line.contains("0x") || line.chars().all(|c| c.is_ascii_hexdigit() || c.is_whitespace()))
+        let response_hex = output
+            .lines()
+            .find(|line| {
+                line.contains("0x")
+                    || line
+                        .chars()
+                        .all(|c| c.is_ascii_hexdigit() || c.is_whitespace())
+            })
             .unwrap_or("")
             .trim()
             .to_string();
@@ -3173,11 +3457,7 @@ mod tests {
                     .devices
                     .iter()
                     .any(|d| d.mac_address == expected_mac);
-                assert!(
-                    found,
-                    "Expected to find device {} but didn't",
-                    expected_mac
-                );
+                assert!(found, "Expected to find device {} but didn't", expected_mac);
 
                 println!("\n✅ Test passed: Found {} devices", analysis.devices.len());
             }

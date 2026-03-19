@@ -120,8 +120,7 @@ impl UsbPacket {
 
     /// Check if this is a spectrum analysis packet.
     pub fn is_specan(&self) -> bool {
-        self.header.pkt_type == PKT_TYPE_SPECAN ||
-        self.header.pkt_type == PKT_TYPE_SPECAN_RAW
+        self.header.pkt_type == PKT_TYPE_SPECAN || self.header.pkt_type == PKT_TYPE_SPECAN_RAW
     }
 
     /// Check if this is a BLE packet.
@@ -163,9 +162,7 @@ impl BlePacket {
     /// Parse BLE packet from USB packet payload.
     pub fn from_usb_packet(pkt: &UsbPacket) -> Result<Self> {
         if !pkt.is_ble() {
-            return Err(UsbError::InvalidPacket(
-                "Not a BLE packet".to_string(),
-            ));
+            return Err(UsbError::InvalidPacket("Not a BLE packet".to_string()));
         }
 
         let payload = &pkt.payload;
@@ -177,12 +174,7 @@ impl BlePacket {
         }
 
         // Parse BLE packet structure
-        let access_address = u32::from_le_bytes([
-            payload[0],
-            payload[1],
-            payload[2],
-            payload[3],
-        ]);
+        let access_address = u32::from_le_bytes([payload[0], payload[1], payload[2], payload[3]]);
 
         let pdu_header = payload[4];
         let length = payload[5];
@@ -283,7 +275,9 @@ impl BlePacket {
     /// Parse advertising data structures
     pub fn parse_advertising_data(&self) -> Result<AdvertisingData> {
         if !self.is_advertising() {
-            return Err(UsbError::InvalidPacket("Not an advertising packet".to_string()));
+            return Err(UsbError::InvalidPacket(
+                "Not an advertising packet".to_string(),
+            ));
         }
 
         AdvertisingData::parse(&self.payload)
@@ -334,7 +328,9 @@ impl AdvertisingData {
     /// Parse advertising data from BLE payload
     pub fn parse(payload: &[u8]) -> Result<Self> {
         if payload.len() < 6 {
-            return Err(UsbError::InvalidPacket("Payload too short for address".to_string()));
+            return Err(UsbError::InvalidPacket(
+                "Payload too short for address".to_string(),
+            ));
         }
 
         // Extract address (first 6 bytes)
@@ -511,7 +507,7 @@ impl SpectrumPoint {
             let base_channel = pkt.header.channel;
             for (i, &rssi_byte) in pkt.payload.iter().enumerate() {
                 let channel = base_channel + i as u8;
-                let frequency_mhz = 2402 + (channel as u16 * 1);
+                let frequency_mhz = 2402 + (channel as u16);
 
                 points.push(SpectrumPoint {
                     frequency_mhz,
@@ -558,7 +554,7 @@ impl DeviceInfo {
     /// Check if firmware meets minimum version requirement.
     pub fn is_firmware_compatible(&self) -> bool {
         // Simple string comparison (should work for YYYY-MM-RX format)
-        self.firmware_version >= MIN_FIRMWARE_VERSION.to_string()
+        self.firmware_version.as_str() >= MIN_FIRMWARE_VERSION
     }
 }
 
@@ -573,7 +569,7 @@ mod tests {
             0,    // status
             37,   // channel
             0x12, // clkn_high
-            0x34, 0x56, 0x78, 0x9A,  // clk100ns (little-endian)
+            0x34, 0x56, 0x78, 0x9A, // clk100ns (little-endian)
             0xE0, // rssi_max (-32)
             0xF0, // rssi_min (-16)
             0xE8, // rssi_avg (-24)
@@ -620,7 +616,7 @@ mod tests {
 
     #[test]
     fn test_usb_packet_parse() {
-        let mut data = vec![1, 0, 37, 0, 0, 0, 0, 0xD0, 0, 0, 0, 0, 0, 0];  // pkt_type=1 for BLE
+        let mut data = vec![1, 0, 37, 0, 0, 0, 0, 0xD0, 0, 0, 0, 0, 0, 0]; // pkt_type=1 for BLE
         data.extend_from_slice(&[0xAA, 0xBB, 0xCC, 0xDD]); // Some payload
 
         let packet = UsbPacket::from_bytes(&data).unwrap();
