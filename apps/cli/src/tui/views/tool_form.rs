@@ -2,7 +2,6 @@
 
 use anyhow::Result;
 use serde_json::{json, Value};
-use std::collections::HashMap;
 use std::sync::Arc;
 use tui_textarea::TextArea;
 use ubertooth_core::PentestTool;

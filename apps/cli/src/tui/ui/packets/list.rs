@@ -1,14 +1,10 @@
 //! Packet list rendering with filtering
 
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
-    text::{Line, Span, Text},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
+    layout::Rect,
     Frame,
 };
 
-use crate::tui::app::AppState;
 
 
 /// Render packet list view (original table view)

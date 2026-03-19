@@ -3,13 +3,11 @@
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    text::{Line, Span, Text},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
+    text::{Line, Span},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame,
 };
 
-use crate::tui::app::AppState;
-use crate::tui::themes::Theme;
 use crate::tui::views::{FieldInputMode, FieldType};
 
 

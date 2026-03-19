@@ -1,36 +1,23 @@
 //! Core UI rendering logic
 
-use super::analysis::{
-    render_analysis_devices, render_analysis_overview, render_analysis_results,
-    render_analysis_security, render_analysis_timing,
-};
+use super::analysis::render_analysis_results;
 use super::capture::{render_capture_details, render_capture_list_table};
 use super::errors::{render_comparison_results, render_error_message};
 use super::forms::{render_export_menu, render_filter_dialog, render_tool_form};
-use super::live::{
-    render_live_capture, render_live_capture_header, render_live_packet_list,
-    render_live_statistics,
-};
+use super::live::render_live_capture;
 use super::menu::{render_main_menu, render_tool_category, render_tool_hotkeys};
 use super::overlays::{
     render_confirmation, render_dialog, render_help_overlay, render_notification,
     render_theme_selector,
 };
-use super::packets::comparison::render_packet_comparison;
 use super::packets::decoded::render_decoded_packets;
-use super::packets::list::render_packet_list;
-use super::packets::statistics::render_packet_statistics;
-use super::packets::timeline::render_packet_timeline;
-use super::session::{
-    render_session_list, render_session_loading, render_session_manager, render_session_save,
-};
-use super::utils::{categorize_error, centered_rect};
+use super::session::render_session_manager;
 
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame,
 };
 use std::sync::Arc;
@@ -38,7 +25,7 @@ use ubertooth_core::ToolRegistry;
 
 use crate::tui::app::{AppState, DeviceStatus, Notification, TextInputDialog};
 use crate::tui::themes::Theme;
-use crate::tui::views::{Category, FieldInputMode, FieldType};
+use crate::tui::views::Category;
 
 /// Render the entire UI
 pub fn render(
@@ -59,7 +46,7 @@ pub fn render(
             Constraint::Min(0),    // Content
             Constraint::Length(3), // Footer
         ])
-        .split(f.size());
+        .split(f.area());
 
     render_header(f, chunks[0], device_status, theme);
     render_content(
@@ -75,12 +62,12 @@ pub fn render(
 
     // Render notification on top if present
     if let Some(notif) = notification {
-        render_notification(f, f.size(), notif);
+        render_notification(f, f.area(), notif);
     }
 
     // Render dialog overlay on top if present
     if let Some(dlg) = dialog {
-        render_dialog(f, f.size(), dlg);
+        render_dialog(f, f.area(), dlg);
     }
 }
 

@@ -1,16 +1,14 @@
 //! Session management view rendering
 
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame,
 };
-use std::sync::Arc;
 
 use super::utils::centered_rect;
-use crate::tui::app::{AppState, SessionMode};
 
 
 /// Render session manager view

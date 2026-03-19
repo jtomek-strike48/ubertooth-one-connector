@@ -10,8 +10,7 @@ use ratatui::{
 use std::sync::Arc;
 use ubertooth_core::ToolRegistry;
 
-use crate::tui::app::{AppState, DeviceStatus};
-use crate::tui::themes::Theme;
+use crate::tui::app::DeviceStatus;
 use crate::tui::views::Category;
 
 

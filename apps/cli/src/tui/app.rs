@@ -590,7 +590,7 @@ impl App {
         }));
 
         // Create event handler
-        let mut events = EventHandler::new(250); // 250ms tick rate
+        let events = EventHandler::new(250); // 250ms tick rate
 
         // Main loop with error recovery
         let result = (|| -> Result<()> {
@@ -1983,7 +1983,7 @@ impl App {
                         }
                         AppState::Results {
                             packet_list_state,
-                            output,
+                            
                             ..
                         } => {
                             if let Some(pls) = packet_list_state {

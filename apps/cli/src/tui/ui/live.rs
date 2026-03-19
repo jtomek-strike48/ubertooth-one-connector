@@ -3,14 +3,12 @@
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
-    text::{Line, Span, Text},
-    widgets::{Block, Borders, List, ListItem, Paragraph, Wrap},
+    text::{Line, Span},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame,
 };
 use std::sync::Arc;
 
-use crate::tui::app::AppState;
-use crate::tui::themes::Theme;
 
 
 /// Render help overlay with keyboard shortcuts

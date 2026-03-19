@@ -1,10 +1,7 @@
 //! Decoded packet display rendering
 
 use ratatui::{
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
-    text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem, Paragraph},
+    layout::Rect,
     Frame,
 };
 
@@ -23,10 +20,9 @@ pub(crate) fn render_decoded_packets(
     packet_list_state: Option<&crate::tui::app::PacketListState>,
 ) {
     use ratatui::{
-        layout::{Constraint, Direction, Layout},
-        style::{Color, Modifier, Style},
+        style::{Color, Style},
         text::{Line, Span},
-        widgets::{Block, Borders, Paragraph, Wrap},
+        widgets::{Block, Borders, Paragraph},
     };
 
     let packets = match output.get("decoded_packets").and_then(|p| p.as_array()) {

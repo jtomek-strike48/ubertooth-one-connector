@@ -10,7 +10,6 @@ use ratatui::{
 
 use super::super::app::{Notification, TextInputDialog};
 use super::super::themes::Theme;
-use super::utils::centered_rect;
 
 /// Render notification overlay at bottom center
 pub(crate) fn render_notification(f: &mut Frame, area: Rect, notification: &Notification) {
