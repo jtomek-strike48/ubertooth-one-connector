@@ -7,6 +7,7 @@ mod forms;
 mod live;
 mod menu;
 mod overlays;
+mod packets;
 mod session;
 mod utils;
 
