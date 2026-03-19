@@ -5,5 +5,6 @@
 
 pub mod compare;
 pub mod follow;
+pub mod other;
 pub mod scan;
 pub mod spectrum;
