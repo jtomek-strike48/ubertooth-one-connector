@@ -1,5 +1,8 @@
 //! Python sidecar manager for wrapping ubertooth-tools.
 
+mod types;
+mod validation;
+
 use async_trait::async_trait;
 use chrono::Utc;
 use pcap_parser::*;
@@ -15,58 +18,9 @@ use crate::backend::UbertoothBackendProvider;
 use crate::capture_store::{CaptureMetadata, CaptureStore};
 use crate::config_store::{ConfigMetadata, ConfigSettings, ConfigStore};
 
-/// PCAP analysis results structure.
-#[derive(Debug)]
-struct PcapAnalysis {
-    packet_count: usize,
-    total_bytes: usize,
-    duration_sec: f64,
-    packets_per_sec: f64,
-    avg_packet_size: f64,
-    devices: Vec<BleDevice>,
-    timing: TimingAnalysis,
-    security: SecurityAnalysis,
-}
-
-/// Timing analysis results.
-#[derive(Debug)]
-struct TimingAnalysis {
-    avg_interval_ms: f64,
-    min_interval_ms: f64,
-    max_interval_ms: f64,
-    intervals_count: usize,
-}
-
-/// Security observation from analysis.
-#[derive(Debug, Clone)]
-struct SecurityObservation {
-    observation_type: String,
-    severity: String,
-    description: String,
-    affected_device: Option<String>,
-}
-
-/// Security analysis results.
-#[derive(Debug)]
-struct SecurityAnalysis {
-    observations: Vec<SecurityObservation>,
-    privacy_enabled_count: usize,
-    public_address_count: usize,
-    connection_requests: usize,
-    scan_requests: usize,
-}
-
-/// BLE device information extracted from packets.
-#[derive(Debug, Clone)]
-struct BleDevice {
-    mac_address: String,
-    name: Option<String>,
-    rssi: i8,
-    pdu_type: String,
-    first_seen: f64,
-    last_seen: f64,
-    packet_count: usize,
-}
+// Import types from submodules
+use types::*;
+pub use validation::check_ubertooth_installed;
 
 /// Python sidecar process manager.
 ///
@@ -83,30 +37,6 @@ impl SidecarManager {
         Arc::new(Self {
             process: Arc::new(Mutex::new(None)),
         })
-    }
-
-    /// Check if ubertooth-tools are installed on the system.
-    pub fn check_ubertooth_installed() -> Result<()> {
-        // Check for ubertooth-util (core utility)
-        let output = Command::new("which")
-            .arg("ubertooth-util")
-            .output()
-            .map_err(|e| {
-                UbertoothError::BackendError(format!("Failed to check for ubertooth-util: {}", e))
-            })?;
-
-        if !output.status.success() {
-            return Err(UbertoothError::BackendError(
-                "ubertooth-tools not found. Please install:\n\
-                 Ubuntu/Debian: sudo apt-get install ubertooth\n\
-                 Arch: sudo pacman -S ubertooth\n\
-                 macOS: brew install ubertooth\n\
-                 From source: https://github.com/greatscottgadgets/ubertooth"
-                    .to_string(),
-            ));
-        }
-
-        Ok(())
     }
 
     /// Spawn the Python sidecar process (if needed in future).
@@ -248,7 +178,7 @@ impl SidecarManager {
     /// Device connect implementation.
     async fn device_connect(&self) -> Result<Value> {
         // Check if tools are installed
-        Self::check_ubertooth_installed()?;
+        check_ubertooth_installed()?;
 
         // Get device information using ubertooth-util
         let output = self
