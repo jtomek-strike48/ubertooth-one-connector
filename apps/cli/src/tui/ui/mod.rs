@@ -2,7 +2,10 @@
 //!
 //! This module organizes the TUI rendering logic into focused sub-modules.
 
+mod analysis;
+mod capture;
 mod core;
+mod errors;
 mod forms;
 mod live;
 mod menu;
