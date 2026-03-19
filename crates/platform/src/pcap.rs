@@ -2,11 +2,11 @@
 
 use crate::capture_store::{CaptureMetadata, CaptureStore};
 use chrono::Utc;
-use pcap_file::pcap::{PcapReader, PcapWriter};
-use pcap_file::pcapng::{PcapNgReader, PcapNgWriter};
+use pcap_file::pcap::PcapReader;
+use pcap_file::pcapng::PcapNgReader;
 use pcap_file::PcapError;
 use std::fs::File;
-use std::io::{BufReader, BufWriter};
+use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use ubertooth_core::error::{Result, UbertoothError};
 use uuid::Uuid;

@@ -3,10 +3,8 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use pcap_parser::*;
-use pcap_parser::traits::PcapReaderIterator;
 use serde_json::{json, Value};
 use std::fs::File;
-use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;

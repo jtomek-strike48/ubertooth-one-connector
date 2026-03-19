@@ -569,15 +569,28 @@ mod tests {
     #[test]
     fn test_packet_header_parse() {
         let data = vec![
-            2, 0, 37, 0x12, 0x34, 0x56, 0x78, 0xE0, 0, 0, 0, 0, 0, 0,
+            2,    // pkt_type
+            0,    // status
+            37,   // channel
+            0x12, // clkn_high
+            0x34, 0x56, 0x78, 0x9A,  // clk100ns (little-endian)
+            0xE0, // rssi_max (-32)
+            0xF0, // rssi_min (-16)
+            0xE8, // rssi_avg (-24)
+            5,    // rssi_count
+            0, 0, // reserved
         ];
         let header = UsbPacketHeader::from_bytes(&data).unwrap();
 
         assert_eq!(header.pkt_type, 2);
         assert_eq!(header.status, 0);
         assert_eq!(header.channel, 37);
-        assert_eq!(header.clock, 0x78563412);
-        assert_eq!(header.rssi, -32);
+        assert_eq!(header.clkn_high, 0x12);
+        assert_eq!(header.clk100ns, 0x9A785634);
+        assert_eq!(header.rssi_max, -32);
+        assert_eq!(header.rssi_min, -16);
+        assert_eq!(header.rssi_avg, -24);
+        assert_eq!(header.rssi_count, 5);
     }
 
     #[test]
@@ -607,12 +620,13 @@ mod tests {
 
     #[test]
     fn test_usb_packet_parse() {
-        let mut data = vec![2, 0, 37, 0, 0, 0, 0, 0xD0, 0, 0, 0, 0, 0, 0];
+        let mut data = vec![1, 0, 37, 0, 0, 0, 0, 0xD0, 0, 0, 0, 0, 0, 0];  // pkt_type=1 for BLE
         data.extend_from_slice(&[0xAA, 0xBB, 0xCC, 0xDD]); // Some payload
 
         let packet = UsbPacket::from_bytes(&data).unwrap();
 
         assert!(packet.is_ble());
+        assert_eq!(packet.header.pkt_type, PKT_TYPE_LE_PACKET);
         assert_eq!(packet.header.channel, 37);
         assert_eq!(packet.payload.len(), 4);
     }

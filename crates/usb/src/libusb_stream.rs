@@ -204,7 +204,7 @@ fn run_streaming_loop(
 
         // Event loop
         debug!("Starting libusb event loop");
-        let mut packet_count = 0;
+        let packet_count = 0;
 
         while running.load(Ordering::Relaxed) {
             let mut completed = 0;
