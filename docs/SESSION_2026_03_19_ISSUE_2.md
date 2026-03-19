@@ -65,20 +65,50 @@ cargo clippy --package ubertooth-platform # ✅ No warnings
 
 ---
 
+### ✅ Phase 3 Complete: Extract Device & Capture Methods
+**Commit:** 322fbae
+**Result:** 3,111 → 2,796 lines (315 lines extracted, 10.1% reduction)
+
+**Files Created:**
+1. `crates/platform/src/sidecar/device.rs` (76 lines)
+   - device_connect() - Check tools and get device info
+   - device_disconnect() - No-op for Python backend
+   - device_status() - Return current device information
+
+2. `crates/platform/src/sidecar/capture.rs` (260 lines)
+   - capture_list() - List captures with filtering and pagination
+   - capture_get() - Get specific capture metadata
+   - capture_delete() - Delete capture and metadata
+   - capture_tag() - Add tags to capture
+   - capture_export() - Export capture to different formats
+
+**Changes to sidecar.rs:**
+- Added `mod device;` and `mod capture;` declarations
+- Removed 3 device methods and 5 capture methods
+- Removed unused PathBuf import
+- Fixed orphaned doc comments
+
+**Testing:**
+```bash
+cargo check --package ubertooth-platform  # ✅ PASS
+cargo clippy --package ubertooth-platform # ✅ No warnings
+```
+
+**Cumulative Progress:** 3,469 → 2,796 lines (673 lines extracted, 19.4% reduction)
+
+---
+
 ## Remaining Work
 
-### Phase 3: Device & Capture Methods (Next)
-**Target Files:** `crates/platform/src/sidecar/config.rs`
-**Lines:** ~250 lines
+### Phase 4: Tool Execution Methods (Next)
+**Lines:** ~1,700 lines
 **Methods to Extract:**
-- configure_channel() (line 627)
-- configure_modulation() (line 674)
-- configure_power() (line 706)
-- configure_squelch() (line 2152)
-- configure_leds() (line 2185)
-- session_context() (line 1634)
+- btle_scan()
+- bt_analyze()
+- bt_compare()
+- Tool execution helpers
 
-### Phase 3-7: Remaining Phases
+### Phase 4-7: Remaining Phases
 See `docs/ISSUE_2_REFACTORING_PLAN.md` for complete breakdown:
 - Phase 3: Device & Capture (~500 lines)
 - Phase 4: Tool Execution (~1,700 lines)
@@ -133,11 +163,14 @@ Given lessons from Issue #1 (ui.rs):
 
 ## Files Modified This Session
 
-1. `crates/platform/src/sidecar.rs` - Reduced from 3,469 to 3,399 lines
+1. `crates/platform/src/sidecar.rs` - Reduced from 3,469 to 2,796 lines
 2. `crates/platform/src/sidecar/types.rs` - Created (54 lines)
 3. `crates/platform/src/sidecar/validation.rs` - Created (26 lines)
-4. `docs/ISSUE_2_REFACTORING_PLAN.md` - Created (comprehensive plan)
-5. `docs/SESSION_2026_03_19_ISSUE_2.md` - This file
+4. `crates/platform/src/sidecar/config.rs` - Created (302 lines)
+5. `crates/platform/src/sidecar/device.rs` - Created (76 lines)
+6. `crates/platform/src/sidecar/capture.rs` - Created (260 lines)
+7. `docs/ISSUE_2_REFACTORING_PLAN.md` - Created (comprehensive plan)
+8. `docs/SESSION_2026_03_19_ISSUE_2.md` - This file
 
 ---
 
@@ -156,9 +189,10 @@ Given lessons from Issue #1 (ui.rs):
 ```
 02e5a9a - refactor: Extract types and validation from sidecar.rs (Phase 1)
 9ebe41e - refactor: Extract configuration methods from sidecar.rs (Phase 2)
+322fbae - refactor: Extract device and capture methods from sidecar.rs (Phase 3)
 ```
 
 ---
 
 *Session End: 2026-03-19*
-*Ready for Phase 2 in next session*
+*Ready for Phase 4 in next session*
