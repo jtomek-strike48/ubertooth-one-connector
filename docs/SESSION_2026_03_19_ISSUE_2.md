@@ -37,9 +37,37 @@ cargo clippy --package ubertooth-platform # ✅ No warnings
 
 ---
 
+### ✅ Phase 2 Complete: Extract Configuration Methods
+**Commit:** 9ebe41e
+**Result:** 3,399 → 3,111 lines (288 lines extracted, 8.5% reduction)
+
+**Files Created:**
+1. `crates/platform/src/sidecar/config.rs` (302 lines)
+   - configure_channel()
+   - configure_modulation()
+   - configure_power()
+   - configure_squelch()
+   - configure_leds()
+   - session_context()
+
+**Changes to sidecar.rs:**
+- Added `mod config;` declaration
+- Removed 6 configuration method implementations
+- Methods now accessible via config module extending SidecarManager
+
+**Testing:**
+```bash
+cargo check --package ubertooth-platform  # ✅ PASS
+cargo clippy --package ubertooth-platform # ✅ No warnings
+```
+
+**Cumulative Progress:** 3,469 → 3,111 lines (358 lines extracted, 10.3% reduction)
+
+---
+
 ## Remaining Work
 
-### Phase 2: Configuration Methods (Planned)
+### Phase 3: Device & Capture Methods (Next)
 **Target Files:** `crates/platform/src/sidecar/config.rs`
 **Lines:** ~250 lines
 **Methods to Extract:**
@@ -127,6 +155,7 @@ Given lessons from Issue #1 (ui.rs):
 
 ```
 02e5a9a - refactor: Extract types and validation from sidecar.rs (Phase 1)
+9ebe41e - refactor: Extract configuration methods from sidecar.rs (Phase 2)
 ```
 
 ---
