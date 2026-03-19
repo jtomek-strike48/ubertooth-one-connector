@@ -1,0 +1,40 @@
+[package]
+name = "ubertooth-api"
+version = "0.0.1"
+edition = "2021"
+authors = ["Ubertooth One Contributors"]
+description = "REST API server for Ubertooth One"
+
+[dependencies]
+# Core dependencies
+ubertooth-core = { path = "../../crates/core" }
+ubertooth-platform = { path = "../../crates/platform" }
+ubertooth-tools = { path = "../../crates/tools" }
+
+# Web framework
+axum = { version = "0.7", features = ["macros", "ws"] }
+tokio = { version = "1", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace", "compression-gzip"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# OpenAPI
+utoipa = { version = "4", features = ["axum_extras"] }
+utoipa-swagger-ui = { version = "6", features = ["axum"] }
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error handling
+anyhow = "1.0"
+
+# Async utilities
+futures = "0.3"
+
+[[bin]]
+name = "ubertooth-api"
+path = "src/main.rs"

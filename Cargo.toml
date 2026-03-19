@@ -8,6 +8,7 @@ members = [
     "crates/integration-tests",
     "apps/headless",
     "apps/cli",
+    "apps/api",
 ]
 
 [workspace.package]
